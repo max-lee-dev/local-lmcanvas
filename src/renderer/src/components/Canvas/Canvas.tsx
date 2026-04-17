@@ -116,6 +116,7 @@ function CanvasInner() {
         fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
         minZoom={0.2}
         maxZoom={2}
+        zoomOnDoubleClick={false}
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#d4d4d8" />

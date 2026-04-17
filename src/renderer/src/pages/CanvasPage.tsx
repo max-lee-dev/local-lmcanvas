@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Settings } from "lucide-react";
+import { ArrowLeft, Plus, Settings } from "lucide-react";
 import { Canvas } from "@/components/Canvas/Canvas";
-import { useCanvasStore } from "@/hooks/useCanvasStore";
+import { makeBlankNode, useCanvasStore } from "@/hooks/useCanvasStore";
 import { SettingsModal } from "@/components/SettingsModal";
 import { navigate } from "@/App";
 
@@ -14,7 +14,12 @@ export function CanvasPage({ id }: { id: string }) {
   const error = useCanvasStore((s) => s.error);
   const saving = useCanvasStore((s) => s.saving);
   const nodeCount = useCanvasStore((s) => Object.keys(s.nodes).length);
+  const addNode = useCanvasStore((s) => s.addNode);
   const [showSettings, setShowSettings] = useState(false);
+
+  const createFirstNode = () => {
+    addNode(makeBlankNode({ x: 0, y: 0 }));
+  };
 
   useEffect(() => {
     if (id && canvasId !== id) void loadCanvas(id);
@@ -59,9 +64,16 @@ export function CanvasPage({ id }: { id: string }) {
         {loaded && !error && (
           <>
             {nodeCount === 0 && (
-              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-                <div className="pointer-events-none rounded-md bg-white/80 px-4 py-2 text-xs text-zinc-500 shadow-sm">
-                  double-click anywhere to create your first node
+              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3">
+                <button
+                  onClick={createFirstNode}
+                  className="pointer-events-auto flex items-center gap-1.5 rounded-md bg-zinc-900 px-4 py-2 text-sm text-white shadow-md hover:bg-zinc-700"
+                >
+                  <Plus size={14} />
+                  new node
+                </button>
+                <div className="pointer-events-none text-xs text-zinc-500">
+                  or double-click anywhere on the canvas
                 </div>
               </div>
             )}
