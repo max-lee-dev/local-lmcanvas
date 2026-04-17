@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -8,8 +8,6 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
-  applyEdgeChanges,
-  applyNodeChanges,
   useReactFlow,
   type Connection,
   type Edge,
@@ -22,22 +20,10 @@ import { useCanvasStore, makeBlankNode } from "@/hooks/useCanvasStore";
 import { useDebouncedSave } from "@/hooks/useDebouncedSave";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { CustomNode } from "./CustomNode";
-import type { CanvasNode } from "@/lib/graph/types";
 
 const nodeTypes = { custom: CustomNode };
 
-function toRFNodes(byId: Record<string, CanvasNode>): Node[] {
-  return Object.values(byId).map((n) => ({
-    id: n.id,
-    type: n.type === "custom" ? "custom" : "default",
-    position: n.position,
-    data: n.data as unknown as Record<string, unknown>,
-  }));
-}
-
-function toRFEdges(edges: { id: string; source: string; target: string }[]): Edge[] {
-  return edges.map((e) => ({ id: e.id, source: e.source, target: e.target, type: "default" }));
-}
+type LivePos = Record<string, { x: number; y: number }>;
 
 function CanvasInner() {
   const nodesById = useCanvasStore((s) => s.nodes);
@@ -50,34 +36,40 @@ function CanvasInner() {
   useDebouncedSave();
   useKeyboardShortcuts();
 
-  // Local rf state, kept in sync with the store; lets xyflow handle drag visuals.
-  const [rfNodes, setRfNodes] = useState<Node[]>(() => toRFNodes(nodesById));
-  const [rfEdges, setRfEdges] = useState<Edge[]>(() => toRFEdges(edgesState));
+  // Position-only local cache. Node identity & data come directly from the store.
+  // Using a cache here means streaming deltas (which churn `nodesById`) never
+  // override an in-flight drag position.
+  const [livePos, setLivePos] = useState<LivePos>({});
 
-  // Sync store → local when store changes (add/remove/streamed content).
-  useEffect(() => {
-    setRfNodes((prev) => {
-      const next = toRFNodes(nodesById);
-      // preserve in-flight positions from prev if the node exists in both
-      const prevById = new Map(prev.map((n) => [n.id, n]));
-      return next.map((n) => {
-        const p = prevById.get(n.id);
-        // if stored position differs and prev has newer drag position, keep store (source of truth after drop)
-        return p ? { ...n, position: n.position } : n;
-      });
-    });
-  }, [nodesById]);
+  const rfNodes = useMemo<Node[]>(() => {
+    return Object.values(nodesById).map((n) => ({
+      id: n.id,
+      type: n.type === "custom" ? "custom" : "default",
+      position: livePos[n.id] ?? n.position,
+      data: n.data as unknown as Record<string, unknown>,
+    }));
+  }, [nodesById, livePos]);
 
-  useEffect(() => {
-    setRfEdges(toRFEdges(edgesState));
-  }, [edgesState]);
+  const rfEdges = useMemo<Edge[]>(
+    () => edgesState.map((e) => ({ id: e.id, source: e.source, target: e.target, type: "default" })),
+    [edgesState]
+  );
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      setRfNodes((nds) => applyNodeChanges(changes, nds));
       for (const c of changes) {
-        if (c.type === "position" && !c.dragging && c.position) {
-          movePosition(c.id, c.position);
+        if (c.type === "position" && c.position) {
+          const pos = c.position;
+          setLivePos((p) => ({ ...p, [c.id]: pos }));
+          if (!c.dragging) {
+            movePosition(c.id, pos);
+            // clear live entry so future store changes are visible
+            setLivePos((p) => {
+              const next = { ...p };
+              delete next[c.id];
+              return next;
+            });
+          }
         } else if (c.type === "remove") {
           removeNode(c.id);
         }
@@ -86,8 +78,8 @@ function CanvasInner() {
     [movePosition, removeNode]
   );
 
-  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
-    setRfEdges((eds) => applyEdgeChanges(changes, eds));
+  const onEdgesChange = useCallback((_changes: EdgeChange[]) => {
+    // edges are fully owned by the store; selection/remove handled via store only
   }, []);
 
   const onConnect = useCallback(
@@ -111,7 +103,7 @@ function CanvasInner() {
     [screenToFlowPosition, addNode]
   );
 
-  const nodeCount = useMemo(() => rfNodes.length, [rfNodes]);
+  const nodeCount = rfNodes.length;
 
   return (
     <div ref={wrapperRef} className="h-full w-full" onDoubleClick={onPaneDoubleClick}>

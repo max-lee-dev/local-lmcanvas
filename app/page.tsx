@@ -3,14 +3,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Settings } from "lucide-react";
-import type { CanvasSummary } from "@/lib/graph/types";
+import { Plus, Trash2, Settings, Pencil, Check, X } from "lucide-react";
+import type { Canvas, CanvasSummary } from "@/lib/graph/types";
 import { SettingsModal } from "@/components/SettingsModal";
 
 export default function Home() {
   const [canvases, setCanvases] = useState<CanvasSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const router = useRouter();
 
   const refresh = async () => {
@@ -38,6 +40,25 @@ export default function Home() {
   const deleteCanvas = async (id: string, name: string) => {
     if (!confirm(`delete "${name}"? this cannot be undone.`)) return;
     await fetch(`/api/canvases/${id}`, { method: "DELETE" });
+    void refresh();
+  };
+
+  const startRename = (c: CanvasSummary) => {
+    setRenamingId(c.id);
+    setRenameValue(c.name);
+  };
+
+  const commitRename = async (id: string) => {
+    const name = renameValue.trim() || "untitled canvas";
+    const res = await fetch(`/api/canvases/${id}`);
+    if (!res.ok) return;
+    const canvas = (await res.json()) as Canvas;
+    await fetch(`/api/canvases/${id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...canvas, name }),
+    });
+    setRenamingId(null);
     void refresh();
   };
 
@@ -76,27 +97,68 @@ export default function Home() {
 
       {!loading && canvases.length > 0 && (
         <div className="flex flex-col gap-1">
-          {canvases.map((c) => (
-            <div
-              key={c.id}
-              className="flex items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2 hover:bg-zinc-50"
-            >
-              <Link href={`/canvas/${c.id}`} className="flex-1">
-                <div className="text-sm font-medium">{c.name || "untitled"}</div>
-                <div className="text-[11px] text-zinc-500">
-                  {c.nodeCount} node{c.nodeCount === 1 ? "" : "s"} · updated{" "}
-                  {new Date(c.updatedAt).toLocaleString()}
-                </div>
-              </Link>
-              <button
-                onClick={() => deleteCanvas(c.id, c.name)}
-                className="flex h-7 w-7 items-center justify-center rounded text-red-600 hover:bg-red-50"
-                title="delete"
+          {canvases.map((c) => {
+            const isRenaming = renamingId === c.id;
+            return (
+              <div
+                key={c.id}
+                className="flex items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2 hover:bg-zinc-50"
               >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
+                {isRenaming ? (
+                  <div className="flex flex-1 items-center gap-2">
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void commitRename(c.id);
+                        if (e.key === "Escape") setRenamingId(null);
+                      }}
+                      className="flex-1 rounded-md border border-zinc-300 px-2 py-1 text-sm outline-none focus:border-zinc-500"
+                    />
+                    <button
+                      onClick={() => void commitRename(c.id)}
+                      className="flex h-7 w-7 items-center justify-center rounded text-green-600 hover:bg-green-50"
+                      title="save"
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      onClick={() => setRenamingId(null)}
+                      className="flex h-7 w-7 items-center justify-center rounded hover:bg-zinc-100"
+                      title="cancel"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <Link href={`/canvas/${c.id}`} className="flex-1">
+                      <div className="text-sm font-medium">{c.name || "untitled"}</div>
+                      <div className="text-[11px] text-zinc-500">
+                        {c.nodeCount} node{c.nodeCount === 1 ? "" : "s"} · updated{" "}
+                        {new Date(c.updatedAt).toLocaleString()}
+                      </div>
+                    </Link>
+                    <button
+                      onClick={() => startRename(c)}
+                      className="flex h-7 w-7 items-center justify-center rounded text-zinc-500 hover:bg-zinc-100"
+                      title="rename"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => deleteCanvas(c.id, c.name)}
+                      className="flex h-7 w-7 items-center justify-center rounded text-red-600 hover:bg-red-50"
+                      title="delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
