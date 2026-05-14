@@ -15,8 +15,10 @@
     "dist": "electron-vite build && electron-builder"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.141",
     "@xyflow/react": "^12.10.2",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.38.0",
     "lucide-react": "^1.8.0",
     "nanoid": "^5.1.9",
     "react": "^19.1.0",

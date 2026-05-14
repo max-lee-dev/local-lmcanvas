@@ -1,11 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { ChatEvent, ChatStartArgs, LmcApi } from "@shared/ipc";
+import type { ChatEvent, ChatStartArgs, LmcApi, CanvasCreateArgs } from "@shared/ipc";
 import type { AppSettings, Canvas } from "@shared/types";
 
 const api: LmcApi = {
   canvases: {
     list: () => ipcRenderer.invoke("canvases:list"),
-    create: (name) => ipcRenderer.invoke("canvases:create", name),
+    create: (args: CanvasCreateArgs) => ipcRenderer.invoke("canvases:create", args),
     read: (id) => ipcRenderer.invoke("canvases:read", id),
     write: (canvas: Canvas) => ipcRenderer.invoke("canvases:write", canvas),
     delete: (id) => ipcRenderer.invoke("canvases:delete", id),
@@ -22,6 +22,13 @@ const api: LmcApi = {
       ipcRenderer.on("chat:event", listener);
       return () => ipcRenderer.off("chat:event", listener);
     },
+  },
+  dialog: {
+    pickFolder: (defaultPath?: string) =>
+      ipcRenderer.invoke("dialog:pickFolder", defaultPath),
+  },
+  shell: {
+    openPath: (path: string) => ipcRenderer.invoke("shell:openPath", path),
   },
 };
 

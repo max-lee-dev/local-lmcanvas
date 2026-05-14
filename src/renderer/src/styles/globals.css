@@ -1,10 +1,59 @@
+@import url("https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap");
 @import "tailwindcss";
 @import "highlight.js/styles/github.css";
 @import "@xyflow/react/dist/style.css";
 
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-brand: var(--accent-brand);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-grid-line: var(--grid-line);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
 :root {
-  --background: #fafafa;
-  --foreground: #18181b;
+  --font-lato: "Lato";
+  --radius: 0.625rem;
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --accent-brand: oklch(0.2 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --grid-line: oklch(0.94 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --yellow: oklch(0.8 0.2 85);
 }
 
 html,
@@ -17,7 +66,13 @@ body,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family:
+    var(--font-lato),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
   overflow: hidden;
 }
 
@@ -38,55 +93,254 @@ header.app-drag {
   padding-left: 84px;
 }
 
-/* minimal prose styling inside node responses */
-.prose {
-  --tw-prose-body: #18181b;
-  line-height: 1.5;
-}
-.prose p {
-  margin: 0 0 0.4em;
-}
-.prose p:last-child {
-  margin-bottom: 0;
-}
-.prose pre {
-  background: #f4f4f5;
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-  font-size: 12px;
-  overflow-x: auto;
-}
-.prose code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-}
-.prose code:not(pre code) {
-  background: #f4f4f5;
-  padding: 0.05em 0.3em;
-  border-radius: 3px;
-}
-.prose ul,
-.prose ol {
-  margin: 0.3em 0 0.5em 1.2em;
-}
-.prose h1,
-.prose h2,
-.prose h3 {
-  font-weight: 600;
-  margin: 0.6em 0 0.3em;
-}
-.prose h1 {
-  font-size: 1.05rem;
-}
-.prose h2 {
-  font-size: 1rem;
-}
-.prose h3 {
-  font-size: 0.95rem;
+/* avera ports Lato to canvas node content only — body uses Lato globally too here */
+.react-flow__node {
+  font-family:
+    var(--font-lato),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
 }
 
+/* Canvas interaction-mode cursors (avera) */
+.canvas-cursor-select .react-flow__pane {
+  cursor: default !important;
+}
+.canvas-cursor-pan .react-flow__pane {
+  cursor: grab !important;
+}
+.canvas-cursor-pan .react-flow__pane:active {
+  cursor: grabbing !important;
+}
+
+/* Hide xyflow node default outline; we style ourselves */
+.react-flow__node-custom.selected,
+.react-flow__node-custom:focus,
+.react-flow__node-custom:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.react-flow__edge-path {
+  stroke: var(--muted-foreground);
+  stroke-width: 2.25;
+  opacity: 0.95;
+}
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--foreground);
+  opacity: 1;
+}
+
+/* ReactFlow MiniMap theme styling (avera) */
 .react-flow__minimap {
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 6px;
-  border: 1px solid #e4e4e7;
+  background-color: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  z-index: 1100 !important;
+}
+.react-flow__minimap svg {
+  background-color: var(--card) !important;
+}
+.react-flow__minimap-mask {
+  fill: var(--accent) !important;
+  fill-opacity: 0.8 !important;
+}
+
+/* Controls — match avera card style */
+.react-flow__controls {
+  background-color: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background-color: var(--card) !important;
+  border-bottom: 1px solid var(--border) !important;
+  color: var(--foreground) !important;
+}
+.react-flow__controls-button:hover {
+  background-color: var(--muted) !important;
+}
+
+/* Scrollbar styling (avera) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--muted);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+}
+
+.node-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.node-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+.node-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+.node-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Markdown — sized to match avera's text-[10px] + tokens */
+.node-md {
+  color: var(--foreground);
+  font-size: 10px;
+  line-height: 1.55;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.node-md > * + * {
+  margin-top: 0.5rem;
+}
+.node-md p {
+  margin: 0 0 0.5em;
+  line-height: 1.55;
+}
+.node-md p:last-child {
+  margin-bottom: 0;
+}
+.node-md h1 {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0.6em 0 0.4em;
+  color: var(--foreground);
+}
+.node-md h2 {
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0.6em 0 0.4em;
+  color: var(--foreground);
+}
+.node-md h3 {
+  font-size: 11px;
+  font-weight: 700;
+  margin: 0.5em 0 0.3em;
+  color: var(--foreground);
+}
+.node-md ul,
+.node-md ol {
+  margin: 0 0 0.5em 1.25em;
+}
+.node-md ul {
+  list-style: disc;
+}
+.node-md ol {
+  list-style: decimal;
+}
+.node-md li {
+  margin: 0.15em 0;
+  font-size: 10px;
+}
+.node-md li > p {
+  display: inline;
+  margin: 0;
+}
+.node-md a {
+  color: var(--accent-brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.node-md a:hover {
+  opacity: 0.8;
+}
+.node-md blockquote {
+  border-left: 4px solid var(--border);
+  background: var(--muted);
+  padding: 0.4em 0.7em;
+  margin: 0.5em 0;
+  font-style: italic;
+  font-size: 11px;
+  color: var(--foreground);
+}
+.node-md code:not(pre code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.05em 0.35em;
+  border-radius: 4px;
+}
+.node-md table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  width: 100%;
+  font-size: 10px;
+  color: var(--foreground);
+}
+.node-md th,
+.node-md td {
+  border: 1px solid var(--border);
+  padding: 0.3em 0.5em;
+  text-align: left;
+}
+.node-md th {
+  background: var(--muted);
+  font-weight: 500;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.node-md hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.75em 0;
+}
+.node-md strong {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+/* shimmer for the streaming label (avera) */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+@keyframes shimmer-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.node-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted-foreground) 0%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 2.2s ease-in-out infinite;
 }

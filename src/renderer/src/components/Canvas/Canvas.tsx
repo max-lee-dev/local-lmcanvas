@@ -1,11 +1,14 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
+  ConnectionLineType,
   Controls,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  SelectionMode,
+  applyNodeChanges,
   useReactFlow,
   type Connection,
   type Edge,
@@ -17,11 +20,22 @@ import "@xyflow/react/dist/style.css";
 import { useCanvasStore, makeBlankNode } from "@/hooks/useCanvasStore";
 import { useDebouncedSave } from "@/hooks/useDebouncedSave";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { CustomNode } from "./CustomNode";
+import { useContextMenu } from "@/hooks/useContextMenu";
+import { getEdgeHandles } from "@/lib/edgeHandles";
+import { CustomNode, focusNodeTextarea } from "./CustomNode";
+import { ContextMenu } from "./ContextMenu";
 
 const nodeTypes = { custom: CustomNode };
 
-type LivePos = Record<string, { x: number; y: number }>;
+const defaultEdgeOptions = {
+  type: "default",
+};
+
+const edgeStyle = {
+  stroke: "var(--muted-foreground)",
+  strokeWidth: 2.25,
+  opacity: 0.95,
+};
 
 function CanvasInner() {
   const nodesById = useCanvasStore((s) => s.nodes);
@@ -34,39 +48,121 @@ function CanvasInner() {
   useDebouncedSave();
   useKeyboardShortcuts();
 
-  // Position-only local cache. Node identity & data come directly from the store.
-  // Using a cache here means streaming deltas (which churn `nodesById`) never
-  // override an in-flight drag position.
-  const [livePos, setLivePos] = useState<LivePos>({});
+  const [isPanMode, setIsPanMode] = useState(false);
 
-  const rfNodes = useMemo<Node[]>(() => {
-    return Object.values(nodesById).map((n) => ({
-      id: n.id,
-      type: n.type === "custom" ? "custom" : "default",
-      position: livePos[n.id] ?? n.position,
-      data: n.data as unknown as Record<string, unknown>,
-    }));
-  }, [nodesById, livePos]);
+  const {
+    isOpen: ctxIsOpen,
+    position: ctxPosition,
+    rightClickedNodeId: ctxNodeId,
+    handlePaneContextMenu,
+    handleNodeContextMenu,
+    createNodeAtPointer,
+    deleteNodeAtPointer,
+    close: closeCtx,
+  } = useContextMenu();
 
-  const rfEdges = useMemo<Edge[]>(
-    () => edgesState.map((e) => ({ id: e.id, source: e.source, target: e.target, type: "default" })),
-    [edgesState]
-  );
+  // Local rfNodes: xyflow-shaped state owned by the canvas. We pull from
+  // `nodesById` for additions/removals + data changes, but during drag the
+  // intermediate positions live here only — we never write them to the store
+  // until drag stop. This is what makes drag smooth: no store churn, no
+  // dirty-mark spam, no debounced-save thrash.
+  const [rfNodes, setRfNodes] = useState<Node[]>([]);
+
+  // Track which node ids are mid-drag so the sync-effect doesn't clobber the
+  // in-flight positions if the store ticks for an unrelated reason (e.g. a
+  // streamed token updates a node's data).
+  const draggingIdsRef = useRef<Set<string>>(new Set());
+  const [draggingTick, setDraggingTick] = useState(0);
+
+  // Sync FROM store: handle additions, removals, and data updates. Preserve
+  // local position for any node currently being dragged.
+  useEffect(() => {
+    setRfNodes((prev) => {
+      const prevById = new Map(prev.map((n) => [n.id, n]));
+      const dragging = draggingIdsRef.current;
+      const next: Node[] = [];
+      let changed = prev.length !== Object.keys(nodesById).length;
+      for (const n of Object.values(nodesById)) {
+        const existing = prevById.get(n.id);
+        const data = n.data as unknown as Record<string, unknown>;
+        const type = n.type === "custom" ? "custom" : "default";
+        // If currently dragging, keep the in-flight position from local state.
+        const position = dragging.has(n.id) && existing
+          ? existing.position
+          : n.position;
+        if (
+          existing &&
+          existing.data === data &&
+          existing.type === type &&
+          existing.position.x === position.x &&
+          existing.position.y === position.y
+        ) {
+          next.push(existing);
+        } else {
+          changed = true;
+          next.push({
+            id: n.id,
+            type,
+            position,
+            data,
+            // preserve selection/dragging flags xyflow may have attached
+            selected: existing?.selected,
+            dragging: existing?.dragging,
+          });
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [nodesById]);
+
+  // Edges: recompute handles for edges touching a dragging node from the live
+  // rfNodes positions; for everything else use the store's cached handles.
+  const rfNodesById = useMemo(() => {
+    const m = new Map<string, Node>();
+    for (const n of rfNodes) m.set(n.id, n);
+    return m;
+  }, [rfNodes]);
+
+  const rfEdges = useMemo<Edge[]>(() => {
+    const dragging = draggingIdsRef.current;
+    return edgesState.map((e) => {
+      const touchesDrag = dragging.has(e.source) || dragging.has(e.target);
+      let sourceHandle = e.sourceHandle ?? "source-bottom";
+      let targetHandle = e.targetHandle ?? "target-top";
+      if (touchesDrag) {
+        const src = rfNodesById.get(e.source);
+        const tgt = rfNodesById.get(e.target);
+        if (src && tgt) {
+          const handles = getEdgeHandles(src.position, tgt.position);
+          sourceHandle = handles.sourceHandle;
+          targetHandle = handles.targetHandle;
+        }
+      }
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        type: "default",
+        sourceHandle,
+        targetHandle,
+        style: edgeStyle,
+      };
+    });
+    // draggingTick forces re-derivation while a drag is in flight so edge
+    // handles track the moving node every frame. The dep on rfNodesById is
+    // already enough in practice; the tick is belt-and-suspenders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edgesState, rfNodesById, draggingTick]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
+      setRfNodes((nodes) => applyNodeChanges(changes, nodes));
       for (const c of changes) {
-        if (c.type === "position" && c.position) {
-          const pos = c.position;
-          setLivePos((p) => ({ ...p, [c.id]: pos }));
-          if (!c.dragging) {
-            movePosition(c.id, pos);
-            // clear live entry so future store changes are visible
-            setLivePos((p) => {
-              const next = { ...p };
-              delete next[c.id];
-              return next;
-            });
+        if (c.type === "position") {
+          // Commit to store only when drag finishes (dragging === false on the
+          // final tick of a drag). Intermediate frames stay local.
+          if (c.dragging === false && c.position) {
+            movePosition(c.id, c.position);
           }
         } else if (c.type === "remove") {
           removeNode(c.id);
@@ -75,6 +171,16 @@ function CanvasInner() {
     },
     [movePosition, removeNode]
   );
+
+  const onNodeDragStart = useCallback((_e: React.MouseEvent, node: Node) => {
+    draggingIdsRef.current.add(node.id);
+    setDraggingTick((t) => t + 1);
+  }, []);
+
+  const onNodeDragStop = useCallback((_e: React.MouseEvent, node: Node) => {
+    draggingIdsRef.current.delete(node.id);
+    setDraggingTick((t) => t + 1);
+  }, []);
 
   const onEdgesChange = useCallback((_changes: EdgeChange[]) => {
     // edges are fully owned by the store; selection/remove handled via store only
@@ -96,7 +202,9 @@ function CanvasInner() {
       const target = e.target as HTMLElement;
       if (target.closest(".react-flow__node")) return;
       const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      addNode(makeBlankNode(pos));
+      const node = makeBlankNode(pos);
+      addNode(node);
+      focusNodeTextarea(node.id);
     },
     [screenToFlowPosition, addNode]
   );
@@ -104,25 +212,74 @@ function CanvasInner() {
   const nodeCount = rfNodes.length;
 
   return (
-    <div ref={wrapperRef} className="h-full w-full" onDoubleClick={onPaneDoubleClick}>
+    <div
+      ref={wrapperRef}
+      className="h-full w-full bg-background relative"
+      onDoubleClick={onPaneDoubleClick}
+    >
+      <button
+        type="button"
+        onClick={() => setIsPanMode((v) => !v)}
+        className="absolute top-3 right-3 z-10 px-3 py-1.5 text-xs rounded-md border border-border bg-card text-foreground hover:bg-muted shadow-sm"
+        title="Toggle pan mode (h)"
+      >
+        {isPanMode ? "Pan mode" : "Select mode"}
+      </button>
       <ReactFlow
+        className={isPanMode ? "canvas-cursor-pan" : "canvas-cursor-select"}
+        style={{ width: "100%", height: "100%" }}
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDragStop={onNodeDragStop}
+        onPaneContextMenu={handlePaneContextMenu}
+        onNodeContextMenu={handleNodeContextMenu}
+        defaultViewport={{ x: 200, y: 200, zoom: 1 }}
         fitView={nodeCount > 0}
-        fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
-        minZoom={0.2}
-        maxZoom={2}
+        fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
+        nodesDraggable={!isPanMode}
+        nodesConnectable={!isPanMode}
+        elementsSelectable={!isPanMode}
+        selectionOnDrag={!isPanMode}
+        selectionMode={SelectionMode.Partial}
+        selectNodesOnDrag={!isPanMode}
+        noDragClassName="nodrag"
+        maxZoom={4}
+        minZoom={0.1}
+        deleteKeyCode={null}
+        panOnScroll
+        panOnScrollSpeed={0.5}
+        zoomOnScroll={false}
+        disableKeyboardA11y={true}
+        zoomOnPinch
+        panOnDrag={isPanMode ? true : [1]}
         zoomOnDoubleClick={false}
         proOptions={{ hideAttribution: true }}
+        defaultEdgeOptions={defaultEdgeOptions}
+        connectionLineType={ConnectionLineType.Bezier}
+        connectionLineStyle={edgeStyle}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#d4d4d8" />
-        <Controls position="bottom-left" />
-        <MiniMap pannable zoomable position="bottom-right" />
+        <Background
+          variant={BackgroundVariant.Lines}
+          gap={32}
+          size={1}
+          color="var(--grid-line)"
+        />
+        <Controls position="bottom-right" showInteractive={false} />
+        <MiniMap pannable zoomable position="bottom-left" />
       </ReactFlow>
+      <ContextMenu
+        isOpen={ctxIsOpen}
+        position={ctxPosition}
+        rightClickedNodeId={ctxNodeId}
+        createNodeAtPointer={createNodeAtPointer}
+        deleteNodeAtPointer={deleteNodeAtPointer}
+        onClose={closeCtx}
+      />
     </div>
   );
 }

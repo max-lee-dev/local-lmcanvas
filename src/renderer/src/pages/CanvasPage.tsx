@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Plus, Settings } from "lucide-react";
+import { ArrowLeft, Plus, Settings, FolderOpen } from "lucide-react";
 import { Canvas } from "@/components/Canvas/Canvas";
 import { makeBlankNode, useCanvasStore } from "@/hooks/useCanvasStore";
 import { SettingsModal } from "@/components/SettingsModal";
 import { navigate } from "@/App";
+import { prettyPath } from "@/lib/prettyPath";
 
 export function CanvasPage({ id }: { id: string }) {
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
   const loaded = useCanvasStore((s) => s.loaded);
   const canvasId = useCanvasStore((s) => s.canvasId);
   const name = useCanvasStore((s) => s.name);
+  const cwd = useCanvasStore((s) => s.cwd);
   const setName = useCanvasStore((s) => s.setName);
   const error = useCanvasStore((s) => s.error);
   const saving = useCanvasStore((s) => s.saving);
@@ -42,6 +44,16 @@ export function CanvasPage({ id }: { id: string }) {
             className="min-w-[240px] bg-transparent text-sm font-semibold outline-none"
             placeholder="untitled canvas"
           />
+          {cwd && (
+            <button
+              onClick={() => void window.api.shell.openPath(cwd)}
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+              title={`reveal ${cwd}`}
+            >
+              <FolderOpen size={12} />
+              {prettyPath(cwd)}
+            </button>
+          )}
           <span className="text-xs text-zinc-400">
             {saving ? "saving…" : nodeCount === 0 ? "empty" : `${nodeCount} node${nodeCount === 1 ? "" : "s"}`}
           </span>

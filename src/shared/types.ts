@@ -2,10 +2,32 @@ export type NodeId = string;
 
 export type MessageStatus = "streaming" | "complete" | "error";
 
+export type TextBlock = { type: "text"; text: string };
+
+export type ToolUseBlock = {
+  type: "tool_use";
+  id: string;
+  name: string;
+  input: unknown;
+  result?: { content: string; isError: boolean };
+};
+
+export type ThinkingBlock = { type: "thinking"; text: string };
+
+export type ImageMediaType = "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+
+export type ImageBlock = {
+  type: "image";
+  mediaType: ImageMediaType;
+  base64: string;
+};
+
+export type ContentBlock = TextBlock | ToolUseBlock | ThinkingBlock | ImageBlock;
+
 export type Message = {
   id: string;
   role: "user" | "assistant";
-  content: string;
+  blocks: ContentBlock[];
   createdAt: number;
   status?: MessageStatus;
   error?: string;
@@ -34,11 +56,14 @@ export type CanvasEdge = {
   id: string;
   source: NodeId;
   target: NodeId;
+  sourceHandle?: string;
+  targetHandle?: string;
 };
 
 export type Canvas = {
   id: string;
   name: string;
+  cwd: string;
   createdAt: number;
   updatedAt: number;
   nodes: CanvasNode[];
@@ -48,6 +73,7 @@ export type Canvas = {
 export type CanvasSummary = {
   id: string;
   name: string;
+  cwd: string;
   createdAt: number;
   updatedAt: number;
   nodeCount: number;

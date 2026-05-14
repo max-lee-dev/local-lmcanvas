@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Settings, Pencil, Check, X } from "lucide-react";
+import { Plus, Trash2, Settings, Pencil, Check, X, Folder } from "lucide-react";
 import type { Canvas, CanvasSummary } from "@shared/types";
 import { SettingsModal } from "@/components/SettingsModal";
 import { navigate } from "@/App";
+import { prettyPath } from "@/lib/prettyPath";
+
+type DraftCanvas = { name: string; cwd: string };
 
 export function HomePage() {
   const [canvases, setCanvases] = useState<CanvasSummary[]>([]);
@@ -10,6 +13,8 @@ export function HomePage() {
   const [showSettings, setShowSettings] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [draft, setDraft] = useState<DraftCanvas | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -22,9 +27,31 @@ export function HomePage() {
     void refresh();
   }, []);
 
-  const createCanvas = async () => {
-    const c = await window.api.canvases.create("Untitled canvas");
-    navigate(`/canvas/${c.id}`);
+  const beginCreate = () => {
+    setDraft({ name: "", cwd: "" });
+  };
+
+  const cancelCreate = () => {
+    setDraft(null);
+  };
+
+  const pickFolder = async () => {
+    const folder = await window.api.dialog.pickFolder();
+    if (!folder) return;
+    setDraft((d) => (d ? { ...d, cwd: folder } : { name: "", cwd: folder }));
+  };
+
+  const submitCreate = async () => {
+    if (!draft) return;
+    const name = draft.name.trim() || "untitled canvas";
+    if (!draft.cwd) return;
+    setCreating(true);
+    try {
+      const c = await window.api.canvases.create({ name, cwd: draft.cwd });
+      navigate(`/canvas/${c.id}`);
+    } finally {
+      setCreating(false);
+    }
   };
 
   const deleteCanvas = async (id: string, name: string) => {
@@ -63,8 +90,9 @@ export function HomePage() {
             <Settings size={14} />
           </button>
           <button
-            onClick={createCanvas}
-            className="flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-zinc-700"
+            onClick={beginCreate}
+            disabled={!!draft}
+            className="flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-zinc-700 disabled:opacity-50"
           >
             <Plus size={12} />
             new canvas
@@ -72,9 +100,58 @@ export function HomePage() {
         </div>
       </header>
 
+      {draft && (
+        <div className="mb-4 rounded-md border border-zinc-300 bg-zinc-50 p-3">
+          <div className="mb-2 text-xs font-medium text-zinc-700">new canvas</div>
+          <div className="flex flex-col gap-2">
+            <input
+              autoFocus
+              value={draft.name}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && draft.cwd) void submitCreate();
+                if (e.key === "Escape") cancelCreate();
+              }}
+              placeholder="canvas name"
+              className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-zinc-500"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => void pickFolder()}
+                className="flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs hover:bg-zinc-100"
+              >
+                <Folder size={12} />
+                {draft.cwd ? "change folder" : "pick folder"}
+              </button>
+              <div
+                className="flex-1 truncate text-xs text-zinc-500"
+                title={draft.cwd}
+              >
+                {draft.cwd ? prettyPath(draft.cwd) : "no folder selected"}
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={cancelCreate}
+                className="rounded-md px-2.5 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100"
+              >
+                cancel
+              </button>
+              <button
+                onClick={() => void submitCreate()}
+                disabled={!draft.cwd || creating}
+                className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-zinc-700 disabled:opacity-50"
+              >
+                {creating ? "creating…" : "create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {loading && <div className="text-sm text-zinc-400">loading…</div>}
 
-      {!loading && canvases.length === 0 && (
+      {!loading && canvases.length === 0 && !draft && (
         <div className="rounded-md border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
           no canvases yet. click <span className="font-medium">new canvas</span> to start.
         </div>
@@ -123,7 +200,13 @@ export function HomePage() {
                       className="flex-1 text-left"
                     >
                       <div className="text-sm font-medium">{c.name || "untitled"}</div>
-                      <div className="text-[11px] text-zinc-500">
+                      <div
+                        className="truncate text-[11px] text-zinc-500"
+                        title={c.cwd}
+                      >
+                        {c.cwd ? prettyPath(c.cwd) : "no folder"}
+                      </div>
+                      <div className="text-[11px] text-zinc-400">
                         {c.nodeCount} node{c.nodeCount === 1 ? "" : "s"} · updated{" "}
                         {new Date(c.updatedAt).toLocaleString()}
                       </div>

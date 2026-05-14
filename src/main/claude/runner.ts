@@ -1,157 +1,225 @@
-import { spawn } from "node:child_process";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  SDKMessage,
+  SDKAssistantMessage,
+  SDKUserMessage,
+  SDKResultMessage,
+  SDKPartialAssistantMessage,
+} from "@anthropic-ai/claude-agent-sdk";
+import type {
+  BetaContentBlock,
+  BetaRawContentBlockDeltaEvent,
+  BetaTextDelta,
+  BetaThinkingDelta,
+  BetaToolUseBlock,
+  BetaTextBlock,
+  BetaThinkingBlock,
+} from "@anthropic-ai/sdk/resources/beta/messages/messages.mjs";
+import type {
+  ContentBlockParam,
+  ImageBlockParam,
+  TextBlockParam,
+  ToolResultBlockParam,
+} from "@anthropic-ai/sdk/resources/messages/messages.mjs";
+import type { Attachment } from "@shared/ipc";
+
+export type RunnerEvent =
+  | { kind: "text_delta"; text: string }
+  | { kind: "tool_use"; toolUseId: string; name: string; input: unknown }
+  | { kind: "tool_result"; toolUseId: string; content: string; isError: boolean }
+  | { kind: "thinking_delta"; text: string }
+  | { kind: "done"; isError?: boolean; result?: string }
+  | { kind: "error"; message: string };
 
 export type RunClaudeOpts = {
-  claudeBin?: string;
+  cwd: string;
   model?: string;
   systemPrompt?: string;
+  attachments?: Attachment[];
   signal?: AbortSignal;
+  onEvent: (ev: RunnerEvent) => void;
 };
 
-export type RunClaudeDelta =
-  | { kind: "delta"; text: string }
-  | { kind: "done"; fullText: string };
-
-type JsonObj = Record<string, unknown>;
-
-function asObj(v: unknown): JsonObj | null {
-  return typeof v === "object" && v !== null ? (v as JsonObj) : null;
-}
-function asStr(v: unknown): string | null {
-  return typeof v === "string" ? v : null;
-}
-function asArr(v: unknown): unknown[] | null {
-  return Array.isArray(v) ? v : null;
-}
-
-/**
- * Spawn `claude -p` in stream-json mode and yield text deltas as they arrive.
- *
- * Event handling:
- *  - stream_event / content_block_delta / text_delta  →  yield incremental text
- *  - type:"assistant"                                  →  yield full text ONLY IF no streaming deltas arrived (fallback)
- *  - type:"result"                                     →  checked for is_error; otherwise terminal
- *  - all others                                        →  ignored
- */
-export async function* runClaude(
-  prompt: string,
-  opts: RunClaudeOpts = {}
-): AsyncGenerator<RunClaudeDelta, void, void> {
-  const bin = opts.claudeBin || "claude";
-  const args = [
-    "-p",
-    prompt,
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--include-partial-messages",
-  ];
-  if (opts.model) args.push("--model", opts.model);
-  if (opts.systemPrompt) args.push("--append-system-prompt", opts.systemPrompt);
-
-  const proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
-
+export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<void> {
+  const controller = new AbortController();
   if (opts.signal) {
-    const abort = () => {
-      if (!proc.killed) proc.kill("SIGTERM");
-    };
-    opts.signal.addEventListener("abort", abort, { once: true });
+    if (opts.signal.aborted) controller.abort();
+    else opts.signal.addEventListener("abort", () => controller.abort(), { once: true });
   }
 
-  let stderr = "";
-  proc.stderr.on("data", (d: Buffer) => {
-    stderr += d.toString();
-  });
+  const seenToolUseIds = new Set<string>();
+  let doneEmitted = false;
 
-  const spawnError = await new Promise<Error | null>((resolve) => {
-    proc.once("error", (err: NodeJS.ErrnoException) => {
-      if (err.code === "ENOENT") {
-        resolve(
-          new Error(
-            `claude binary not found at "${bin}". Install Claude Code and ensure it is in PATH, or set claudeBinPath in settings.`
-          )
-        );
-      } else {
-        resolve(err);
-      }
+  const emit = (ev: RunnerEvent): void => {
+    if (ev.kind === "done") doneEmitted = true;
+    opts.onEvent(ev);
+  };
+
+  const attachments = opts.attachments ?? [];
+  // string-prompt path is preserved when there are no attachments so we don't
+  // change the working behaviour for plain-text chats. only images route through
+  // streaming-input.
+  const promptInput: string | AsyncIterable<SDKUserMessage> =
+    attachments.length > 0 ? buildStreamingPrompt(prompt, attachments) : prompt;
+
+  try {
+    const q = query({
+      prompt: promptInput,
+      options: {
+        cwd: opts.cwd,
+        permissionMode: "bypassPermissions",
+        allowDangerouslySkipPermissions: true,
+        model: opts.model,
+        // append vs raw: we always extend claude_code preset so the agent
+        // keeps its built-in tooling instructions
+        systemPrompt: opts.systemPrompt
+          ? { type: "preset", preset: "claude_code", append: opts.systemPrompt }
+          : { type: "preset", preset: "claude_code" },
+        includePartialMessages: true,
+        settingSources: ["user", "project"],
+        abortController: controller,
+      },
     });
-    proc.once("spawn", () => resolve(null));
-  });
-  if (spawnError) throw spawnError;
 
-  let buffer = "";
-  let totalEmitted = "";
-  let sawStreamingDelta = false;
-
-  for await (const chunk of proc.stdout as AsyncIterable<Buffer>) {
-    buffer += chunk.toString();
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      let ev: unknown;
-      try {
-        ev = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      const o = asObj(ev);
-      if (!o) continue;
-      const type = asStr(o.type);
-      if (!type) continue;
-
-      if (type === "result") {
-        if (o.is_error === true) {
-          const msg = asStr(o.result) ?? "claude reported an error";
-          throw new Error(msg);
-        }
-        continue;
-      }
-
-      if (type === "stream_event") {
-        const inner = asObj(o.event);
-        const innerType = inner ? asStr(inner.type) : null;
-        if (inner && innerType === "content_block_delta") {
-          const delta = asObj(inner.delta);
-          const text = delta ? asStr(delta.text) : null;
-          if (text) {
-            sawStreamingDelta = true;
-            totalEmitted += text;
-            yield { kind: "delta", text };
-          }
-        }
-        continue;
-      }
-
-      if (type === "assistant" && !sawStreamingDelta) {
-        const message = asObj(o.message);
-        const content = message ? asArr(message.content) : null;
-        if (content) {
-          const parts: string[] = [];
-          for (const c of content) {
-            const co = asObj(c);
-            if (co && asStr(co.type) === "text") {
-              const t = asStr(co.text);
-              if (t) parts.push(t);
-            }
-          }
-          const full = parts.join("");
-          if (full && full.length > totalEmitted.length && full.startsWith(totalEmitted)) {
-            const suffix = full.slice(totalEmitted.length);
-            totalEmitted = full;
-            yield { kind: "delta", text: suffix };
-          } else if (full && !totalEmitted) {
-            totalEmitted = full;
-            yield { kind: "delta", text: full };
-          }
-        }
+    for await (const msg of q as AsyncIterable<SDKMessage>) {
+      handleMessage(msg, seenToolUseIds, emit);
+      if (msg.type === "result") {
+        break;
       }
     }
+  } catch (err: unknown) {
+    const message = errorMessage(err);
+    emit({ kind: "error", message });
+  } finally {
+    if (!doneEmitted) emit({ kind: "done", isError: false });
   }
+}
 
-  const exitCode: number = await new Promise((res) => proc.on("close", (c) => res(c ?? 0)));
-  if (exitCode !== 0) {
-    throw new Error(`claude exited ${exitCode}: ${stderr.slice(0, 500)}`);
+function handleMessage(
+  msg: SDKMessage,
+  seenToolUseIds: Set<string>,
+  emit: (ev: RunnerEvent) => void
+): void {
+  switch (msg.type) {
+    case "stream_event":
+      handleStreamEvent(msg, emit);
+      return;
+    case "assistant":
+      handleAssistant(msg, seenToolUseIds, emit);
+      return;
+    case "user":
+      handleUser(msg, emit);
+      return;
+    case "result":
+      handleResult(msg, emit);
+      return;
+    default:
+      return;
   }
+}
 
-  yield { kind: "done", fullText: totalEmitted };
+function handleStreamEvent(
+  msg: SDKPartialAssistantMessage,
+  emit: (ev: RunnerEvent) => void
+): void {
+  const event = msg.event;
+  if (event.type !== "content_block_delta") return;
+  const delta = (event as BetaRawContentBlockDeltaEvent).delta;
+  if (delta.type === "text_delta") {
+    emit({ kind: "text_delta", text: (delta as BetaTextDelta).text });
+  } else if (delta.type === "thinking_delta") {
+    emit({ kind: "thinking_delta", text: (delta as BetaThinkingDelta).thinking });
+  }
+}
+
+function handleAssistant(
+  msg: SDKAssistantMessage,
+  seenToolUseIds: Set<string>,
+  emit: (ev: RunnerEvent) => void
+): void {
+  const content = msg.message.content as BetaContentBlock[];
+  for (const block of content) {
+    if (block.type === "tool_use") {
+      const tu = block as BetaToolUseBlock;
+      if (seenToolUseIds.has(tu.id)) continue;
+      seenToolUseIds.add(tu.id);
+      emit({ kind: "tool_use", toolUseId: tu.id, name: tu.name, input: tu.input });
+    }
+    // text/thinking already arrived as deltas via stream_event
+    void (block as BetaTextBlock | BetaThinkingBlock);
+  }
+}
+
+function handleUser(msg: SDKUserMessage, emit: (ev: RunnerEvent) => void): void {
+  const content = msg.message.content;
+  if (typeof content === "string") return;
+  for (const block of content as ContentBlockParam[]) {
+    if (block.type !== "tool_result") continue;
+    const tr = block as ToolResultBlockParam;
+    emit({
+      kind: "tool_result",
+      toolUseId: tr.tool_use_id,
+      content: toolResultContentToString(tr.content),
+      isError: tr.is_error === true,
+    });
+  }
+}
+
+function handleResult(msg: SDKResultMessage, emit: (ev: RunnerEvent) => void): void {
+  if (msg.subtype === "success") {
+    emit({ kind: "done", isError: msg.is_error, result: msg.result });
+    return;
+  }
+  const errText = msg.errors && msg.errors.length ? msg.errors.join("\n") : msg.subtype;
+  emit({ kind: "done", isError: true, result: errText });
+}
+
+function toolResultContentToString(content: ToolResultBlockParam["content"]): string {
+  if (content === undefined) return "";
+  if (typeof content === "string") return content;
+  const parts: string[] = [];
+  for (const c of content) {
+    if (c.type === "text") {
+      parts.push(c.text);
+    } else {
+      // images / docs / search results aren't meaningful to render as plain text;
+      // surface a placeholder so the UI knows something was there
+      parts.push(`[${c.type}]`);
+    }
+  }
+  return parts.join("\n");
+}
+
+async function* buildStreamingPrompt(
+  text: string,
+  attachments: Attachment[]
+): AsyncIterable<SDKUserMessage> {
+  const content: ContentBlockParam[] = [];
+  if (text.length > 0) {
+    const tb: TextBlockParam = { type: "text", text };
+    content.push(tb);
+  }
+  for (const a of attachments) {
+    const ib: ImageBlockParam = {
+      type: "image",
+      source: { type: "base64", media_type: a.mediaType, data: a.base64 },
+    };
+    content.push(ib);
+  }
+  yield {
+    type: "user",
+    parent_tool_use_id: null,
+    message: { role: "user", content },
+  };
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") {
+      return `Claude Code executable not found. Install Claude Code so the SDK can spawn it. (${err.message})`;
+    }
+    return err.message;
+  }
+  return String(err);
 }
