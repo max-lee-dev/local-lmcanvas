@@ -57,7 +57,7 @@ function TextBlockViewImpl({ text, isUser }: Props) {
   }
 
   return (
-    <div className={clsx("node-md", "max-w-full min-w-0")}>
+    <div className={clsx("node-md", "max-w-full min-w-0 cursor-text")}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}

@@ -1,8 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { useTextareaAutoResize } from "@/hooks/useTextareaAutoResize";
 import { forwardWheelAtBoundary } from "@/lib/scrollPan";
+import {
+  MentionPicker,
+  filterFiles,
+  getFilesForCwd,
+} from "./MentionPicker";
 import type { Attachment } from "@shared/ipc";
 import type { ImageMediaType } from "@shared/types";
 
@@ -36,7 +41,100 @@ export function NodePromptInput({
   const [dragOver, setDragOver] = useState(false);
   const consumePrefill = useCanvasStore((s) => s.consumePrefill);
   const pending = useCanvasStore((s) => s.pendingPrefills[nodeId]);
+  const cwd = useCanvasStore((s) => s.cwd);
   const { textareaRef } = useTextareaAutoResize(value);
+
+  // Mention picker state. mentionStart is the index of '@' in `value`,
+  // or null when the picker is closed.
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [highlightIdx, setHighlightIdx] = useState(0);
+  const [allFiles, setAllFiles] = useState<string[]>([]);
+  const filesLoadedForCwdRef = useRef<string | null>(null);
+
+  const mentionOpen = mentionStart !== null;
+  const filteredFiles = useMemo(
+    () => (mentionOpen ? filterFiles(allFiles, mentionQuery) : []),
+    [mentionOpen, allFiles, mentionQuery]
+  );
+
+  useEffect(() => {
+    if (highlightIdx >= filteredFiles.length) setHighlightIdx(0);
+  }, [filteredFiles.length, highlightIdx]);
+
+  const closeMention = (): void => {
+    setMentionStart(null);
+    setMentionQuery("");
+    setHighlightIdx(0);
+  };
+
+  const ensureFilesLoaded = (): void => {
+    if (!cwd) return;
+    if (filesLoadedForCwdRef.current === cwd) return;
+    filesLoadedForCwdRef.current = cwd;
+    void getFilesForCwd(cwd)
+      .then((files) => setAllFiles(files))
+      .catch(() => {
+        // swallow: picker just shows empty
+        filesLoadedForCwdRef.current = null;
+      });
+  };
+
+  const detectMention = (
+    text: string,
+    caret: number
+  ): { start: number; query: string } | null => {
+    // Walk back from caret to find an '@' with no whitespace between.
+    for (let i = caret - 1; i >= 0; i--) {
+      const ch = text[i];
+      if (ch === "@") {
+        const prev = i === 0 ? " " : text[i - 1];
+        // Only trigger if @ is at start or after whitespace
+        if (i === 0 || /\s/.test(prev)) {
+          return { start: i, query: text.slice(i + 1, caret) };
+        }
+        return null;
+      }
+      if (/\s/.test(ch)) return null;
+    }
+    return null;
+  };
+
+  const handleValueChange = (
+    next: string,
+    caret: number | null
+  ): void => {
+    setValue(next);
+    const pos = caret ?? next.length;
+    const detected = detectMention(next, pos);
+    if (detected) {
+      if (!mentionOpen) ensureFilesLoaded();
+      setMentionStart(detected.start);
+      setMentionQuery(detected.query);
+      setHighlightIdx(0);
+    } else if (mentionOpen) {
+      closeMention();
+    }
+  };
+
+  const selectMention = (path: string): void => {
+    if (mentionStart === null) return;
+    const el = textareaRef.current;
+    const caret = el?.selectionStart ?? value.length;
+    const before = value.slice(0, mentionStart);
+    const after = value.slice(caret);
+    const insert = `@${path} `;
+    const nextValue = before + insert + after;
+    setValue(nextValue);
+    closeMention();
+    requestAnimationFrame(() => {
+      const node = textareaRef.current;
+      if (!node) return;
+      const newCaret = (before + insert).length;
+      node.focus();
+      node.setSelectionRange(newCaret, newCaret);
+    });
+  };
 
   useEffect(() => {
     if (pending !== undefined) {
@@ -154,12 +252,56 @@ export function NodePromptInput({
         <textarea
           ref={textareaRef}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) =>
+            handleValueChange(e.target.value, e.target.selectionStart)
+          }
+          onKeyUp={(e) => {
+            // Caret moved via arrows / clicks — re-evaluate mention state
+            if (
+              e.key === "ArrowLeft" ||
+              e.key === "ArrowRight" ||
+              e.key === "Home" ||
+              e.key === "End"
+            ) {
+              const el = textareaRef.current;
+              if (el) handleValueChange(value, el.selectionStart);
+            }
+          }}
+          onClick={() => {
+            const el = textareaRef.current;
+            if (el) handleValueChange(value, el.selectionStart);
+          }}
+          onBlur={() => closeMention()}
           onPaste={handlePaste}
           placeholder="Enter a prompt..."
           style={{ minHeight: "12px", color: "var(--foreground)" }}
           className="w-full text-[10px] p-0 nodrag resize-none bg-transparent font-normal focus:outline-none overflow-y-auto cursor-text"
           onKeyDown={(e) => {
+            if (mentionOpen && filteredFiles.length > 0) {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setHighlightIdx((i) => (i + 1) % filteredFiles.length);
+                return;
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setHighlightIdx(
+                  (i) => (i - 1 + filteredFiles.length) % filteredFiles.length
+                );
+                return;
+              }
+              if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                const pick = filteredFiles[highlightIdx];
+                if (pick) selectMention(pick);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                closeMention();
+                return;
+              }
+            }
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               textareaRef.current?.blur();
@@ -173,6 +315,15 @@ export function NodePromptInput({
           onWheel={forwardWheelAtBoundary}
           aria-label="Prompt input"
         />
+        {mentionOpen && (
+          <MentionPicker
+            query={mentionQuery}
+            files={allFiles}
+            highlightIdx={highlightIdx}
+            onHoverIndex={setHighlightIdx}
+            onSelect={selectMention}
+          />
+        )}
       </div>
 
       {dragOver && (
@@ -206,7 +357,7 @@ function ThumbChip({
           e.stopPropagation();
           onRemove();
         }}
-        className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-foreground text-card flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity"
+        className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-foreground text-card flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity cursor-pointer"
         aria-label="Remove attachment"
       >
         <X className="h-2 w-2" />

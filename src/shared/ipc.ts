@@ -1,5 +1,32 @@
 import type { AppSettings, Canvas, CanvasSummary, ImageMediaType, Message } from "./types";
 
+export type AskUserOption = {
+  label: string;
+  description: string;
+  preview?: string;
+};
+
+export type AskUserQuestion = {
+  question: string;
+  header: string;
+  multiSelect: boolean;
+  options: AskUserOption[];
+};
+
+export type AskUserRequest = {
+  /** Correlates this request with the response. */
+  id: string;
+  questions: AskUserQuestion[];
+};
+
+/** Per-question answers. Single-select → string; multi-select → string[]. */
+export type AskUserAnswers = Record<string, string | string[]>;
+
+export type AskUserResponsePayload =
+  | { id: string; cancelled: false; answers: AskUserAnswers; notes?: Record<string, string> }
+  | { id: string; cancelled: true };
+
+
 export type Attachment = {
   mediaType: ImageMediaType;
   base64: string;
@@ -62,6 +89,15 @@ export type LmcApi = {
   };
   shell: {
     openPath(path: string): Promise<void>;
+  };
+  files: {
+    list(cwd: string): Promise<string[]>;
+  };
+  askUser: {
+    /** Subscribe to incoming ask-user requests from the agent. Returns an unsubscribe function. */
+    onRequest(handler: (req: AskUserRequest) => void): () => void;
+    /** Send the user's answers (or cancellation) back to the agent. */
+    respond(payload: AskUserResponsePayload): Promise<void>;
   };
 };
 

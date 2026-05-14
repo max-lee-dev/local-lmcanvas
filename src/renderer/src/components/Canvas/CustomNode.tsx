@@ -10,19 +10,25 @@ import { motion } from "framer-motion";
 import { Check, Copy, Plus } from "lucide-react";
 import clsx from "clsx";
 import { makeBlankNode, useCanvasStore } from "@/hooks/useCanvasStore";
+import { ModelBadge } from "./ModelBadge";
 import { useNodeChat } from "@/hooks/useNodeChat";
 import type { CanvasNode } from "@shared/types";
 import { NodeResponse } from "./NodeResponse";
 import { NodePromptInput } from "./NodePromptInput";
+import { useCenterOnNode } from "@/hooks/useCenterOnNode";
+import {
+  FALLBACK_NODE_HEIGHT,
+  NODE_MIN_HEIGHT,
+  NODE_WIDTH,
+  RIGHT_LANE_X_OFFSET,
+  VERTICAL_CHILD_OFFSET,
+} from "@/lib/canvasConstants";
+import {
+  makeDomHeightMeasurer,
+  resolveCollisions,
+} from "@/lib/collisionResolution";
 
 type CustomNodeData = CanvasNode["data"];
-
-const NODE_WIDTH = 560;
-const NODE_MIN_HEIGHT = 96;
-const VERTICAL_CHILD_OFFSET = 150;
-const HORIZONTAL_PADDING = 50;
-const RIGHT_LANE_GAP_MULTIPLIER = 2;
-const FALLBACK_NODE_HEIGHT = 300;
 
 function measureNodeHeight(nodeId: string, zoom: number): number {
   const el = document.querySelector(`.react-flow__node[data-id="${nodeId}"]`);
@@ -54,10 +60,12 @@ function CustomNodeImpl(props: NodeProps) {
   const addNode = useCanvasStore((s) => s.addNode);
   const connectEdge = useCanvasStore((s) => s.connectEdge);
   const removeNode = useCanvasStore((s) => s.removeNode);
+  const movePosition = useCanvasStore((s) => s.movePosition);
   const getNode = useCanvasStore((s) => s.nodes[id]);
   const setPrefill = useCanvasStore((s) => s.setPrefill);
   const clearMessages = useCanvasStore((s) => s.clearMessages);
   const zoom = useStore((s) => s.transform[2]);
+  const centerOnNode = useCenterOnNode();
 
   const [hovered, setHovered] = useState(false);
   const [selectionText, setSelectionText] = useState<string>("");
@@ -72,10 +80,7 @@ function CustomNodeImpl(props: NodeProps) {
       const isRightLane = Boolean(prefill);
       const position = isRightLane
         ? {
-            x:
-              parentPos.x +
-              NODE_WIDTH +
-              HORIZONTAL_PADDING * RIGHT_LANE_GAP_MULTIPLIER,
+            x: parentPos.x + RIGHT_LANE_X_OFFSET,
             y: parentPos.y + 30,
           }
         : {
@@ -89,9 +94,36 @@ function CustomNodeImpl(props: NodeProps) {
       if (prefill) setPrefill(child.id, prefill);
       addNode(child);
       connectEdge(id, child.id);
-      focusNodeTextarea(child.id);
+
+      // Match the avera branch flow: wait one rAF for the DOM to mount, then
+      // resolve horizontal collisions, animate the camera to center on the
+      // child at zoom 1.5, and focus its textarea.
+      requestAnimationFrame(() => {
+        const state = useCanvasStore.getState();
+        const measure = makeDomHeightMeasurer(zoom);
+        const moves = resolveCollisions(child.id, state.nodes, measure, {
+          fixedWidth: NODE_WIDTH,
+          excludeIds: [id],
+        });
+        for (const movedId of Object.keys(moves)) {
+          movePosition(movedId, moves[movedId]);
+        }
+
+        const fresh = useCanvasStore.getState().nodes[child.id];
+        if (fresh) {
+          const h = measure(child.id);
+          centerOnNode(
+            fresh.position.x,
+            fresh.position.y,
+            NODE_WIDTH,
+            h || FALLBACK_NODE_HEIGHT,
+          );
+        }
+
+        focusNodeTextarea(child.id);
+      });
     },
-    [id, getNode, addNode, connectEdge, setPrefill, zoom]
+    [id, getNode, addNode, connectEdge, setPrefill, zoom, movePosition, centerOnNode]
   );
 
   useEffect(() => {
@@ -239,7 +271,7 @@ function CustomNodeImpl(props: NodeProps) {
         maxWidth={1100}
         minHeight={NODE_MIN_HEIGHT}
         lineClassName="!border-transparent"
-        handleClassName="!h-2 !w-2 !rounded-sm !border !border-border !bg-card"
+        handleClassName="!h-3 !w-3 !border-0 !bg-transparent !shadow-none"
       />
 
       <Handle isConnectable={false} type="target" position={Position.Top} id="target-top" className="!opacity-0 !pointer-events-none" />
@@ -255,6 +287,10 @@ function CustomNodeImpl(props: NodeProps) {
             : "border-border"
         )}
       >
+        <div className="absolute left-3 top-3">
+          <ModelBadge />
+        </div>
+
         {/* Delete button — avera-style: top-right, opacity 0.6 idle, 1.0 on hover */}
         <button
           type="button"
@@ -341,7 +377,7 @@ function CustomNodeImpl(props: NodeProps) {
                 window.getSelection()?.removeAllRanges();
                 setSelectionText("");
               }}
-              className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
+              className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-foreground shadow-sm transition-colors hover:bg-muted cursor-pointer"
             >
               <Plus className="h-3 w-3" />
               Branch from selection

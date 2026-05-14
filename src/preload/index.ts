@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { ChatEvent, ChatStartArgs, LmcApi, CanvasCreateArgs } from "@shared/ipc";
+import type {
+  AskUserRequest,
+  AskUserResponsePayload,
+  ChatEvent,
+  ChatStartArgs,
+  LmcApi,
+  CanvasCreateArgs,
+} from "@shared/ipc";
 import type { AppSettings, Canvas } from "@shared/types";
 
 const api: LmcApi = {
@@ -29,6 +36,19 @@ const api: LmcApi = {
   },
   shell: {
     openPath: (path: string) => ipcRenderer.invoke("shell:openPath", path),
+  },
+  files: {
+    list: (cwd: string) => ipcRenderer.invoke("files:list", cwd),
+  },
+  askUser: {
+    onRequest: (handler: (req: AskUserRequest) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, req: AskUserRequest) =>
+        handler(req);
+      ipcRenderer.on("askUser:request", listener);
+      return () => ipcRenderer.off("askUser:request", listener);
+    },
+    respond: (payload: AskUserResponsePayload) =>
+      ipcRenderer.invoke("askUser:respond", payload),
   },
 };
 

@@ -45,7 +45,7 @@ export function ToolGroupView({ blocks }: Props) {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="nodrag flex w-full items-center gap-2 px-2.5 py-1.5 text-[10px] hover:bg-muted/50 transition-colors"
+        className="nodrag flex w-full items-center gap-2 px-2.5 py-1.5 text-[10px] hover:bg-muted/50 transition-colors cursor-pointer"
         aria-expanded={expanded}
       >
         <ChevronRight

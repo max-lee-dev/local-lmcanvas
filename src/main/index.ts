@@ -11,7 +11,18 @@ import {
 import { readSettings, writeSettings } from "./storage/settings";
 import { buildPromptWithHistory } from "./claude/history";
 import { runClaude } from "./claude/runner";
-import type { ChatEvent, ChatStartArgs, CanvasCreateArgs } from "@shared/ipc";
+import { listFiles } from "./files";
+import {
+  cancelAll as cancelAllAskUser,
+  completeRequest as completeAskUser,
+  setMainWindow as setAskUserWindow,
+} from "./claude/askUserBridge";
+import type {
+  AskUserResponsePayload,
+  ChatEvent,
+  ChatStartArgs,
+  CanvasCreateArgs,
+} from "@shared/ipc";
 import type { AppSettings, Canvas } from "@shared/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -36,6 +47,8 @@ function createWindow(): void {
   });
 
   mainWindow.on("ready-to-show", () => mainWindow?.show());
+  setAskUserWindow(mainWindow);
+  mainWindow.on("closed", () => setAskUserWindow(null));
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http")) shell.openExternal(url);
@@ -52,6 +65,9 @@ function createWindow(): void {
 }
 
 const activeChats = new Map<string, AbortController>();
+
+const FILES_CACHE_TTL_MS = 10_000;
+const filesCache = new Map<string, { at: number; files: string[] }>();
 
 function registerIpc(): void {
   ipcMain.handle("canvases:list", async () => listCanvases());
@@ -74,6 +90,16 @@ function registerIpc(): void {
 
   ipcMain.handle("shell:openPath", async (_e, path: string) => {
     await shell.openPath(path);
+  });
+
+  ipcMain.handle("files:list", async (_e, cwd: string): Promise<string[]> => {
+    if (!cwd) return [];
+    const now = Date.now();
+    const cached = filesCache.get(cwd);
+    if (cached && now - cached.at < FILES_CACHE_TTL_MS) return cached.files;
+    const files = await listFiles(cwd);
+    filesCache.set(cwd, { at: now, files });
+    return files;
   });
 
   ipcMain.handle("chat:start", async (_e, args: ChatStartArgs) => {
@@ -153,6 +179,11 @@ function registerIpc(): void {
   ipcMain.handle("chat:cancel", async (_e, chatId: string) => {
     activeChats.get(chatId)?.abort();
     activeChats.delete(chatId);
+    cancelAllAskUser();
+  });
+
+  ipcMain.handle("askUser:respond", async (_e, payload: AskUserResponsePayload) => {
+    completeAskUser(payload);
   });
 }
 

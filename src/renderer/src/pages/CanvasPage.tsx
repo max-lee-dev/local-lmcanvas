@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Plus, Settings, FolderOpen } from "lucide-react";
+import { ArrowLeft, FolderOpen, Plus, Settings } from "lucide-react";
 import { Canvas } from "@/components/Canvas/Canvas";
 import { makeBlankNode, useCanvasStore } from "@/hooks/useCanvasStore";
 import { SettingsModal } from "@/components/SettingsModal";
+import { CanvasManager } from "@/components/CanvasManager/CanvasManager";
 import { navigate } from "@/App";
 import { prettyPath } from "@/lib/prettyPath";
 
@@ -18,6 +19,7 @@ export function CanvasPage({ id }: { id: string }) {
   const nodeCount = useCanvasStore((s) => Object.keys(s.nodes).length);
   const addNode = useCanvasStore((s) => s.addNode);
   const [showSettings, setShowSettings] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const createFirstNode = () => {
     addNode(makeBlankNode({ x: 0, y: 0 }));
@@ -28,12 +30,20 @@ export function CanvasPage({ id }: { id: string }) {
   }, [id, canvasId, loadCanvas]);
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-2 app-drag">
-        <div className="flex items-center gap-3 no-drag">
+    <div className="relative h-screen w-screen overflow-hidden">
+      {/* Invisible drag strip across the top of the window for moving the window */}
+      <div className="pointer-events-none absolute top-0 left-0 right-0 h-12 z-10 app-drag" />
+
+      {/* Sidebar (handles its own toggle button) */}
+      <CanvasManager currentCanvasId={id} onOpenChange={setIsSidebarOpen} />
+
+      {/* Top-left: back + canvas name — only shown when sidebar is open
+          (when closed, the canvas name lives in the sidebar header instead) */}
+      {isSidebarOpen && (
+        <div className="absolute top-3 left-[128px] z-30 flex items-center gap-1 no-drag">
           <button
             onClick={() => navigate("/")}
-            className="flex h-7 w-7 items-center justify-center rounded hover:bg-zinc-100"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-foreground/70 hover:text-foreground hover:bg-muted cursor-pointer"
             title="back"
           >
             <ArrowLeft size={14} />
@@ -41,37 +51,62 @@ export function CanvasPage({ id }: { id: string }) {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="min-w-[240px] bg-transparent text-sm font-semibold outline-none"
+            className="min-w-[120px] max-w-[280px] bg-transparent text-sm font-medium outline-none px-1.5 py-1 rounded hover:bg-muted/60 focus:bg-muted/80 transition-colors"
             placeholder="untitled canvas"
           />
-          {cwd && (
-            <button
-              onClick={() => void window.api.shell.openPath(cwd)}
-              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
-              title={`reveal ${cwd}`}
-            >
-              <FolderOpen size={12} />
-              {prettyPath(cwd)}
-            </button>
-          )}
-          <span className="text-xs text-zinc-400">
-            {saving ? "saving…" : nodeCount === 0 ? "empty" : `${nodeCount} node${nodeCount === 1 ? "" : "s"}`}
-          </span>
         </div>
+      )}
+
+      {/* Top-center: breadcrumb pill (folder + node count + saving state) */}
+      {(cwd || nodeCount > 0 || saving) && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 no-drag">
+          <div className="flex items-center gap-2 rounded-md border border-border bg-card/90 backdrop-blur px-2.5 py-1.5 text-xs shadow-sm">
+            {cwd && (
+              <button
+                onClick={() => void window.api.shell.openPath(cwd)}
+                className="flex items-center gap-1.5 text-foreground/80 hover:text-foreground cursor-pointer"
+                title={`reveal ${cwd}`}
+              >
+                <FolderOpen size={12} />
+                <span>{prettyPath(cwd)}</span>
+              </button>
+            )}
+            {cwd && (nodeCount > 0 || saving) && (
+              <span className="text-border">·</span>
+            )}
+            <span className="text-muted-foreground">
+              {saving
+                ? "saving…"
+                : nodeCount === 0
+                  ? "empty"
+                  : `${nodeCount} node${nodeCount === 1 ? "" : "s"}`}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Top-right: settings */}
+      <div className="absolute top-3 right-3 z-30 no-drag">
         <button
           onClick={() => setShowSettings(true)}
-          className="flex h-7 w-7 items-center justify-center rounded hover:bg-zinc-100 no-drag"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-foreground/70 hover:text-foreground hover:bg-muted cursor-pointer"
           title="settings"
         >
           <Settings size={14} />
         </button>
-      </header>
-      <div className="relative flex-1">
+      </div>
+
+      {/* Canvas — fills the entire window */}
+      <div className="absolute inset-0">
         {!loaded && (
-          <div className="flex h-full items-center justify-center text-sm text-zinc-400">loading…</div>
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            loading…
+          </div>
         )}
         {loaded && error && (
-          <div className="flex h-full items-center justify-center text-sm text-red-500">{error}</div>
+          <div className="flex h-full items-center justify-center text-sm text-destructive">
+            {error}
+          </div>
         )}
         {loaded && !error && (
           <>
@@ -79,12 +114,12 @@ export function CanvasPage({ id }: { id: string }) {
               <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3">
                 <button
                   onClick={createFirstNode}
-                  className="pointer-events-auto flex items-center gap-1.5 rounded-md bg-zinc-900 px-4 py-2 text-sm text-white shadow-md hover:bg-zinc-700"
+                  className="pointer-events-auto flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground shadow-md hover:opacity-90 cursor-pointer"
                 >
                   <Plus size={14} />
                   new node
                 </button>
-                <div className="pointer-events-none text-xs text-zinc-500">
+                <div className="pointer-events-none text-xs text-muted-foreground">
                   or double-click anywhere on the canvas
                 </div>
               </div>
@@ -93,6 +128,7 @@ export function CanvasPage({ id }: { id: string }) {
           </>
         )}
       </div>
+
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
     </div>
   );

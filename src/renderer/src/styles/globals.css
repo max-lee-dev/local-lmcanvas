@@ -3,6 +3,14 @@
 @import "highlight.js/styles/github.css";
 @import "@xyflow/react/dist/style.css";
 
+@font-face {
+  font-family: "Geist Pixel Square";
+  src: url("./fonts/GeistPixel-Square.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -32,6 +40,7 @@
 
 :root {
   --font-lato: "Lato";
+  --font-geist-pixel-square: "Geist Pixel Square";
   --radius: 0.625rem;
   --background: oklch(0.985 0 0);
   --foreground: oklch(0.145 0 0);
@@ -67,6 +76,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family:
+    var(--font-geist-pixel-square),
     var(--font-lato),
     -apple-system,
     BlinkMacSystemFont,
@@ -93,8 +103,10 @@ header.app-drag {
   padding-left: 84px;
 }
 
-/* avera ports Lato to canvas node content only — body uses Lato globally too here */
-.react-flow__node {
+/* Canvas node content stays on Lato (matches avera) — Geist is reserved for UI chrome */
+.react-flow__node,
+.react-flow__node input,
+.react-flow__node textarea {
   font-family:
     var(--font-lato),
     -apple-system,
@@ -121,6 +133,20 @@ header.app-drag {
 .react-flow__node-custom:focus-visible {
   outline: none;
   box-shadow: none;
+}
+
+/* Subtle position transition for programmatic moves (collision push, edits).
+   xyflow positions nodes with `transform: translate(...)`. Disable while
+   dragging so manual drag stays 1:1 with the cursor. */
+.react-flow__node {
+  transition: transform 350ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.react-flow__node.dragging {
+  transition: none;
+}
+/* Edges follow the same easing so endpoint snaps animate with the node. */
+.react-flow__edge-path {
+  transition: d 350ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .react-flow__edge-path {

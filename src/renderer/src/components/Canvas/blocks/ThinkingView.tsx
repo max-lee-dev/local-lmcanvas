@@ -19,7 +19,7 @@ export function ThinkingView({ text }: Props) {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-start gap-1.5 px-2 py-1 text-left transition-colors hover:bg-muted"
+        className="flex w-full items-start gap-1.5 px-2 py-1 text-left transition-colors hover:bg-muted cursor-pointer"
         aria-label={expanded ? "Collapse reasoning" : "Expand reasoning"}
       >
         <Brain size={11} className="mt-[1px] shrink-0 text-muted-foreground" />

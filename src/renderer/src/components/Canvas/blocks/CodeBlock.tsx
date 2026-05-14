@@ -29,7 +29,7 @@ export const CodeBlock = memo(function CodeBlock({ code, language, innerProps }:
         <button
           type="button"
           onClick={onCopy}
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer"
           aria-label="Copy code"
           title="Copy"
         >

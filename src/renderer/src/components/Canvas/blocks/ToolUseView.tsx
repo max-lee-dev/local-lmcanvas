@@ -41,7 +41,7 @@ function GenericToolView({ block }: { block: ToolUseBlock }) {
         type="button"
         onClick={() => setExpanded((v) => !v)}
         className={clsx(
-          "flex w-full items-center gap-1.5 px-2 py-1 text-left transition-colors",
+          "flex w-full items-center gap-1.5 px-2 py-1 text-left transition-colors cursor-pointer",
           isError ? "hover:bg-destructive/10" : "hover:bg-muted"
         )}
         aria-label={expanded ? "Collapse tool call" : "Expand tool call"}

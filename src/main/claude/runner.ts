@@ -22,6 +22,9 @@ import type {
   ToolResultBlockParam,
 } from "@anthropic-ai/sdk/resources/messages/messages.mjs";
 import type { Attachment } from "@shared/ipc";
+import { buildAskUserServer } from "./askUserMcp";
+
+const ASK_USER_SYSTEM_NOTE = `\n\nWhen you need to ask the local user a structured multiple-choice question, use the \`mcp__lmc__ask_user_question\` tool. It renders an interactive picker inside the local-lmcanvas app. Do NOT use the built-in AskUserQuestion tool — it is disabled in this environment.`;
 
 export type RunnerEvent =
   | { kind: "text_delta"; text: string }
@@ -62,6 +65,9 @@ export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<vo
   const promptInput: string | AsyncIterable<SDKUserMessage> =
     attachments.length > 0 ? buildStreamingPrompt(prompt, attachments) : prompt;
 
+  const askUserServer = buildAskUserServer(controller.signal);
+  const appendedSystemPrompt = (opts.systemPrompt ?? "") + ASK_USER_SYSTEM_NOTE;
+
   try {
     const q = query({
       prompt: promptInput,
@@ -72,12 +78,16 @@ export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<vo
         model: opts.model,
         // append vs raw: we always extend claude_code preset so the agent
         // keeps its built-in tooling instructions
-        systemPrompt: opts.systemPrompt
-          ? { type: "preset", preset: "claude_code", append: opts.systemPrompt }
-          : { type: "preset", preset: "claude_code" },
+        systemPrompt: {
+          type: "preset",
+          preset: "claude_code",
+          append: appendedSystemPrompt,
+        },
         includePartialMessages: true,
         settingSources: ["user", "project"],
         abortController: controller,
+        mcpServers: { lmc: askUserServer },
+        disallowedTools: ["AskUserQuestion"],
       },
     });
 

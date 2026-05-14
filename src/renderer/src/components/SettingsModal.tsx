@@ -33,7 +33,7 @@ export function SettingsModal({ open, onClose }: Props) {
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold">settings</h2>
-          <button onClick={onClose} className="rounded p-1 hover:bg-zinc-100">
+          <button onClick={onClose} className="rounded p-1 hover:bg-zinc-100 cursor-pointer">
             <X size={14} />
           </button>
         </div>
@@ -72,14 +72,14 @@ export function SettingsModal({ open, onClose }: Props) {
         <div className="mt-5 flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50"
+            className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 cursor-pointer"
           >
             cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-zinc-700 disabled:opacity-60"
+            className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-zinc-700 disabled:opacity-60 cursor-pointer"
           >
             {saving ? "saving…" : "save"}
           </button>

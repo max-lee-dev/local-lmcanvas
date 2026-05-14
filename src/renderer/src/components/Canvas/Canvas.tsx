@@ -202,7 +202,8 @@ function CanvasInner() {
       const target = e.target as HTMLElement;
       if (target.closest(".react-flow__node")) return;
       const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      const node = makeBlankNode(pos);
+      const centered = { x: pos.x - 225, y: pos.y - 50 };
+      const node = makeBlankNode(centered);
       addNode(node);
       focusNodeTextarea(node.id);
     },
@@ -220,7 +221,7 @@ function CanvasInner() {
       <button
         type="button"
         onClick={() => setIsPanMode((v) => !v)}
-        className="absolute top-3 right-3 z-10 px-3 py-1.5 text-xs rounded-md border border-border bg-card text-foreground hover:bg-muted shadow-sm"
+        className="absolute top-3 right-3 z-10 px-3 py-1.5 text-xs rounded-md border border-border bg-card text-foreground hover:bg-muted shadow-sm cursor-pointer"
         title="Toggle pan mode (h)"
       >
         {isPanMode ? "Pan mode" : "Select mode"}

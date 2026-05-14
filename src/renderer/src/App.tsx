@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { HomePage } from "./pages/HomePage";
 import { CanvasPage } from "./pages/CanvasPage";
+import { AskUserModal } from "./components/AskUser/AskUserModal";
 
 type Route =
   | { name: "home" }
@@ -25,6 +26,10 @@ export function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  if (route.name === "canvas") return <CanvasPage id={route.id} />;
-  return <HomePage />;
+  return (
+    <>
+      {route.name === "canvas" ? <CanvasPage id={route.id} /> : <HomePage />}
+      <AskUserModal />
+    </>
+  );
 }

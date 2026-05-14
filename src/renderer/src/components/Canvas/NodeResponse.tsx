@@ -65,7 +65,7 @@ export function NodeResponse({ message, onStop }: Props) {
     return (
       <div className="flex flex-col gap-2">
         {text && (
-          <div className="whitespace-pre-wrap break-words text-[10px] leading-relaxed text-foreground select-text">
+          <div className="whitespace-pre-wrap break-words text-[10px] leading-relaxed text-foreground select-text cursor-text">
             {text}
           </div>
         )}
