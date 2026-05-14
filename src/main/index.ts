@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, nativeImage, shell, dialog } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
@@ -13,9 +13,8 @@ import { buildPromptWithHistory } from "./claude/history";
 import { runClaude } from "./claude/runner";
 import { listFiles } from "./files";
 import {
-  cancelAll as cancelAllAskUser,
+  cancelAllForWebContents,
   completeRequest as completeAskUser,
-  setMainWindow as setAskUserWindow,
 } from "./claude/askUserBridge";
 import type {
   AskUserResponsePayload,
@@ -27,17 +26,24 @@ import type { AppSettings, Canvas } from "@shared/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-let mainWindow: BrowserWindow | null = null;
+// Dev: __dirname is .../out/main → ../../resources is the project resources/.
+// Packaged: electron-builder copies resources/ to process.resourcesPath/resources.
+const APP_ICON_PATH = app.isPackaged
+  ? join(process.resourcesPath, "resources/icon.png")
+  : join(__dirname, "../../resources/icon.png");
 
-function createWindow(): void {
-  mainWindow = new BrowserWindow({
+function createWindow(hash?: string): BrowserWindow {
+  const icon = nativeImage.createFromPath(APP_ICON_PATH);
+
+  const win = new BrowserWindow({
     width: 1280,
     height: 840,
-    minWidth: 720,
+    minWidth: 360,
     minHeight: 480,
     title: "local-lmcanvas",
     titleBarStyle: "hiddenInset",
     backgroundColor: "#fafafa",
+    icon: icon.isEmpty() ? undefined : icon,
     webPreferences: {
       preload: join(__dirname, "../preload/index.mjs"),
       sandbox: false,
@@ -46,22 +52,29 @@ function createWindow(): void {
     },
   });
 
-  mainWindow.on("ready-to-show", () => mainWindow?.show());
-  setAskUserWindow(mainWindow);
-  mainWindow.on("closed", () => setAskUserWindow(null));
+  if (process.platform === "darwin" && app.dock && !icon.isEmpty()) {
+    app.dock.setIcon(icon);
+  }
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  win.on("ready-to-show", () => win.show());
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http")) shell.openExternal(url);
     return { action: "deny" };
   });
 
+  const suffix = hash ? `#${hash.replace(/^#/, "")}` : "";
   const devUrl = process.env["ELECTRON_RENDERER_URL"];
   if (devUrl) {
-    void mainWindow.loadURL(devUrl);
-    mainWindow.webContents.openDevTools({ mode: "detach" });
+    void win.loadURL(devUrl + suffix);
+    win.webContents.openDevTools({ mode: "detach" });
   } else {
-    void mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
+    void win.loadFile(join(__dirname, "../renderer/index.html"), {
+      hash: hash?.replace(/^#/, ""),
+    });
   }
+
+  return win;
 }
 
 const activeChats = new Map<string, AbortController>();
@@ -102,11 +115,13 @@ function registerIpc(): void {
     return files;
   });
 
-  ipcMain.handle("chat:start", async (_e, args: ChatStartArgs) => {
-    const { chatId, canvasId, history, prompt, attachments, systemPromptOverride } = args;
+  ipcMain.handle("chat:start", async (e, args: ChatStartArgs) => {
+    const { chatId, nodeId, canvasId, history, prompt, attachments, systemPromptOverride } = args;
+    const sender = e.sender;
 
     const send = (ev: ChatEvent) => {
-      mainWindow?.webContents.send("chat:event", ev);
+      if (sender.isDestroyed()) return;
+      sender.send("chat:event", ev);
     };
 
     const canvas = await readCanvas(canvasId);
@@ -132,6 +147,8 @@ function registerIpc(): void {
         systemPrompt,
         attachments,
         signal: controller.signal,
+        webContents: sender,
+        nodeId,
         onEvent: (ev) => {
           switch (ev.kind) {
             case "text_delta":
@@ -176,14 +193,19 @@ function registerIpc(): void {
     }
   });
 
-  ipcMain.handle("chat:cancel", async (_e, chatId: string) => {
+  ipcMain.handle("chat:cancel", async (e, chatId: string) => {
     activeChats.get(chatId)?.abort();
     activeChats.delete(chatId);
-    cancelAllAskUser();
+    cancelAllForWebContents(e.sender);
   });
 
   ipcMain.handle("askUser:respond", async (_e, payload: AskUserResponsePayload) => {
     completeAskUser(payload);
+  });
+
+  ipcMain.handle("window:openCanvas", async (_e, canvasId?: string) => {
+    const hash = canvasId ? `/canvas/${canvasId}` : "/";
+    createWindow(hash);
   });
 }
 

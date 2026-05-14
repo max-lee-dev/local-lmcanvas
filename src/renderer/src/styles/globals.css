@@ -84,6 +84,8 @@ body {
     Roboto,
     sans-serif;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* macOS-style draggable titlebar */
@@ -119,12 +121,6 @@ header.app-drag {
 /* Canvas interaction-mode cursors (avera) */
 .canvas-cursor-select .react-flow__pane {
   cursor: default !important;
-}
-.canvas-cursor-pan .react-flow__pane {
-  cursor: grab !important;
-}
-.canvas-cursor-pan .react-flow__pane:active {
-  cursor: grabbing !important;
 }
 
 /* Hide xyflow node default outline; we style ourselves */

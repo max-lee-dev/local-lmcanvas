@@ -16,6 +16,8 @@ export type AskUserQuestion = {
 export type AskUserRequest = {
   /** Correlates this request with the response. */
   id: string;
+  /** The node that initiated the chat which triggered this question. */
+  nodeId: string;
   questions: AskUserQuestion[];
 };
 
@@ -34,6 +36,8 @@ export type Attachment = {
 
 export type ChatStartArgs = {
   chatId: string;
+  /** The node initiating the chat — surfaced to the askUser flow so prompts render inline. */
+  nodeId: string;
   canvasId: string;
   history: Message[];
   prompt: string;
@@ -98,6 +102,10 @@ export type LmcApi = {
     onRequest(handler: (req: AskUserRequest) => void): () => void;
     /** Send the user's answers (or cancellation) back to the agent. */
     respond(payload: AskUserResponsePayload): Promise<void>;
+  };
+  window: {
+    /** Open a new app window. If `canvasId` is provided, the new window opens directly on that canvas. */
+    openCanvas(canvasId?: string): Promise<void>;
   };
 };
 

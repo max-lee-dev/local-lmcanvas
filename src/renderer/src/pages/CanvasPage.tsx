@@ -1,25 +1,21 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, FolderOpen, Plus, Settings } from "lucide-react";
+import { FolderOpen, Plus, Settings } from "lucide-react";
 import { Canvas } from "@/components/Canvas/Canvas";
 import { makeBlankNode, useCanvasStore } from "@/hooks/useCanvasStore";
 import { SettingsModal } from "@/components/SettingsModal";
 import { CanvasManager } from "@/components/CanvasManager/CanvasManager";
-import { navigate } from "@/App";
 import { prettyPath } from "@/lib/prettyPath";
 
 export function CanvasPage({ id }: { id: string }) {
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
   const loaded = useCanvasStore((s) => s.loaded);
   const canvasId = useCanvasStore((s) => s.canvasId);
-  const name = useCanvasStore((s) => s.name);
   const cwd = useCanvasStore((s) => s.cwd);
-  const setName = useCanvasStore((s) => s.setName);
   const error = useCanvasStore((s) => s.error);
   const saving = useCanvasStore((s) => s.saving);
   const nodeCount = useCanvasStore((s) => Object.keys(s.nodes).length);
   const addNode = useCanvasStore((s) => s.addNode);
   const [showSettings, setShowSettings] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const createFirstNode = () => {
     addNode(makeBlankNode({ x: 0, y: 0 }));
@@ -35,27 +31,7 @@ export function CanvasPage({ id }: { id: string }) {
       <div className="pointer-events-none absolute top-0 left-0 right-0 h-12 z-10 app-drag" />
 
       {/* Sidebar (handles its own toggle button) */}
-      <CanvasManager currentCanvasId={id} onOpenChange={setIsSidebarOpen} />
-
-      {/* Top-left: back + canvas name — only shown when sidebar is open
-          (when closed, the canvas name lives in the sidebar header instead) */}
-      {isSidebarOpen && (
-        <div className="absolute top-3 left-[128px] z-30 flex items-center gap-1 no-drag">
-          <button
-            onClick={() => navigate("/")}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-foreground/70 hover:text-foreground hover:bg-muted cursor-pointer"
-            title="back"
-          >
-            <ArrowLeft size={14} />
-          </button>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="min-w-[120px] max-w-[280px] bg-transparent text-sm font-medium outline-none px-1.5 py-1 rounded hover:bg-muted/60 focus:bg-muted/80 transition-colors"
-            placeholder="untitled canvas"
-          />
-        </div>
-      )}
+      <CanvasManager currentCanvasId={id} />
 
       {/* Top-center: breadcrumb pill (folder + node count + saving state) */}
       {(cwd || nodeCount > 0 || saving) && (

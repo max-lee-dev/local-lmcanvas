@@ -50,6 +50,10 @@ const api: LmcApi = {
     respond: (payload: AskUserResponsePayload) =>
       ipcRenderer.invoke("askUser:respond", payload),
   },
+  window: {
+    openCanvas: (canvasId?: string) =>
+      ipcRenderer.invoke("window:openCanvas", canvasId),
+  },
 };
 
 contextBridge.exposeInMainWorld("api", api);

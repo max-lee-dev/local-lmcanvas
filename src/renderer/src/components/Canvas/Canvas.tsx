@@ -48,8 +48,6 @@ function CanvasInner() {
   useDebouncedSave();
   useKeyboardShortcuts();
 
-  const [isPanMode, setIsPanMode] = useState(false);
-
   const {
     isOpen: ctxIsOpen,
     position: ctxPosition,
@@ -218,16 +216,8 @@ function CanvasInner() {
       className="h-full w-full bg-background relative"
       onDoubleClick={onPaneDoubleClick}
     >
-      <button
-        type="button"
-        onClick={() => setIsPanMode((v) => !v)}
-        className="absolute top-3 right-3 z-10 px-3 py-1.5 text-xs rounded-md border border-border bg-card text-foreground hover:bg-muted shadow-sm cursor-pointer"
-        title="Toggle pan mode (h)"
-      >
-        {isPanMode ? "Pan mode" : "Select mode"}
-      </button>
       <ReactFlow
-        className={isPanMode ? "canvas-cursor-pan" : "canvas-cursor-select"}
+        className="canvas-cursor-select"
         style={{ width: "100%", height: "100%" }}
         nodes={rfNodes}
         edges={rfEdges}
@@ -242,12 +232,9 @@ function CanvasInner() {
         defaultViewport={{ x: 200, y: 200, zoom: 1 }}
         fitView={nodeCount > 0}
         fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
-        nodesDraggable={!isPanMode}
-        nodesConnectable={!isPanMode}
-        elementsSelectable={!isPanMode}
-        selectionOnDrag={!isPanMode}
+        selectionOnDrag
         selectionMode={SelectionMode.Partial}
-        selectNodesOnDrag={!isPanMode}
+        selectNodesOnDrag
         noDragClassName="nodrag"
         maxZoom={4}
         minZoom={0.1}
@@ -257,7 +244,7 @@ function CanvasInner() {
         zoomOnScroll={false}
         disableKeyboardA11y={true}
         zoomOnPinch
-        panOnDrag={isPanMode ? true : [1]}
+        panOnDrag={[1]}
         zoomOnDoubleClick={false}
         proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={defaultEdgeOptions}

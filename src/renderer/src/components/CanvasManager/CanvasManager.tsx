@@ -158,10 +158,10 @@ export function CanvasManager({
               exit={{ x: -320 }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
             >
-              {/* Header — pl makes room for traffic lights + sidebar toggle */}
-              <div className="flex items-center h-16 justify-between p-4 border-b border-border bg-card app-drag">
-                <h2 className="pl-[140px] text-md font-normal truncate text-foreground no-drag">
-                  {currentCanvas?.name ?? "local-lmcanvas"}
+              {/* Header */}
+              <div className="flex items-center h-10 justify-between px-4 border-b border-border bg-card app-drag">
+                <h2 className="pl-[104px] text-sm font-normal truncate text-foreground no-drag">
+                  {currentCanvas?.name}
                 </h2>
               </div>
 

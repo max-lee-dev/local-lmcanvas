@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { BrowserWindow } from "electron";
+import type { WebContents } from "electron";
 import type {
   AskUserQuestion,
   AskUserResponsePayload,
@@ -10,27 +10,25 @@ type Pending = {
   reject: (err: unknown) => void;
   signal?: AbortSignal;
   abortHandler?: () => void;
+  webContents: WebContents;
+  destroyedHandler?: () => void;
 };
 
-let win: BrowserWindow | null = null;
 const pending = new Map<string, Pending>();
 
-export function setMainWindow(w: BrowserWindow | null): void {
-  win = w;
-}
-
 /**
- * Send an ask-user request to the renderer and wait for the user's answers.
- *
- * Resolves with the renderer's response. If `signal` aborts before the user
- * responds, rejects with an `AbortError`-style error.
+ * Send an ask-user request to a specific renderer (window) and wait for its
+ * answers. Routing per webContents keeps multi-window safe. `nodeId` lets the
+ * renderer render the prompt inline on the node that initiated the chat.
  */
 export function requestAnswer(
   questions: AskUserQuestion[],
+  webContents: WebContents,
+  nodeId: string,
   signal?: AbortSignal,
 ): Promise<AskUserResponsePayload> {
-  if (!win) {
-    return Promise.reject(new Error("Main window is not initialized"));
+  if (webContents.isDestroyed()) {
+    return Promise.reject(new Error("Target window is destroyed"));
   }
   if (signal?.aborted) {
     return Promise.reject(new Error("Aborted"));
@@ -38,39 +36,53 @@ export function requestAnswer(
 
   const id = randomUUID();
   return new Promise<AskUserResponsePayload>((resolve, reject) => {
-    const entry: Pending = { resolve, reject, signal };
+    const entry: Pending = { resolve, reject, signal, webContents };
 
     if (signal) {
       const onAbort = () => {
-        pending.delete(id);
+        cleanup(id);
         reject(new Error("Aborted"));
       };
       entry.abortHandler = onAbort;
       signal.addEventListener("abort", onAbort, { once: true });
     }
 
+    const onDestroyed = () => {
+      cleanup(id);
+      resolve({ id, cancelled: true });
+    };
+    entry.destroyedHandler = onDestroyed;
+    webContents.once("destroyed", onDestroyed);
+
     pending.set(id, entry);
-    win!.webContents.send("askUser:request", { id, questions });
+    webContents.send("askUser:request", { id, nodeId, questions });
   });
 }
 
-export function completeRequest(payload: AskUserResponsePayload): void {
-  const entry = pending.get(payload.id);
-  if (!entry) return;
-  pending.delete(payload.id);
+function cleanup(id: string): Pending | undefined {
+  const entry = pending.get(id);
+  if (!entry) return undefined;
+  pending.delete(id);
   if (entry.signal && entry.abortHandler) {
     entry.signal.removeEventListener("abort", entry.abortHandler);
   }
+  if (entry.destroyedHandler && !entry.webContents.isDestroyed()) {
+    entry.webContents.off("destroyed", entry.destroyedHandler);
+  }
+  return entry;
+}
+
+export function completeRequest(payload: AskUserResponsePayload): void {
+  const entry = cleanup(payload.id);
+  if (!entry) return;
   entry.resolve(payload);
 }
 
-/** Reject all in-flight requests. Used when the chat is cancelled. */
-export function cancelAll(): void {
+/** Cancel all in-flight requests originating from a specific window. */
+export function cancelAllForWebContents(webContents: WebContents): void {
   for (const [id, entry] of pending) {
-    pending.delete(id);
-    if (entry.signal && entry.abortHandler) {
-      entry.signal.removeEventListener("abort", entry.abortHandler);
-    }
+    if (entry.webContents !== webContents) continue;
+    cleanup(id);
     entry.resolve({ id, cancelled: true });
   }
 }

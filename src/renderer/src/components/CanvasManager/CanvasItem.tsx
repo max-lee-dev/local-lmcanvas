@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Loader2, ExternalLink } from "lucide-react";
 import type { CanvasSummary } from "@shared/types";
 import { prettyPath } from "@/lib/prettyPath";
 
@@ -52,6 +52,14 @@ export const CanvasItem = ({
     e.stopPropagation();
     onDelete();
     setShowMenu(false);
+  };
+
+  const handleOpenNewWindow = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMenu(false);
+    window.api.window
+      .openCanvas(canvas.id)
+      .catch((err) => console.error("openCanvas failed:", err));
   };
 
   const handleSaveName = async () => {
@@ -187,6 +195,13 @@ export const CanvasItem = ({
                 transition={{ duration: 0.15 }}
                 onClick={(e) => e.stopPropagation()}
               >
+                <button
+                  className="w-full cursor-pointer px-3 py-2 text-sm text-left transition-colors flex items-center gap-2 text-foreground hover:bg-muted"
+                  onClick={handleOpenNewWindow}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open in new window
+                </button>
                 <button
                   className="w-full cursor-pointer px-3 py-2 text-sm text-left transition-colors flex items-center gap-2 text-foreground hover:bg-muted"
                   onClick={handleRenameClick}

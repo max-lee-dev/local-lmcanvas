@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { HomePage } from "./pages/HomePage";
 import { CanvasPage } from "./pages/CanvasPage";
-import { AskUserModal } from "./components/AskUser/AskUserModal";
+import { subscribeAskUserRequests } from "./hooks/useAskUserStore";
 
 type Route =
   | { name: "home" }
@@ -26,10 +26,7 @@ export function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  return (
-    <>
-      {route.name === "canvas" ? <CanvasPage id={route.id} /> : <HomePage />}
-      <AskUserModal />
-    </>
-  );
+  useEffect(() => subscribeAskUserRequests(), []);
+
+  return route.name === "canvas" ? <CanvasPage id={route.id} /> : <HomePage />;
 }

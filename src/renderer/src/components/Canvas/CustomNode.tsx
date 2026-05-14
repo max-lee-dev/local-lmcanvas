@@ -15,7 +15,11 @@ import { useNodeChat } from "@/hooks/useNodeChat";
 import type { CanvasNode } from "@shared/types";
 import { NodeResponse } from "./NodeResponse";
 import { NodePromptInput } from "./NodePromptInput";
+import { AskUserPrompt } from "./AskUserPrompt";
+import { SelectionActionButton } from "./SelectionActionButton";
+import { useAskUserStore } from "@/hooks/useAskUserStore";
 import { useCenterOnNode } from "@/hooks/useCenterOnNode";
+import { useSelection } from "@/hooks/useSelection";
 import {
   FALLBACK_NODE_HEIGHT,
   NODE_MIN_HEIGHT,
@@ -68,11 +72,12 @@ function CustomNodeImpl(props: NodeProps) {
   const centerOnNode = useCenterOnNode();
 
   const [hovered, setHovered] = useState(false);
-  const [selectionText, setSelectionText] = useState<string>("");
   const [isEditingPrompt, setIsEditingPrompt] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const askUserRequest = useAskUserStore((s) => s.byNode[id]);
   const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const selection = useSelection(rootRef);
 
   const branch = useCallback(
     (prefill?: string) => {
@@ -125,34 +130,6 @@ function CustomNodeImpl(props: NodeProps) {
     },
     [id, getNode, addNode, connectEdge, setPrefill, zoom, movePosition, centerOnNode]
   );
-
-  useEffect(() => {
-    const onSelect = (): void => {
-      const sel = window.getSelection();
-      const root = rootRef.current;
-      if (!sel || !root) {
-        setSelectionText("");
-        return;
-      }
-      const text = sel.toString().trim();
-      if (!text) {
-        setSelectionText("");
-        return;
-      }
-      if (
-        sel.anchorNode &&
-        root.contains(sel.anchorNode) &&
-        sel.focusNode &&
-        root.contains(sel.focusNode)
-      ) {
-        setSelectionText(text);
-      } else {
-        setSelectionText("");
-      }
-    };
-    document.addEventListener("selectionchange", onSelect);
-    return () => document.removeEventListener("selectionchange", onSelect);
-  }, []);
 
   const messages = nodeData.chat.messages;
   const userMessage = messages.find((m) => m.role === "user");
@@ -281,13 +258,13 @@ function CustomNodeImpl(props: NodeProps) {
 
       <div
         className={clsx(
-          "relative border rounded-[10px] transition-colors duration-300 px-6 pb-4 pt-12 shadow-sm bg-card",
+          "relative border rounded-[10px] transition-colors duration-300 px-5 pb-4 pt-12 shadow-sm bg-card",
           selected
             ? "border-accent bg-accent/10"
             : "border-border"
         )}
       >
-        <div className="absolute left-3 top-3">
+        <div className="absolute left-4 top-3">
           <ModelBadge />
         </div>
 
@@ -365,24 +342,20 @@ function CustomNodeImpl(props: NodeProps) {
           {assistantMessage && (
             <NodeResponse message={assistantMessage} onStop={stop} />
           )}
+          {askUserRequest && <AskUserPrompt request={askUserRequest} />}
         </div>
 
-        {/* Selection action — when user has selected text inside this node */}
-        {selectionText && (
-          <div className="absolute -top-9 left-1/2 z-20 -translate-x-1/2 nodrag">
-            <button
-              type="button"
-              onClick={() => {
-                branch(`Re: "${selectionText.slice(0, 200)}"\n\n`);
-                window.getSelection()?.removeAllRanges();
-                setSelectionText("");
-              }}
-              className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-foreground shadow-sm transition-colors hover:bg-muted cursor-pointer"
-            >
-              <Plus className="h-3 w-3" />
-              Branch from selection
-            </button>
-          </div>
+        {/* Selection action — follows the Y of the selection (avera-style) */}
+        {selection && (
+          <SelectionActionButton
+            isVisible
+            relativeTop={selection.relativeTop}
+            absolutePosition={selection.position}
+            onClick={() => {
+              branch(`Re: "${selection.text.slice(0, 200)}"\n\n`);
+              selection.clear({ removeRange: true });
+            }}
+          />
         )}
 
         {/* Bottom-right copy button — avera: bg-card, h-5 w-5 rounded-md text-muted-foreground */}

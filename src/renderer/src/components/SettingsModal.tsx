@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { AppSettings } from "@shared/types";
 
 type Props = {
@@ -16,7 +17,14 @@ export function SettingsModal({ open, onClose }: Props) {
     void window.api.settings.read().then(setSettings);
   }, [open]);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [open, onClose]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -26,11 +34,25 @@ export function SettingsModal({ open, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
-      <div
-        className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-5 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatePresence mode="wait">
+      {open && (
+        <motion.div
+          key="settings-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          onClick={onClose}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+        >
+          <motion.div
+            className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold">settings</h2>
           <button onClick={onClose} className="rounded p-1 hover:bg-zinc-100 cursor-pointer">
@@ -84,7 +106,9 @@ export function SettingsModal({ open, onClose }: Props) {
             {saving ? "saving…" : "save"}
           </button>
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

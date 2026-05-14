@@ -22,7 +22,7 @@ export const FALLBACK_NODE_HEIGHT = 300;
 
 // Camera defaults
 export const FOCUS_ZOOM = 1.5;
-export const FOCUS_DURATION_MS = 400;
+export const FOCUS_DURATION_MS = 800;
 
 // Collision resolver
 export const COLLISION_PADDING_PX = 50;

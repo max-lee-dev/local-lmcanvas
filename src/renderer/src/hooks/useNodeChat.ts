@@ -119,6 +119,7 @@ export function useNodeChat(nodeId: NodeId) {
       try {
         await window.api.chat.start({
           chatId,
+          nodeId,
           canvasId,
           history,
           prompt: trimmed,
