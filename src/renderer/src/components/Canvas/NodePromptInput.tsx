@@ -18,6 +18,7 @@ type Props = {
   streaming: boolean;
   autoFocus?: boolean;
   initialValue?: string;
+  initialAttachments?: Attachment[];
   onCancel?: () => void;
 };
 
