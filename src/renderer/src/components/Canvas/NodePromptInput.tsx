@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { X } from "lucide-react";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { useTextareaAutoResize } from "@/hooks/useTextareaAutoResize";
@@ -30,15 +37,23 @@ const ALLOWED_TYPES = new Set<string>([
   "image/webp",
 ]);
 
-export function NodePromptInput({
-  nodeId,
-  onSubmit,
-  streaming,
-  autoFocus,
-  initialValue,
-  initialAttachments,
-  onCancel,
-}: Props) {
+export type NodePromptInputHandle = {
+  addFiles: (files: FileList | File[]) => Promise<void>;
+  focus: () => void;
+};
+
+export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function NodePromptInput(
+  {
+    nodeId,
+    onSubmit,
+    streaming,
+    autoFocus,
+    initialValue,
+    initialAttachments,
+    onCancel,
+  },
+  ref,
+) {
   const [value, setValue] = useState(initialValue ?? "");
   const [attachments, setAttachments] = useState<Attachment[]>(
     initialAttachments ?? []
