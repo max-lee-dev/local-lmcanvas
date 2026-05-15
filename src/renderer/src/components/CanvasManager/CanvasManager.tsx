@@ -39,6 +39,7 @@ export function CanvasManager({
   const [searchQuery, setSearchQuery] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [deletingCanvasId, setDeletingCanvasId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const [draft, setDraft] = useState<DraftCanvas | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [defaultProvider, setDefaultProvider] = useState<Provider>("claude");
