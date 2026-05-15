@@ -37,39 +37,38 @@ export function ProviderRow({
   };
 
   return (
-    <div className="rounded-md border border-border bg-background">
-      <div className="flex items-center gap-3 px-3 py-2.5">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="radio"
-            name="default-provider"
-            checked={isDefault}
-            onChange={onMakeDefault}
-            className="cursor-pointer accent-foreground"
+    <div
+      className="rounded-md border border-border bg-background"
+      title={info.tagline}
+    >
+      <div className="flex items-center gap-1.5 px-2 py-1.5">
+        <input
+          type="radio"
+          name="default-provider"
+          checked={isDefault}
+          onChange={onMakeDefault}
+          aria-label={`make ${info.name} default`}
+          className="cursor-pointer accent-foreground shrink-0"
+        />
+        <span className="text-xs font-medium text-foreground truncate">
+          {info.name}
+        </span>
+        <div className="ml-auto flex items-center gap-0.5 shrink-0">
+          <AuthStatusPill
+            status={auth.status}
+            isLoading={auth.isLoading}
+            isPolling={auth.isPolling}
+            compact
           />
-        </label>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-foreground">{info.name}</span>
-            <AuthStatusPill
-              status={auth.status}
-              isLoading={auth.isLoading}
-              isPolling={auth.isPolling}
-            />
-          </div>
-          <p className="mt-0.5 text-[11px] text-muted-foreground truncate">
-            {info.tagline}
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5">
           {authenticated ? (
             <motion.button
               type="button"
               onClick={() => void handleSignIn()}
               whileTap={{ scale: 0.95 }}
-              className="rounded-md border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-muted cursor-pointer"
+              title="Re-sign in"
+              className="rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted cursor-pointer"
             >
-              Re-sign in
+              Re-sign
             </motion.button>
           ) : installed ? (
             <motion.button
@@ -77,33 +76,33 @@ export function ProviderRow({
               onClick={() => void handleSignIn()}
               disabled={auth.isPolling}
               whileTap={{ scale: 0.95 }}
-              className="rounded-md bg-foreground px-2.5 py-1 text-[11px] font-medium text-background hover:opacity-90 disabled:opacity-60 cursor-pointer"
+              className="rounded-md bg-foreground px-1.5 py-0.5 text-[10px] font-medium text-background hover:opacity-90 disabled:opacity-60 cursor-pointer"
             >
-              {auth.isPolling ? "Waiting…" : "Sign in"}
+              {auth.isPolling ? "Wait…" : "Sign in"}
             </motion.button>
           ) : (
             <motion.button
               type="button"
               onClick={() => window.open(info.installUrl, "_blank", "noopener")}
               whileTap={{ scale: 0.95 }}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-[11px] text-foreground hover:bg-muted cursor-pointer"
+              className="inline-flex items-center gap-0.5 rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] text-foreground hover:bg-muted cursor-pointer"
             >
               Install
-              <ArrowUpRight className="h-3 w-3" />
+              <ArrowUpRight className="h-2.5 w-2.5" />
             </motion.button>
           )}
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
             aria-label="advanced"
-            className="rounded p-1 text-muted-foreground hover:bg-muted cursor-pointer"
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted cursor-pointer"
           >
             <motion.span
               animate={{ rotate: expanded ? 180 : 0 }}
               transition={{ duration: 0.15 }}
               className="inline-flex"
             >
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className="h-3 w-3" />
             </motion.span>
           </button>
         </div>
