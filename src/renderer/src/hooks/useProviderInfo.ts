@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
-import type { AppSettings, Provider } from "@shared/types";
+import { PROVIDERS, type AppSettings, type Provider } from "@shared/types";
 import { useCanvasStore } from "./useCanvasStore";
 
 export type ProviderInfoState = {
   provider: Provider;
   label: string;
+  labelsByProvider: Record<Provider, string>;
+};
+
+const DEFAULT_MODEL_BY_PROVIDER: Record<Provider, string> = {
+  claude: "claude-opus-4-7",
+  codex: "gpt-5-codex",
+  cursor: "auto",
 };
 
 /**
@@ -25,16 +32,28 @@ export function useProviderInfo(): ProviderInfoState {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canvasProvider]);
 
   const provider: Provider =
     canvasProvider ?? settings?.defaultProvider ?? "claude";
 
-  const modelId =
-    settings?.providers?.[provider]?.model ??
-    (provider === "claude" ? settings?.claudeModel : undefined);
+  const labelsByProvider = PROVIDERS.reduce<Record<Provider, string>>(
+    (acc, p) => {
+      const configuredModel =
+        settings?.providers?.[p]?.model ??
+        (p === "claude" ? settings?.claudeModel : undefined);
+      const modelId = configuredModel ?? DEFAULT_MODEL_BY_PROVIDER[p];
+      acc[p] = prettyModelLabel(p, modelId);
+      return acc;
+    },
+    {
+      claude: prettyModelLabel("claude", DEFAULT_MODEL_BY_PROVIDER.claude),
+      codex: prettyModelLabel("codex", DEFAULT_MODEL_BY_PROVIDER.codex),
+      cursor: prettyModelLabel("cursor", DEFAULT_MODEL_BY_PROVIDER.cursor),
+    }
+  );
 
-  return { provider, label: prettyModelLabel(provider, modelId) };
+  return { provider, label: labelsByProvider[provider], labelsByProvider };
 }
 
 function prettyModelLabel(provider: Provider, modelId?: string): string {
@@ -58,10 +77,28 @@ function prettyModelLabel(provider: Provider, modelId?: string): string {
     return modelId;
   }
   if (provider === "codex") {
-    return modelId && modelId.length > 0 ? modelId : "Codex";
+    return prettyOpenAIModelName(modelId);
   }
   if (provider === "cursor") {
-    return modelId && modelId.length > 0 ? modelId : "Cursor";
+    if (!modelId || modelId.length === 0) return "Auto";
+    if (modelId.toLowerCase() === "auto") return "Auto";
+    return prettyOpenAIModelName(modelId);
   }
-  return modelId ?? provider;
+  return modelId ?? "Default";
+}
+
+function prettyOpenAIModelName(modelId?: string): string {
+  if (!modelId || modelId.length === 0) return "GPT-5 Codex";
+  const lower = modelId.toLowerCase();
+  if (lower === "auto") return "Auto";
+  const pretty = modelId
+    .split("-")
+    .map((part) => {
+      if (part === "gpt") return "GPT";
+      if (part === "codex") return "Codex";
+      if (/^\d+(\.\d+)*$/.test(part)) return part;
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    })
+    .join("-");
+  return pretty.replace("-Codex", " Codex");
 }

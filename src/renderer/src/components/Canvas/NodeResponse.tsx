@@ -67,9 +67,6 @@ export function NodeResponse({ message, onStop, nodeId }: Props) {
     const images = message.blocks.filter((b): b is ImageBlock => b.type === "image");
     return (
       <div className="flex flex-col gap-2">
-        {text && (
-          <TextBlockView text={text} isUser nodeId={nodeId} />
-        )}
         {images.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {images.map((img, i) => (
@@ -79,6 +76,9 @@ export function NodeResponse({ message, onStop, nodeId }: Props) {
               />
             ))}
           </div>
+        )}
+        {text && (
+          <TextBlockView text={text} isUser nodeId={nodeId} />
         )}
       </div>
     );
@@ -161,7 +161,7 @@ function UserImage({ src }: { src: string }) {
           setPreviewOpen(true);
         }}
         onMouseDown={(e) => e.stopPropagation()}
-        className="max-h-32 max-w-[180px] rounded-md border border-border object-cover cursor-zoom-in hover:opacity-90 transition-opacity"
+        className="h-10 w-10 rounded-md border border-border object-cover cursor-zoom-in hover:opacity-90 transition-opacity"
       />
       <ImagePreviewModal
         src={previewOpen ? src : null}

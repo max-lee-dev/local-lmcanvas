@@ -354,6 +354,8 @@ function CustomNodeImpl(props: NodeProps) {
           nodeData.chat.addedContext && "rounded-t-none border-t-0",
           askUserRequest
             ? "border-yellow-400/60"
+            : dragOver
+            ? "border-accent bg-muted"
             : selected
             ? "border-accent bg-accent/10"
             : "border-border"
@@ -509,11 +511,6 @@ function CustomNodeImpl(props: NodeProps) {
           </button>
         </div>
 
-        {dragOver && (
-          <div className="pointer-events-none absolute inset-0 z-40 rounded-[10px] border border-dashed border-accent/70 bg-accent/[0.08] flex items-center justify-center text-[11px] text-muted-foreground">
-            Drop image to attach
-          </div>
-        )}
       </div>
 
       <Handle isConnectable={false} type="source" position={Position.Top} id="source-top" className="!opacity-0 !pointer-events-none" />

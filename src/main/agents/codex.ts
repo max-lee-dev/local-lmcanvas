@@ -69,6 +69,10 @@ export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void
   }
 
   const bin = opts.binPath || "codex";
+  // `-` is the positional PROMPT arg meaning "read from stdin". clap's variadic
+  // `-i <FILE>...` will greedily consume the `-` as another image path unless
+  // we terminate option parsing with `--`. The separator is harmless when
+  // there are no images.
   const args = [
     "exec",
     "--json",
@@ -78,6 +82,7 @@ export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void
     opts.cwd,
     ...(opts.model ? ["-c", `model="${opts.model}"`] : []),
     ...imagePaths.flatMap((p) => ["-i", p]),
+    "--",
     "-",
   ];
 

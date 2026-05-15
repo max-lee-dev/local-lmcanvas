@@ -8,7 +8,6 @@ import {
 } from "react";
 import { X } from "lucide-react";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
-import { useTextareaAutoResize } from "@/hooks/useTextareaAutoResize";
 import { forwardWheelAtBoundary } from "@/lib/scrollPan";
 import {
   MentionPicker,
@@ -16,10 +15,14 @@ import {
   getFilesForCwd,
 } from "./MentionPicker";
 import {
-  MentionChips,
-  extractMentions,
-  serializeMentions,
-} from "./MentionChips";
+  MentionEditor,
+  segmentsAreEmpty,
+  segmentsToText,
+  textToSegments,
+  type MentionEditorHandle,
+  type MentionTrigger,
+  type Segment,
+} from "./MentionEditor";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import type { Attachment, FileEntry } from "@shared/ipc";
 import type { ImageMediaType } from "@shared/types";
@@ -59,46 +62,36 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
   },
   ref,
 ) {
-  // Mentions live separately from the textarea text. If the prompt was
-  // restored from disk it may still contain `@path` tokens — pull those out
-  // into chips so the user sees a single representation.
-  const initialExtract = useMemo(
-    () => extractMentions(initialValue ?? ""),
-    [initialValue]
+  const initialSegments = useMemo(
+    () => textToSegments(initialValue ?? ""),
+    [initialValue],
   );
-  const [value, setValue] = useState(initialExtract.text);
-  const [mentions, setMentions] = useState<FileEntry[]>(initialExtract.mentions);
+  // Mirror of the editor's segments. Updated via the editor's onChange so the
+  // parent has fresh state for the submit / empty checks without needing to
+  // imperatively poll.
+  const [segments, setSegments] = useState<Segment[]>(initialSegments);
   const [attachments, setAttachments] = useState<Attachment[]>(
-    initialAttachments ?? []
+    initialAttachments ?? [],
   );
   const consumePrefill = useCanvasStore((s) => s.consumePrefill);
   const pending = useCanvasStore((s) => s.pendingPrefills[nodeId]);
   const cwd = useCanvasStore((s) => s.cwd);
-  const { textareaRef } = useTextareaAutoResize(value);
+  const editorRef = useRef<MentionEditorHandle | null>(null);
 
-  // Mention picker state. mentionStart is the index of '@' in `value`,
-  // or null when the picker is closed.
-  const [mentionStart, setMentionStart] = useState<number | null>(null);
-  const [mentionQuery, setMentionQuery] = useState("");
+  const [trigger, setTrigger] = useState<MentionTrigger | null>(null);
   const [highlightIdx, setHighlightIdx] = useState(0);
   const [allEntries, setAllEntries] = useState<FileEntry[]>([]);
   const filesLoadedForCwdRef = useRef<string | null>(null);
 
-  const mentionOpen = mentionStart !== null;
+  const mentionOpen = trigger !== null;
   const filteredEntries = useMemo(
-    () => (mentionOpen ? filterEntries(allEntries, mentionQuery) : []),
-    [mentionOpen, allEntries, mentionQuery]
+    () => (trigger ? filterEntries(allEntries, trigger.query) : []),
+    [trigger, allEntries],
   );
 
   useEffect(() => {
     if (highlightIdx >= filteredEntries.length) setHighlightIdx(0);
   }, [filteredEntries.length, highlightIdx]);
-
-  const closeMention = (): void => {
-    setMentionStart(null);
-    setMentionQuery("");
-    setHighlightIdx(0);
-  };
 
   const ensureFilesLoaded = (): void => {
     if (!cwd) return;
@@ -107,104 +100,32 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
     void getFilesForCwd(cwd)
       .then((entries) => setAllEntries(entries))
       .catch(() => {
-        // swallow: picker just shows empty
         filesLoadedForCwdRef.current = null;
       });
   };
 
-  const detectMention = (
-    text: string,
-    caret: number
-  ): { start: number; query: string } | null => {
-    // Walk back from caret to find an '@' with no whitespace between.
-    for (let i = caret - 1; i >= 0; i--) {
-      const ch = text[i];
-      if (ch === "@") {
-        const prev = i === 0 ? " " : text[i - 1];
-        // Only trigger if @ is at start or after whitespace
-        if (i === 0 || /\s/.test(prev)) {
-          return { start: i, query: text.slice(i + 1, caret) };
-        }
-        return null;
-      }
-      if (/\s/.test(ch)) return null;
-    }
-    return null;
-  };
-
-  const handleValueChange = (
-    next: string,
-    caret: number | null
-  ): void => {
-    setValue(next);
-    const pos = caret ?? next.length;
-    const detected = detectMention(next, pos);
-    if (detected) {
-      if (!mentionOpen) ensureFilesLoaded();
-      setMentionStart(detected.start);
-      setMentionQuery(detected.query);
-      setHighlightIdx(0);
-    } else if (mentionOpen) {
-      closeMention();
-    }
-  };
-
-  const removeMentionAt = (index: number): void => {
-    setMentions((prev) => prev.filter((_, i) => i !== index));
+  const handleTriggerChange = (next: MentionTrigger | null): void => {
+    if (next && !trigger) ensureFilesLoaded();
+    setTrigger(next);
+    if (!next) setHighlightIdx(0);
   };
 
   const selectMention = (entry: FileEntry): void => {
-    if (mentionStart === null) return;
-    const el = textareaRef.current;
-    const caret = el?.selectionStart ?? value.length;
-    // Strip the `@query` from the textarea — the chip is now the sole
-    // representation. Collapse the surrounding whitespace so we don't leave
-    // double spaces behind.
-    const before = value.slice(0, mentionStart);
-    const after = value.slice(caret);
-    const trimmedBefore = before.replace(/\s+$/, "");
-    const trimmedAfter = after.replace(/^\s+/, "");
-    const sep = trimmedBefore && trimmedAfter ? " " : "";
-    const nextValue = trimmedBefore + sep + trimmedAfter;
-    setValue(nextValue);
-    setMentions((prev) =>
-      prev.some((m) => m.path === entry.path && m.type === entry.type)
-        ? prev
-        : [...prev, entry]
-    );
-    closeMention();
-    requestAnimationFrame(() => {
-      const node = textareaRef.current;
-      if (!node) return;
-      const newCaret = trimmedBefore.length + sep.length;
-      node.focus();
-      node.setSelectionRange(newCaret, newCaret);
-    });
+    editorRef.current?.insertMentionAtTrigger(entry);
   };
 
   useEffect(() => {
     if (pending !== undefined) {
       const text = consumePrefill(nodeId) ?? "";
-      setValue((prev) => (prev ? prev : text));
-      requestAnimationFrame(() => {
-        const el = textareaRef.current;
-        if (el) {
-          el.focus();
-          el.setSelectionRange(el.value.length, el.value.length);
-        }
-      });
-    }
-  }, [pending, consumePrefill, nodeId, textareaRef]);
-
-  useEffect(() => {
-    if (autoFocus) {
-      const el = textareaRef.current;
-      if (el) {
-        el.focus();
-        el.setSelectionRange(el.value.length, el.value.length);
+      if (segmentsAreEmpty(segments) && text) {
+        const next = textToSegments(text);
+        editorRef.current?.setSegments(next);
+        editorRef.current?.focus(true);
       }
     }
-  }, [autoFocus, textareaRef]);
+    // segments intentionally excluded — only react to a new pending prefill
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, consumePrefill, nodeId]);
 
   const addFiles = async (files: FileList | File[]): Promise<void> => {
     const list = Array.from(files).filter((f) => ALLOWED_TYPES.has(f.type));
@@ -217,42 +138,23 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
     ref,
     () => ({
       addFiles,
-      focus: () => {
-        const el = textareaRef.current;
-        if (el) {
-          el.focus();
-          el.setSelectionRange(el.value.length, el.value.length);
-        }
-      },
+      focus: () => editorRef.current?.focus(true),
     }),
     [],
   );
 
-  const handleSubmit = (e?: React.FormEvent): void => {
-    e?.preventDefault();
-    const trimmed = value.trim();
-    const mentionStr = serializeMentions(mentions);
-    const combined = [mentionStr, trimmed].filter(Boolean).join(" ");
+  const handleSubmit = (): void => {
     if (streaming) return;
-    if (!combined && attachments.length === 0) return;
-    onSubmit(combined, attachments.length > 0 ? attachments : undefined);
-    setValue("");
-    setMentions([]);
+    const current = editorRef.current?.getSegments() ?? segments;
+    const text = segmentsToText(current).trim();
+    if (!text && attachments.length === 0) return;
+    onSubmit(text, attachments.length > 0 ? attachments : undefined);
+    editorRef.current?.clear();
+    setSegments([]);
     setAttachments([]);
   };
 
-  const handleMouseEnter = (): void => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.addEventListener("wheel", stopWheelAtBoundary, { passive: false });
-  };
-  const handleMouseLeave = (): void => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.removeEventListener("wheel", stopWheelAtBoundary);
-  };
-
-  const handlePaste: React.ClipboardEventHandler<HTMLTextAreaElement> = (e) => {
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>): void => {
     const items = e.clipboardData?.items;
     if (!items) return;
     const files: File[] = [];
@@ -269,13 +171,44 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
     }
   };
 
+  // Intercept arrow / Enter / Escape while the picker is open so they drive
+  // the picker instead of the editor's default behavior. Returning true tells
+  // the editor to skip its own keydown handling.
+  const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): boolean => {
+    if (mentionOpen && filteredEntries.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightIdx((i) => (i + 1) % filteredEntries.length);
+        return true;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightIdx(
+          (i) => (i - 1 + filteredEntries.length) % filteredEntries.length,
+        );
+        return true;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        const pick = filteredEntries[highlightIdx];
+        if (pick) selectMention(pick);
+        return true;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setTrigger(null);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const handleCancel = (): void => {
+    if (onCancel) onCancel();
+  };
+
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="relative nodrag min-h-[47px]"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
+    <div className="relative nodrag min-h-[47px]">
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pb-1.5">
           {attachments.map((a, i) => (
@@ -290,81 +223,32 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
         </div>
       )}
 
-      <MentionChips mentions={mentions} onRemove={removeMentionAt} />
-
       <div className="flex items-center relative group">
         <div className="relative w-full">
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) =>
-              handleValueChange(e.target.value, e.target.selectionStart)
-            }
-            onKeyUp={(e) => {
-              // Caret moved via arrows / clicks — re-evaluate mention state
-              if (
-                e.key === "ArrowLeft" ||
-                e.key === "ArrowRight" ||
-                e.key === "Home" ||
-                e.key === "End"
-              ) {
-                const el = textareaRef.current;
-                if (el) handleValueChange(value, el.selectionStart);
-              }
-            }}
-            onClick={() => {
-              const el = textareaRef.current;
-              if (el) handleValueChange(value, el.selectionStart);
-            }}
-            onBlur={() => closeMention()}
-            onPaste={handlePaste}
+          <MentionEditor
+            ref={editorRef}
+            initialSegments={initialSegments}
             placeholder="Enter a prompt..."
-            style={{ minHeight: "12px" }}
-            className="relative w-full text-[10px] p-0 nodrag resize-none bg-transparent font-normal focus:outline-none overflow-y-auto cursor-text"
-            onKeyDown={(e) => {
-              if (mentionOpen && filteredEntries.length > 0) {
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  setHighlightIdx((i) => (i + 1) % filteredEntries.length);
-                  return;
-                }
-                if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  setHighlightIdx(
-                    (i) =>
-                      (i - 1 + filteredEntries.length) % filteredEntries.length
-                  );
-                  return;
-                }
-                if (e.key === "Enter" || e.key === "Tab") {
-                  e.preventDefault();
-                  const pick = filteredEntries[highlightIdx];
-                  if (pick) selectMention(pick);
-                  return;
-                }
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  closeMention();
-                  return;
-                }
-              }
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                textareaRef.current?.blur();
-                handleSubmit(e);
-              } else if (e.key === "Escape" && onCancel) {
-                e.preventDefault();
-                textareaRef.current?.blur();
-                onCancel();
-              }
+            autoFocus={autoFocus}
+            className="relative w-full text-[10px] p-0 nodrag bg-transparent font-normal cursor-text"
+            style={{
+              minHeight: "12px",
+              maxHeight: "112px",
+              overflowY: "auto",
+              lineHeight: 1.4,
             }}
+            onChange={setSegments}
+            onTriggerChange={handleTriggerChange}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+            onPaste={handlePaste}
             onWheel={forwardWheelAtBoundary}
-            aria-label="Prompt input"
+            onKeyDownExtra={handleEditorKeyDown}
           />
         </div>
         {mentionOpen && (
           <MentionPicker
-            query={mentionQuery}
+            query={trigger.query}
             entries={allEntries}
             highlightIdx={highlightIdx}
             onHoverIndex={setHighlightIdx}
@@ -372,8 +256,7 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
           />
         )}
       </div>
-
-    </form>
+    </div>
   );
 });
 
@@ -438,15 +321,4 @@ function arrayBufferToBase64(buf: ArrayBuffer): string {
     parts.push(String.fromCharCode(...slice));
   }
   return btoa(parts.join(""));
-}
-
-function stopWheelAtBoundary(e: WheelEvent): void {
-  const el = e.currentTarget as HTMLTextAreaElement | null;
-  if (!el) return;
-  const isScrollable = el.scrollHeight > el.clientHeight;
-  const isAtTop = el.scrollTop === 0;
-  const isAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
-  if (isScrollable && !(isAtTop && e.deltaY < 0) && !(isAtBottom && e.deltaY > 0)) {
-    e.stopPropagation();
-  }
 }

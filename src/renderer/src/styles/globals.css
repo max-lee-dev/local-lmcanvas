@@ -400,6 +400,12 @@ header.app-drag {
     transform: rotate(360deg);
   }
 }
+[data-mention-editor]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
 .node-shimmer {
   background: linear-gradient(
     90deg,

@@ -64,22 +64,14 @@ function CursorLogo({ size = 10, className }: { size?: number; className?: strin
       width={size}
       height={size}
       className={className ?? "opacity-90"}
+      fill="currentColor"
       aria-hidden="true"
     >
-      <defs>
-        <linearGradient id="cursor-grad-a" x1="11.926" y1="2.741" x2="11.926" y2="21.259" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#000" stopOpacity="0.4" />
-          <stop offset="1" stopColor="#000" />
-        </linearGradient>
-        <linearGradient id="cursor-grad-b" x1="20" y1="6.4" x2="11.926" y2="21.259" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#000" stopOpacity="0.6" />
-          <stop offset="1" stopColor="#000" stopOpacity="0.2" />
-        </linearGradient>
-      </defs>
-      <path d="M11.926 2.741 3.852 7.07v9.86l8.074 4.329 8.074-4.329V7.07z" fill="#000" />
-      <path d="M11.926 2.741 3.852 7.07l8.074 4.329 8.074-4.329z" fill="url(#cursor-grad-a)" />
-      <path d="M20 7.07v9.86l-8.074 4.329V11.4z" fill="url(#cursor-grad-b)" />
-      <path d="M11.926 11.4 3.852 7.07v9.86l8.074 4.329z" fill="#000" opacity="0.85" />
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M12 0L1.5 6.1V17.9L12 24L22.5 17.9V6.1L12 0ZM2.6 6.8H20L12.1 20.2V11.9L2.6 6.8Z"
+      />
     </svg>
   );
 }

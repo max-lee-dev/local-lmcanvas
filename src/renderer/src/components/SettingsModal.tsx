@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { AppSettings, Provider, ProviderConfig } from "@shared/types";
+import type { AppSettings, Provider } from "@shared/types";
 import { PROVIDERS } from "@shared/types";
 import {
   MinimapSetting,
@@ -42,10 +42,16 @@ export function SettingsModal({ open, onClose }: Props) {
     onClose();
   };
 
-  const updateProviderConfig = (provider: Provider, next: ProviderConfig) => {
+  const updateProviderConfig = (
+    provider: Provider,
+    patch: { binPath?: string; model?: string }
+  ) => {
     setSettings((s) => ({
       ...s,
-      providers: { ...(s.providers ?? {}), [provider]: next },
+      providers: {
+        ...(s.providers ?? {}),
+        [provider]: { ...(s.providers?.[provider] ?? {}), ...patch },
+      },
     }));
   };
 
@@ -85,7 +91,7 @@ export function SettingsModal({ open, onClose }: Props) {
                   providers
                 </h3>
                 <p className="mb-2.5 text-[11px] text-muted-foreground">
-                  The selected radio is the default for new canvases.
+                  Click to set the default provider for new canvases.
                 </p>
                 <div className="grid grid-cols-3 gap-1.5 items-start">
                   {PROVIDERS.map((p) => (
@@ -93,11 +99,9 @@ export function SettingsModal({ open, onClose }: Props) {
                       key={p}
                       provider={p}
                       isDefault={(settings.defaultProvider ?? "claude") === p}
-                      config={settings.providers?.[p]}
                       onMakeDefault={() =>
                         setSettings((s) => ({ ...s, defaultProvider: p }))
                       }
-                      onConfigChange={(next) => updateProviderConfig(p, next)}
                     />
                   ))}
                 </div>
@@ -145,6 +149,47 @@ export function SettingsModal({ open, onClose }: Props) {
                       className="overflow-hidden"
                     >
                       <div className="mt-3 grid gap-3">
+                        <div className="grid gap-1.5">
+                          {PROVIDERS.map((provider) => (
+                            <div key={provider} className="rounded-md border border-border p-2">
+                              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                {provider}
+                              </div>
+                              <div className="grid gap-1.5">
+                                <div>
+                                  <label className="text-xs font-medium text-muted-foreground">
+                                    binary path
+                                  </label>
+                                  <input
+                                    value={settings.providers?.[provider]?.binPath ?? ""}
+                                    onChange={(e) =>
+                                      updateProviderConfig(provider, {
+                                        binPath: e.target.value,
+                                      })
+                                    }
+                                    className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                                    placeholder={provider}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-medium text-muted-foreground">
+                                    model override (optional)
+                                  </label>
+                                  <input
+                                    value={settings.providers?.[provider]?.model ?? ""}
+                                    onChange={(e) =>
+                                      updateProviderConfig(provider, {
+                                        model: e.target.value,
+                                      })
+                                    }
+                                    className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                                    placeholder="provider default"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                         <div>
                           <label className="text-xs font-medium text-muted-foreground">
                             claude binary path (legacy)

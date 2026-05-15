@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Check, Loader2 } from "lucide-react";
+import { Loader2, Plug2, Unplug } from "lucide-react";
 import type { ProviderAuthStatus } from "@shared/ipc";
 
 type Props = {
@@ -42,6 +42,7 @@ export function AuthStatusPill(props: Props) {
   const { variant, label } = classify(props);
   const compact = props.compact ?? false;
   const displayLabel = compact ? COMPACT_LABEL[variant] : label;
+  const disconnected = variant === "not-installed" || variant === "not-signed-in";
 
   return (
     <motion.span
@@ -64,7 +65,17 @@ export function AuthStatusPill(props: Props) {
           transition={{ type: "spring", stiffness: 300, damping: 18 }}
           className="inline-flex"
         >
-          <Check className="h-2.5 w-2.5" />
+          <Plug2 className="h-2.5 w-2.5" />
+        </motion.span>
+      )}
+      {disconnected && (
+        <motion.span
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 18 }}
+          className="inline-flex"
+        >
+          <Unplug className="h-2.5 w-2.5" />
         </motion.span>
       )}
       {displayLabel}

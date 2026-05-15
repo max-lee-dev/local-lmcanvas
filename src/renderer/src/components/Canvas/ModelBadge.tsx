@@ -9,7 +9,7 @@ import { PROVIDER_INFO } from "@/components/Onboarding/providerInfo";
 import { ProviderLogo } from "./ProviderLogo";
 
 export function ModelBadge() {
-  const { provider, label } = useProviderInfo();
+  const { provider, label, labelsByProvider } = useProviderInfo();
   const setProvider = useCanvasStore((s) => s.setProvider);
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -86,7 +86,7 @@ export function ModelBadge() {
               className="px-2.5 pt-2 pb-1 text-[8px] uppercase tracking-[0.14em] text-muted-foreground"
               style={{ fontFamily: "var(--font-geist-mono)" }}
             >
-              Canvas provider
+              Canvas model
             </div>
             {PROVIDERS.map((p) => {
               const isActive = p === provider;
@@ -105,7 +105,7 @@ export function ModelBadge() {
                   )}
                 >
                   <ProviderLogo provider={p} size={12} />
-                  <span className="flex-1">{PROVIDER_INFO[p].name}</span>
+                  <span className="flex-1">{labelsByProvider[p]}</span>
                   {isActive && (
                     <Check className="h-3 w-3 text-foreground/70" />
                   )}
