@@ -45,6 +45,8 @@
 :root {
   --font-lato: "Lato";
   --font-geist-pixel-square: "Geist Pixel Square";
+  --font-geist-sans: "Geist Variable";
+  --font-geist-mono: "Geist Mono Variable";
   --radius: 0.625rem;
   --background: oklch(0.985 0 0);
   --foreground: oklch(0.145 0 0);
