@@ -4,6 +4,7 @@ import { shellEnv } from "../shellPath";
 import {
   composePromptWithSystem,
   errorMessage,
+  isAuthError,
   type RunAgentOpts,
   type RunnerEvent,
 } from "./types";
