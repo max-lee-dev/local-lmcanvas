@@ -37,7 +37,7 @@ export const CodeBlock = memo(function CodeBlock({ code, language, innerProps }:
           <span>{copied ? "copied" : "copy"}</span>
         </button>
       </div>
-      <pre className="node-scroll m-0 overflow-x-auto px-3 py-2 text-[9.5px] leading-snug">
+      <pre className="node-scroll nowheel m-0 overflow-x-auto px-3 py-2 text-[9.5px] leading-snug">
         <code
           {...innerProps}
           className={`font-mono ${innerProps?.className ?? ""}`}
