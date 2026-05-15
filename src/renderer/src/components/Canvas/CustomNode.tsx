@@ -381,6 +381,7 @@ function CustomNodeImpl(props: NodeProps) {
               <NodePromptInput
                 nodeId={id}
                 initialValue={userText}
+                initialAttachments={userAttachments}
                 onSubmit={commitEdit}
                 onCancel={() => setIsEditingPrompt(false)}
                 onStop={stop}

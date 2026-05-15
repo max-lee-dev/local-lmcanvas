@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Folder, Loader2, PanelLeft, Plus, Settings, X } from "lucide-react";
-import type { Canvas, CanvasSummary } from "@shared/types";
+import type { Canvas, CanvasSummary, Provider } from "@shared/types";
 import { navigate } from "@/App";
 import { prettyPath } from "@/lib/prettyPath";
 import { SettingsModal } from "@/components/SettingsModal";
 import { CanvasItem } from "./CanvasItem";
 import { CanvasSearch, type CanvasSearchRef } from "./CanvasSearch";
+import { ProviderPicker } from "./ProviderPicker";
 
 type CanvasManagerProps = {
   /** Canvas id of the currently-open canvas, if any. */
