@@ -15,19 +15,31 @@ const DEFAULTS: AppSettings = {
   onboardingCompleted: false,
 };
 
+function mergeWithDefaults(s: Partial<AppSettings>): AppSettings {
+  const providers = {
+    ...DEFAULTS.providers,
+    ...(s.providers ?? {}),
+  };
+  return {
+    ...DEFAULTS,
+    ...s,
+    providers,
+  };
+}
+
 export async function readSettings(): Promise<AppSettings> {
   await ensureDirs();
   try {
     const raw = await readFile(SETTINGS_FILE, "utf-8");
-    return { ...DEFAULTS, ...(JSON.parse(raw) as AppSettings) };
+    return mergeWithDefaults(JSON.parse(raw) as Partial<AppSettings>);
   } catch {
-    return { ...DEFAULTS };
+    return mergeWithDefaults({});
   }
 }
 
 export async function writeSettings(settings: AppSettings): Promise<AppSettings> {
   await ensureDirs();
-  const merged = { ...DEFAULTS, ...settings };
+  const merged = mergeWithDefaults(settings);
   await writeFile(SETTINGS_FILE, JSON.stringify(merged, null, 2), "utf-8");
   return merged;
 }
