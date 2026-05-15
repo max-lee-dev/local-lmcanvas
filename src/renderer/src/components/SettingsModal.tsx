@@ -62,7 +62,7 @@ export function SettingsModal({ open, onClose }: Props) {
           transition={{ duration: 0.2, ease: "easeOut" }}
         >
           <motion.div
-            className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-lg border border-border bg-card text-foreground p-5 shadow-xl"
+            className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-lg border border-border bg-card text-foreground p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
