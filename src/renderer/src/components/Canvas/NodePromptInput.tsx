@@ -290,6 +290,7 @@ export function NodePromptInput({
               minHeight: "12px",
               color: "transparent",
               caretColor: "var(--foreground)",
+              lineHeight: 1.4,
             }}
             className="relative w-full text-[10px] p-0 nodrag resize-none bg-transparent font-normal focus:outline-none overflow-y-auto cursor-text"
             onKeyDown={(e) => {
