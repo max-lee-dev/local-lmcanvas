@@ -150,3 +150,26 @@ function GeneratingIndicator({
     </div>
   );
 }
+
+function UserImage({ src }: { src: string }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+  return (
+    <>
+      <img
+        src={src}
+        alt=""
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setPreviewOpen(true);
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="max-h-32 max-w-[180px] rounded-md border border-border object-cover cursor-zoom-in hover:opacity-90 transition-opacity"
+      />
+      <ImagePreviewModal
+        src={previewOpen ? src : null}
+        onClose={() => setPreviewOpen(false)}
+      />
+    </>
+  );
+}
