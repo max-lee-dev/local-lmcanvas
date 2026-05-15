@@ -5,6 +5,7 @@ import type { ContentBlock, ImageBlock, Message, ToolUseBlock } from "@shared/ty
 import { TextBlockView } from "./blocks/TextBlockView";
 import { ToolGroupView } from "./blocks/ToolGroupView";
 import { ThinkingView } from "./blocks/ThinkingView";
+import { ImagePreviewModal } from "./ImagePreviewModal";
 
 type RenderItem =
   | { kind: "text"; text: string; key: string }
