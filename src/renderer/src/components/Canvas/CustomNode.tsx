@@ -254,6 +254,48 @@ function CustomNodeImpl(props: NodeProps) {
 
   const showFollowUp = (hovered || selected) && hasSubmitted;
 
+  const pendingDropFilesRef = useRef<File[] | null>(null);
+
+  // Drain queued files into the prompt input once it mounts after an edit-mode
+  // trigger. The ref is wired up by React on the next render.
+  useEffect(() => {
+    if (!isEditingPrompt) return;
+    const pending = pendingDropFilesRef.current;
+    if (!pending) return;
+    pendingDropFilesRef.current = null;
+    requestAnimationFrame(() => {
+      void promptInputRef.current?.addFiles(pending);
+    });
+  }, [isEditingPrompt]);
+
+  const promptInputMounted = !hasSubmitted || isEditingPrompt;
+
+  const handleNodeDragOver: React.DragEventHandler<HTMLDivElement> = (e) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  };
+  const handleNodeDragLeave: React.DragEventHandler<HTMLDivElement> = (e) => {
+    // Ignore leaves into descendants — only react when leaving the card.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setDragOver(false);
+  };
+  const handleNodeDrop: React.DragEventHandler<HTMLDivElement> = (e) => {
+    if (!e.dataTransfer?.files || e.dataTransfer.files.length === 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (promptInputMounted) {
+      void promptInputRef.current?.addFiles(files);
+    } else if (canEditPrompt) {
+      // Submitted node: enter edit mode and queue the files for the soon-to-mount input.
+      pendingDropFilesRef.current = files;
+      setIsEditingPrompt(true);
+    }
+  };
+
   useEffect(() => {
     if (!selection) return;
     const onKeyDown = (e: KeyboardEvent): void => {
