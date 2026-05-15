@@ -5,6 +5,7 @@ import { makeBlankNode, useCanvasStore } from "@/hooks/useCanvasStore";
 import { SettingsModal } from "@/components/SettingsModal";
 import { SearchButton } from "@/components/Canvas/SearchModal";
 import { CanvasManager } from "@/components/CanvasManager/CanvasManager";
+import { DeleteNodeModal } from "@/components/Canvas/DeleteNodeModal";
 import { prettyPath } from "@/lib/prettyPath";
 
 export function CanvasPage({ id }: { id: string }) {
