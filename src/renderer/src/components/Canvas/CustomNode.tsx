@@ -8,7 +8,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import { motion } from "framer-motion";
-import { Check, Copy, Plus } from "lucide-react";
+import { Check, Copy, GitMerge, Plus } from "lucide-react";
 import clsx from "clsx";
 import { makeBlankNode, useCanvasStore } from "@/hooks/useCanvasStore";
 import { ModelBadge } from "./ModelBadge";
@@ -71,6 +71,10 @@ function CustomNodeImpl(props: NodeProps) {
   const getNode = useCanvasStore((s) => s.nodes[id]);
   const setPrefill = useCanvasStore((s) => s.setPrefill);
   const clearMessages = useCanvasStore((s) => s.clearMessages);
+  const merging = useCanvasStore((s) => s.merging);
+  const mergeIds = useCanvasStore((s) => s.mergeIds);
+  const startMerge = useCanvasStore((s) => s.startMerge);
+  const toggleMergeNode = useCanvasStore((s) => s.toggleMergeNode);
   const zoom = useStore((s) => s.transform[2]);
   const { screenToFlowPosition } = useReactFlow();
   const centerOnNode = useCenterOnNode();
@@ -257,6 +261,10 @@ function CustomNodeImpl(props: NodeProps) {
   }, [isConfirmingDelete]);
 
   const showFollowUp = (hovered || selected) && hasSubmitted;
+  const isMergeSource = merging && mergeIds[0] === id;
+  const isMergeSelected = merging && mergeIds.includes(id);
+  const isMergeNode = nodeData.chat.parentIds.length > 1;
+  const mergedConversationCount = nodeData.chat.parentIds.length;
 
   const pendingDropFilesRef = useRef<File[] | null>(null);
 
@@ -352,7 +360,13 @@ function CustomNodeImpl(props: NodeProps) {
         className={clsx(
           "relative border rounded-[10px] transition-colors duration-300 px-5 pb-4 pt-12 shadow-sm bg-card",
           nodeData.chat.addedContext && "rounded-t-none border-t-0",
-          askUserRequest
+          isMergeSource
+            ? "border-accent ring-2 ring-accent ring-offset-2 ring-offset-background"
+            : isMergeSelected
+            ? "border-accent ring-2 ring-accent/70 ring-offset-2 ring-offset-background"
+            : merging
+            ? "border-border hover:border-accent/60 cursor-pointer"
+            : askUserRequest
             ? "border-yellow-400/60"
             : dragOver
             ? "border-accent bg-muted"
@@ -363,6 +377,16 @@ function CustomNodeImpl(props: NodeProps) {
         onDragOver={handleNodeDragOver}
         onDragLeave={handleNodeDragLeave}
         onDrop={handleNodeDrop}
+        onClickCapture={(e) => {
+          if (!merging) return;
+          // Don't toggle when clicking inside interactive sub-elements
+          // (textarea, buttons). Only top-level card clicks toggle selection.
+          const target = e.target as HTMLElement;
+          if (target.closest("button, textarea, input, a, [contenteditable]")) return;
+          e.preventDefault();
+          e.stopPropagation();
+          toggleMergeNode(id);
+        }}
       >
         {askUserRequest && (
           <motion.div
@@ -375,9 +399,40 @@ function CustomNodeImpl(props: NodeProps) {
 
         <CustomNodeContextBanner addedContext={nodeData.chat.addedContext} />
 
-        <div className="absolute left-4 top-3">
+        <div className="absolute left-4 top-3 flex items-center gap-2">
           <ModelBadge />
+          {isMergeNode && (
+            <span
+              className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+              title={`${mergedConversationCount} conversations merged`}
+            >
+              <GitMerge className="h-2.5 w-2.5" />
+              {mergedConversationCount}
+            </span>
+          )}
         </div>
+
+        {/* Merge button — only visible when not already in merge mode. */}
+        {!merging && hasSubmitted && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              startMerge(id);
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className={clsx(
+              "nodrag z-50 p-1.5 rounded-lg absolute cursor-pointer text-muted-foreground flex items-center justify-center transition-opacity duration-75 hover:bg-muted hover:text-foreground",
+              nodeData.chat.addedContext ? "-top-13" : "-top-2.5",
+              "right-6",
+              hovered || selected ? "opacity-60 hover:opacity-100" : "opacity-0 pointer-events-none"
+            )}
+            title="Merge with another conversation"
+            aria-label="Merge with another conversation"
+          >
+            <GitMerge className="w-3 h-3" />
+          </button>
+        )}
 
         {/* Delete button — avera-style: top-right, opacity 0.6 idle, 1.0 on hover */}
         <button

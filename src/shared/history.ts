@@ -65,6 +65,44 @@ export function messageTextForTitle(m: Message): string {
   return "";
 }
 
+const MERGE_CONTEXT_TRUNCATE = 200;
+
+function lastTextForRole(messages: Message[], role: "user" | "assistant"): string {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i];
+    if (m.role !== role) continue;
+    const txt = blocksToPlainText(m.blocks);
+    if (txt) return txt;
+  }
+  return "";
+}
+
+/**
+ * Build a prompt-prefix that summarizes the last exchange from each merged-parent
+ * conversation so the model can reference them when answering the merge node's
+ * first prompt. Mirrors avera/app/features/canvas/lib/merge-context.ts.
+ */
+export function buildMergeContext(
+  parentNodes: CanvasNode[],
+): string {
+  const blocks: string[] = [];
+  parentNodes.forEach((n, i) => {
+    const msgs = n.data.chat.messages;
+    const userText = lastTextForRole(msgs, "user");
+    let assistantText = lastTextForRole(msgs, "assistant");
+    if (!userText && !assistantText) return;
+    if (assistantText.length > MERGE_CONTEXT_TRUNCATE) {
+      assistantText = `${assistantText.slice(0, MERGE_CONTEXT_TRUNCATE)}...`;
+    }
+    let block = `Conversation ${i + 1}:`;
+    if (userText) block += `\nUser: "${userText}"`;
+    if (assistantText) block += `\nAssistant: "${assistantText}"`;
+    blocks.push(block);
+  });
+  if (blocks.length === 0) return "";
+  return `This prompt is referencing these ${blocks.length} conversations and their responses. We have already discussed them, here are the messages:\n\n${blocks.join("\n\n")}`;
+}
+
 // ensure a message that came from an older schema (content: string) is converted to blocks
 export function migrateMessage(raw: unknown): Message | null {
   if (!raw || typeof raw !== "object") return null;

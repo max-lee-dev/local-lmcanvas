@@ -28,6 +28,7 @@ import { CustomNode, focusNodeTextarea } from "./CustomNode";
 import { ContextMenu } from "./ContextMenu";
 import { OffsetEdge } from "./OffsetEdge";
 import { SearchModalWrapper } from "./SearchModal";
+import { MergeToolbar } from "./MergeToolbar";
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { offset: OffsetEdge };
@@ -327,6 +328,7 @@ function CanvasInner() {
         onClose={closeCtx}
       />
       <SearchModalWrapper />
+      <MergeToolbar />
     </div>
   );
 }

@@ -20,6 +20,7 @@ import {
   migrateMessage,
 } from "@shared/history";
 import { getEdgeHandles } from "@/lib/edgeHandles";
+import { FALLBACK_NODE_HEIGHT, VERTICAL_CHILD_OFFSET } from "@/lib/canvasConstants";
 
 type Dirty = { count: number; lastChangeAt: number };
 
@@ -39,6 +40,16 @@ export type CanvasStoreState = {
   searchHighlights: Map<NodeId, Set<string>>;
   setSearchHighlights: (nodeId: NodeId, textMatches: string[]) => void;
   clearSearchHighlights: () => void;
+
+  /** Merge-mode state. `merging` is true while the user is picking parents for a merge child. */
+  merging: boolean;
+  /** All nodes selected to become parents of the merge child. First entry is the initiating source. */
+  mergeIds: NodeId[];
+  startMerge: (sourceId: NodeId) => void;
+  toggleMergeNode: (id: NodeId) => void;
+  cancelMerge: () => void;
+  /** Create a new child node whose parents are `mergeIds`. Returns the new node id, or null if invalid. */
+  commitMerge: () => NodeId | null;
 
   loadCanvas: (id: string) => Promise<void>;
   setName: (name: string) => void;
@@ -140,6 +151,68 @@ export const useCanvasStore = create<CanvasStoreState>()(
     error: null,
     pendingPrefills: {},
     searchHighlights: new Map(),
+    merging: false,
+    mergeIds: [],
+
+    startMerge: (sourceId) => {
+      set((s) => {
+        if (!s.nodes[sourceId]) return s;
+        return { merging: true, mergeIds: [sourceId] };
+      });
+    },
+
+    toggleMergeNode: (id) => {
+      set((s) => {
+        if (!s.merging || !s.nodes[id]) return s;
+        const idx = s.mergeIds.indexOf(id);
+        if (idx === -1) return { mergeIds: [...s.mergeIds, id] };
+        // Don't allow removing the source (mergeIds[0]); cancel instead.
+        if (idx === 0) return s;
+        const next = [...s.mergeIds];
+        next.splice(idx, 1);
+        return { mergeIds: next };
+      });
+    },
+
+    cancelMerge: () => {
+      set((s) => (s.merging ? { merging: false, mergeIds: [] } : s));
+    },
+
+    commitMerge: () => {
+      const s = get();
+      if (!s.merging || s.mergeIds.length < 2) return null;
+      const parents = s.mergeIds
+        .map((id) => s.nodes[id])
+        .filter((n): n is CanvasNode => Boolean(n));
+      if (parents.length < 2) return null;
+      const avgX =
+        parents.reduce((acc, n) => acc + n.position.x, 0) / parents.length;
+      const maxY = parents.reduce((acc, n) => Math.max(acc, n.position.y), 0);
+      const position = {
+        x: avgX,
+        y: maxY + FALLBACK_NODE_HEIGHT + VERTICAL_CHILD_OFFSET,
+      };
+      const child: CanvasNode = {
+        id: nanoid(10),
+        type: "custom",
+        position,
+        data: {
+          chat: {
+            messages: [],
+            parentIds: [],
+            childIds: [],
+          },
+        },
+      };
+      // Insert child, then connect each parent → child.
+      set((prev) => ({ nodes: { ...prev.nodes, [child.id]: child } }));
+      for (const p of parents) {
+        get().connectEdge(p.id, child.id);
+      }
+      set({ merging: false, mergeIds: [] });
+      get().markDirty();
+      return child.id;
+    },
 
     setSearchHighlights: (nodeId, textMatches) => {
       set((s) => {

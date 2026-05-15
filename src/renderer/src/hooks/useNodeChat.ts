@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { useCanvasStore } from "./useCanvasStore";
 import type {
+  CanvasNode,
   ImageBlock,
   NodeId,
   TextBlock,
@@ -10,6 +11,7 @@ import type {
   ContentBlock,
 } from "@shared/types";
 import type { Attachment, ChatEvent } from "@shared/ipc";
+import { buildMergeContext } from "@shared/history";
 
 export function useNodeChat(nodeId: NodeId) {
   const [streaming, setStreaming] = useState(false);
@@ -28,6 +30,18 @@ export function useNodeChat(nodeId: NodeId) {
       setStreaming(true);
 
       const store = useCanvasStore.getState();
+      const nodeBeforeSubmit = store.nodes[nodeId];
+      const isFirstMergePrompt =
+        !!nodeBeforeSubmit &&
+        nodeBeforeSubmit.data.chat.parentIds.length > 1 &&
+        nodeBeforeSubmit.data.chat.messages.length === 0;
+      let mergeContext = "";
+      if (isFirstMergePrompt) {
+        const parents = nodeBeforeSubmit.data.chat.parentIds
+          .map((pid) => store.nodes[pid])
+          .filter((n): n is CanvasNode => Boolean(n));
+        mergeContext = buildMergeContext(parents);
+      }
       const userMsgId = nanoid();
       const userBlocks: ContentBlock[] = [];
       if (trimmed) {
@@ -124,9 +138,12 @@ export function useNodeChat(nodeId: NodeId) {
 
       const addedContext =
         useCanvasStore.getState().nodes[nodeId]?.data.chat.addedContext;
-      const promptForModel = addedContext
+      let promptForModel = addedContext
         ? `> ${addedContext.replace(/\n/g, "\n> ")}\n\n${trimmed}`
         : trimmed;
+      if (mergeContext) {
+        promptForModel = `${mergeContext}\n\n---\n\n${promptForModel}`;
+      }
 
       try {
         await window.api.chat.start({
