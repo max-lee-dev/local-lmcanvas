@@ -35,10 +35,13 @@ export function NodePromptInput({
   streaming,
   autoFocus,
   initialValue,
+  initialAttachments,
   onCancel,
 }: Props) {
   const [value, setValue] = useState(initialValue ?? "");
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>(
+    initialAttachments ?? []
+  );
   const [dragOver, setDragOver] = useState(false);
   const consumePrefill = useCanvasStore((s) => s.consumePrefill);
   const pending = useCanvasStore((s) => s.pendingPrefills[nodeId]);
