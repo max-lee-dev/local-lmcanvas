@@ -16,6 +16,8 @@ import {
   cancelAllForWebContents,
   completeRequest as completeAskUser,
 } from "./claude/askUserBridge";
+import { getProviderAuthStatus, openLoginTerminal } from "./auth/providerAuth";
+import { sendLaunchPing } from "./telemetry";
 import type {
   AskUserResponsePayload,
   ChatEvent,
@@ -23,7 +25,7 @@ import type {
   CanvasCreateArgs,
   FileEntry,
 } from "@shared/ipc";
-import type { AppSettings, Canvas } from "@shared/types";
+import type { AppSettings, Canvas, Provider } from "@shared/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
