@@ -290,10 +290,7 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
         </div>
       )}
 
-      <MentionChips
-        value={value}
-        onRemove={(m) => removeMention(m)}
-      />
+      <MentionChips mentions={mentions} onRemove={removeMentionAt} />
 
       <div className="flex items-center relative group">
         <div className="relative w-full">
