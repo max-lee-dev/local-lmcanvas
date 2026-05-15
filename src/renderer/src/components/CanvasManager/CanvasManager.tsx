@@ -7,6 +7,7 @@ import { prettyPath } from "@/lib/prettyPath";
 import { SettingsModal } from "@/components/SettingsModal";
 import { CanvasItem } from "./CanvasItem";
 import { CanvasSearch, type CanvasSearchRef } from "./CanvasSearch";
+import { DeleteCanvasModal } from "./DeleteCanvasModal";
 import { ProviderPicker } from "./ProviderPicker";
 import { onOpenSettings } from "@/lib/openSettings";
 
