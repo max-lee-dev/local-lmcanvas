@@ -1,7 +1,8 @@
 import { readdir, readFile, writeFile, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { nanoid } from "nanoid";
-import type { Canvas, CanvasNode, CanvasSummary, Message } from "@shared/types";
+import type { Canvas, CanvasNode, CanvasSummary, Message, Provider } from "@shared/types";
+import { PROVIDERS } from "@shared/types";
 import { migrateMessage } from "@shared/history";
 import { CANVASES_DIR, canvasFilePath, ensureDirs } from "./paths";
 
