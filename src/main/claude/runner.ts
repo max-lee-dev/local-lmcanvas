@@ -6,6 +6,28 @@ import type {
   SDKResultMessage,
   SDKPartialAssistantMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import { createRequire } from "node:module";
+import { dirname, join, sep } from "node:path";
+
+const nodeRequire = createRequire(import.meta.url);
+
+function resolveClaudeBin(): string | undefined {
+  const pkgName = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
+  try {
+    const pkgJsonPath = nodeRequire.resolve(`${pkgName}/package.json`);
+    let binPath = join(dirname(pkgJsonPath), process.platform === "win32" ? "claude.exe" : "claude");
+    // Packaged Electron resolves into app.asar (a file, not a dir) — spawn needs the unpacked copy.
+    const asarSeg = `${sep}app.asar${sep}`;
+    if (binPath.includes(asarSeg)) {
+      binPath = binPath.replace(asarSeg, `${sep}app.asar.unpacked${sep}`);
+    }
+    return binPath;
+  } catch {
+    return undefined;
+  }
+}
+
+const CLAUDE_BIN_PATH = resolveClaudeBin();
 import type {
   BetaContentBlock,
   BetaRawContentBlockDeltaEvent,
