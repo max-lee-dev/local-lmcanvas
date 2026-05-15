@@ -23,6 +23,7 @@ export async function listCanvases(): Promise<CanvasSummary[]> {
         createdAt: parsed.createdAt ?? 0,
         updatedAt: parsed.updatedAt ?? 0,
         nodeCount: parsed.nodes?.length ?? 0,
+        provider: isProvider(parsed.provider) ? parsed.provider : undefined,
       });
     } catch {
       // skip corrupt files
