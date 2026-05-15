@@ -40,6 +40,8 @@ const STYLES: Record<Variant, string> = {
 
 export function AuthStatusPill(props: Props) {
   const { variant, label } = classify(props);
+  const compact = props.compact ?? false;
+  const displayLabel = compact ? COMPACT_LABEL[variant] : label;
 
   return (
     <motion.span
@@ -48,7 +50,10 @@ export function AuthStatusPill(props: Props) {
       initial={{ opacity: 0, y: 2 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
-      className={`inline-flex items-center gap-1 border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.12em] ${STYLES[variant]}`}
+      title={compact ? label : undefined}
+      className={`inline-flex items-center gap-1 border ${
+        compact ? "px-1 py-0.5" : "px-1.5 py-0.5"
+      } text-[9px] uppercase tracking-[0.12em] ${STYLES[variant]}`}
       style={{ fontFamily: "var(--font-geist-mono)" }}
     >
       {variant === "loading" && <Loader2 className="h-2.5 w-2.5 animate-spin" />}
@@ -62,7 +67,7 @@ export function AuthStatusPill(props: Props) {
           <Check className="h-2.5 w-2.5" />
         </motion.span>
       )}
-      {label}
+      {displayLabel}
     </motion.span>
   );
 }
