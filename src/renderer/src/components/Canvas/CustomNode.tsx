@@ -97,6 +97,7 @@ function CustomNodeImpl(props: NodeProps) {
       const parentPos = getNode?.position ?? { x: 0, y: 0 };
       const isRightLane = Boolean(prefill) || Boolean(addedContext);
       let position: { x: number; y: number };
+      let sourceYOffset: number | undefined;
       if (isRightLane) {
         const x = parentPos.x + RIGHT_LANE_X_OFFSET;
         if (selectionViewportY != null) {
@@ -105,6 +106,9 @@ function CustomNodeImpl(props: NodeProps) {
           // not pinned to the top of the parent.
           const projected = screenToFlowPosition({ x: 0, y: selectionViewportY });
           position = { x, y: projected.y - FALLBACK_NODE_HEIGHT / 2 };
+          // Attach the parent end of the edge at the selection Y so the
+          // connector emerges from the selected text instead of a fixed handle.
+          sourceYOffset = projected.y - parentPos.y;
         } else {
           position = { x, y: parentPos.y + 30 };
         }
@@ -120,7 +124,7 @@ function CustomNodeImpl(props: NodeProps) {
       const child = makeBlankNode(position, id, addedContext);
       if (prefill) setPrefill(child.id, prefill);
       addNode(child);
-      connectEdge(id, child.id);
+      connectEdge(id, child.id, sourceYOffset != null ? { sourceYOffset } : undefined);
 
       // Match the avera branch flow: wait one rAF for the DOM to mount, then
       // resolve horizontal collisions, animate the camera to center on the
