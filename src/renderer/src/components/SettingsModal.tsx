@@ -125,6 +125,12 @@ export function SettingsModal({ open, onClose }: Props) {
                   <ThemeSetting />
                   <MinimapSetting />
                   <PanSpeedSetting />
+                  <TelemetrySetting
+                    enabled={settings.telemetryEnabled !== false}
+                    onChange={(next) =>
+                      setSettings({ ...settings, telemetryEnabled: next })
+                    }
+                  />
                 </div>
               </div>
 

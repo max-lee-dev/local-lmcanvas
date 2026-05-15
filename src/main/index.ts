@@ -106,7 +106,7 @@ function registerIpc(): void {
     await shell.openPath(path);
   });
 
-  ipcMain.handle("files:list", async (_e, cwd: string): Promise<string[]> => {
+  ipcMain.handle("files:list", async (_e, cwd: string): Promise<FileEntry[]> => {
     if (!cwd) return [];
     const now = Date.now();
     const cached = filesCache.get(cwd);
