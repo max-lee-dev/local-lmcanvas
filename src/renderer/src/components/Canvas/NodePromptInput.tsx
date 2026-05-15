@@ -15,7 +15,11 @@ import {
   filterEntries,
   getFilesForCwd,
 } from "./MentionPicker";
-import { MentionChips, type ParsedMention } from "./MentionChips";
+import {
+  MentionChips,
+  extractMentions,
+  serializeMentions,
+} from "./MentionChips";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import type { Attachment, FileEntry } from "@shared/ipc";
 import type { ImageMediaType } from "@shared/types";

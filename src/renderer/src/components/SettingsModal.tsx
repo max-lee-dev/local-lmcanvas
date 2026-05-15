@@ -87,7 +87,7 @@ export function SettingsModal({ open, onClose }: Props) {
                 <p className="mb-2.5 text-[11px] text-muted-foreground">
                   The selected radio is the default for new canvases.
                 </p>
-                <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-3 gap-1.5 items-start">
                   {PROVIDERS.map((p) => (
                     <ProviderRow
                       key={p}
