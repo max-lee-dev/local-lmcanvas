@@ -94,16 +94,11 @@ import type {
 import type { WebContents } from "electron";
 import type { Attachment } from "@shared/ipc";
 import { buildAskUserServer } from "./askUserMcp";
+import { isAuthError, type RunnerEvent } from "../agents/types";
 
 const ASK_USER_SYSTEM_NOTE = `\n\nWhen you need to ask the local user a structured multiple-choice question, use the \`mcp__lmc__ask_user_question\` tool. It renders an interactive picker inside the local-lmcanvas app. Do NOT use the built-in AskUserQuestion tool — it is disabled in this environment.`;
 
-export type RunnerEvent =
-  | { kind: "text_delta"; text: string }
-  | { kind: "tool_use"; toolUseId: string; name: string; input: unknown }
-  | { kind: "tool_result"; toolUseId: string; content: string; isError: boolean }
-  | { kind: "thinking_delta"; text: string }
-  | { kind: "done"; isError?: boolean; result?: string }
-  | { kind: "error"; message: string };
+export type { RunnerEvent };
 
 export type RunClaudeOpts = {
   cwd: string;
