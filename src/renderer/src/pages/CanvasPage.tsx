@@ -109,6 +109,7 @@ export function CanvasPage({ id }: { id: string }) {
       </div>
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
+      <DeleteNodeModal />
     </div>
   );
 }
