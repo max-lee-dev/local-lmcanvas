@@ -8,6 +8,7 @@ import { SettingsModal } from "@/components/SettingsModal";
 import { CanvasItem } from "./CanvasItem";
 import { CanvasSearch, type CanvasSearchRef } from "./CanvasSearch";
 import { ProviderPicker } from "./ProviderPicker";
+import { onOpenSettings } from "@/lib/openSettings";
 
 type CanvasManagerProps = {
   /** Canvas id of the currently-open canvas, if any. */
