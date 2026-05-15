@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef } from "react";
-import { FileText } from "lucide-react";
+import { FileText, Folder } from "lucide-react";
+import type { FileEntry } from "@shared/ipc";
 
-const filesCacheByCwd = new Map<string, string[]>();
-const inflightByCwd = new Map<string, Promise<string[]>>();
+const filesCacheByCwd = new Map<string, FileEntry[]>();
+const inflightByCwd = new Map<string, Promise<FileEntry[]>>();
 
-export async function getFilesForCwd(cwd: string): Promise<string[]> {
+export async function getFilesForCwd(cwd: string): Promise<FileEntry[]> {
   if (!cwd) return [];
   const cached = filesCacheByCwd.get(cwd);
   if (cached) return cached;
@@ -32,9 +33,9 @@ export function invalidateFilesCache(cwd?: string): void {
 
 type Props = {
   query: string;
-  files: string[];
+  entries: FileEntry[];
   highlightIdx: number;
-  onSelect: (path: string) => void;
+  onSelect: (entry: FileEntry) => void;
   onHoverIndex: (idx: number) => void;
   position?: "below" | "above";
 };
@@ -43,13 +44,13 @@ const MAX_RESULTS = 8;
 
 export function MentionPicker({
   query,
-  files,
+  entries,
   highlightIdx,
   onSelect,
   onHoverIndex,
   position = "below",
 }: Props) {
-  const results = useMemo(() => filterFiles(files, query), [files, query]);
+  const results = useMemo(() => filterEntries(entries, query), [entries, query]);
   const listRef = useRef<HTMLUListElement | null>(null);
 
   useEffect(() => {
@@ -71,14 +72,16 @@ export function MentionPicker({
       className={`${containerClass} z-50 nodrag bg-card border border-border rounded-[8px] shadow-md overflow-hidden`}
     >
       <ul ref={listRef} className="max-h-[180px] overflow-y-auto py-0.5">
-        {results.map((path, i) => {
+        {results.map((entry, i) => {
+          const path = entry.path;
           const slash = path.lastIndexOf("/");
           const dir = slash >= 0 ? path.slice(0, slash + 1) : "";
           const base = slash >= 0 ? path.slice(slash + 1) : path;
           const isActive = i === highlightIdx;
+          const Icon = entry.type === "dir" ? Folder : FileText;
           return (
             <li
-              key={path}
+              key={`${entry.type}:${path}`}
               data-idx={i}
               className={`flex items-center gap-2 px-2 py-1 text-[10px] cursor-pointer ${
                 isActive ? "bg-accent" : ""
@@ -88,13 +91,22 @@ export function MentionPicker({
                 // mousedown (not click) so it fires before textarea blur
                 e.preventDefault();
                 e.stopPropagation();
-                onSelect(path);
+                onSelect(entry);
               }}
             >
-              <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <Icon
+                className={`h-3 w-3 shrink-0 ${
+                  entry.type === "dir"
+                    ? "text-foreground/70"
+                    : "text-muted-foreground"
+                }`}
+              />
               <span className="truncate">
                 <span className="text-muted-foreground">{dir}</span>
                 <span className="text-foreground">{base}</span>
+                {entry.type === "dir" && (
+                  <span className="text-muted-foreground">/</span>
+                )}
               </span>
             </li>
           );
@@ -104,11 +116,15 @@ export function MentionPicker({
   );
 }
 
-export function filterFiles(files: string[], query: string): string[] {
-  if (query.length === 0) return files.slice(0, MAX_RESULTS);
+export function filterEntries(
+  entries: FileEntry[],
+  query: string
+): FileEntry[] {
+  if (query.length === 0) return entries.slice(0, MAX_RESULTS);
   const q = query.toLowerCase();
-  const scored: Array<{ path: string; score: number }> = [];
-  for (const path of files) {
+  const scored: Array<{ entry: FileEntry; score: number }> = [];
+  for (const entry of entries) {
+    const path = entry.path;
     const lower = path.toLowerCase();
     const slash = lower.lastIndexOf("/");
     const base = slash >= 0 ? lower.slice(slash + 1) : lower;
@@ -120,9 +136,14 @@ export function filterFiles(files: string[], query: string): string[] {
     if (baseIdx === 0) score = 0;
     else if (baseIdx > 0) score = 1 + baseIdx;
     else score = 100 + fullIdx;
-    scored.push({ path, score });
+    // Tiny nudge so dirs surface slightly above files of equal score when the
+    // query likely matches a folder name (folders are usually the broader pick).
+    if (entry.type === "dir") score -= 0.5;
+    scored.push({ entry, score });
     if (scored.length > 500) break; // cap work
   }
-  scored.sort((a, b) => a.score - b.score || a.path.length - b.path.length);
-  return scored.slice(0, MAX_RESULTS).map((s) => s.path);
+  scored.sort(
+    (a, b) => a.score - b.score || a.entry.path.length - b.entry.path.length
+  );
+  return scored.slice(0, MAX_RESULTS).map((s) => s.entry);
 }

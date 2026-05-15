@@ -7,7 +7,7 @@ import type {
   LmcApi,
   CanvasCreateArgs,
 } from "@shared/ipc";
-import type { AppSettings, Canvas } from "@shared/types";
+import type { AppSettings, Canvas, Provider } from "@shared/types";
 
 const api: LmcApi = {
   canvases: {
