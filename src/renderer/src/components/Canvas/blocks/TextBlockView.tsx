@@ -1,57 +1,191 @@
-import { memo, type ComponentPropsWithoutRef } from "react";
+import React, { memo, useCallback, useMemo, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import clsx from "clsx";
+import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { CodeBlock } from "./CodeBlock";
 
 type Props = {
   text: string;
   isUser?: boolean;
+  nodeId?: string;
 };
 
 type CodeProps = ComponentPropsWithoutRef<"code"> & { inline?: boolean };
 
-const markdownComponents: Components = {
-  code(props) {
-    const { inline, className, children, ...rest } = props as CodeProps;
-    const codeString = String(children ?? "").replace(/\n$/, "");
-    const langMatch = /language-(\w+)/.exec(className ?? "");
-    const language = langMatch?.[1];
+function highlightTextInString(
+  text: string,
+  highlightedTexts: Set<string>,
+): (string | React.ReactElement)[] {
+  if (!text) return [text];
+  const sortedTexts = Array.from(highlightedTexts).sort(
+    (a, b) => b.length - a.length,
+  );
+  let parts: (string | React.ReactElement)[] = [text];
+  let keyCounter = 0;
 
-    const looksInline =
-      inline === true || (!language && !codeString.includes("\n") && codeString.length < 80);
-
-    if (looksInline) {
-      return (
-        <code className={className} {...rest}>
-          {children}
-        </code>
-      );
+  for (const textToHighlight of sortedTexts) {
+    if (!textToHighlight.trim()) continue;
+    const escaped = textToHighlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const newParts: (string | React.ReactElement)[] = [];
+    for (const part of parts) {
+      if (typeof part !== "string") {
+        newParts.push(part);
+        continue;
+      }
+      const regex = new RegExp(`(${escaped})`, "gi");
+      let lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = regex.exec(part)) !== null) {
+        if (match.index > lastIndex) {
+          newParts.push(part.substring(lastIndex, match.index));
+        }
+        newParts.push(
+          <mark
+            key={`hl-${keyCounter++}-${match.index}`}
+            className="bg-yellow-200/60 text-foreground px-0 rounded-none"
+          >
+            {match[0]}
+          </mark>,
+        );
+        lastIndex = regex.lastIndex;
+        if (match[0].length === 0) {
+          regex.lastIndex++;
+          break;
+        }
+      }
+      if (lastIndex < part.length) {
+        newParts.push(part.substring(lastIndex));
+      }
     }
+    parts = newParts.length > 0 ? newParts : parts;
+  }
+  return parts;
+}
 
-    return (
-      <CodeBlock
-        code={codeString}
-        language={language}
-        innerProps={{ className, ...rest }}
-      />
-    );
-  },
-  img({ alt, src }) {
-    return (
-      <a href={typeof src === "string" ? src : undefined} target="_blank" rel="noreferrer">
-        {alt || src || "image"}
-      </a>
-    );
-  },
-};
+function processChildren(
+  children: React.ReactNode,
+  highlightedTexts: Set<string>,
+): React.ReactNode {
+  if (typeof children === "string") {
+    return highlightTextInString(children, highlightedTexts);
+  }
+  if (Array.isArray(children)) {
+    return children.map((child, i) => {
+      if (typeof child === "string") {
+        return (
+          <React.Fragment key={`s-${i}`}>
+            {highlightTextInString(child, highlightedTexts)}
+          </React.Fragment>
+        );
+      }
+      if (React.isValidElement(child)) {
+        const el = child as React.ReactElement<{ children?: React.ReactNode }>;
+        if (el.props.children) {
+          return React.cloneElement(el, {
+            ...el.props,
+            children: processChildren(el.props.children, highlightedTexts),
+          });
+        }
+      }
+      return child;
+    });
+  }
+  if (React.isValidElement(children)) {
+    const el = children as React.ReactElement<{ children?: React.ReactNode }>;
+    if (el.props.children) {
+      return React.cloneElement(el, {
+        ...el.props,
+        children: processChildren(el.props.children, highlightedTexts),
+      });
+    }
+  }
+  return children;
+}
 
-function TextBlockViewImpl({ text, isUser }: Props) {
+function TextBlockViewImpl({ text, isUser, nodeId }: Props) {
+  const highlightedTexts = useCanvasStore(
+    useCallback(
+      (state) => {
+        if (!nodeId) return undefined;
+        const set = state.searchHighlights.get(nodeId);
+        return set && set.size > 0 ? set : undefined;
+      },
+      [nodeId],
+    ),
+  );
+
+  const components = useMemo((): Components => {
+    const base: Components = {
+      code(props) {
+        const { inline, className, children, ...rest } = props as CodeProps;
+        const codeString = String(children ?? "").replace(/\n$/, "");
+        const langMatch = /language-(\w+)/.exec(className ?? "");
+        const language = langMatch?.[1];
+        const looksInline =
+          inline === true ||
+          (!language && !codeString.includes("\n") && codeString.length < 80);
+        if (looksInline) {
+          return (
+            <code className={className} {...rest}>
+              {children}
+            </code>
+          );
+        }
+        return (
+          <CodeBlock
+            code={codeString}
+            language={language}
+            innerProps={{ className, ...rest }}
+          />
+        );
+      },
+      img({ alt, src }) {
+        return (
+          <a
+            href={typeof src === "string" ? src : undefined}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {alt || src || "image"}
+          </a>
+        );
+      },
+    };
+    if (!highlightedTexts || highlightedTexts.size === 0) return base;
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    return {
+      ...base,
+      p: ({ children, ...rest }: any) => (
+        <p {...rest}>{processChildren(children, highlightedTexts)}</p>
+      ),
+      li: ({ children, ...rest }: any) => (
+        <li {...rest}>{processChildren(children, highlightedTexts)}</li>
+      ),
+      strong: ({ children, ...rest }: any) => (
+        <strong {...rest}>{processChildren(children, highlightedTexts)}</strong>
+      ),
+      em: ({ children, ...rest }: any) => (
+        <em {...rest}>{processChildren(children, highlightedTexts)}</em>
+      ),
+      h1: ({ children, ...rest }: any) => (
+        <h1 {...rest}>{processChildren(children, highlightedTexts)}</h1>
+      ),
+      h2: ({ children, ...rest }: any) => (
+        <h2 {...rest}>{processChildren(children, highlightedTexts)}</h2>
+      ),
+      h3: ({ children, ...rest }: any) => (
+        <h3 {...rest}>{processChildren(children, highlightedTexts)}</h3>
+      ),
+    };
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+  }, [highlightedTexts]);
+
   if (isUser) {
     return (
-      <div className="whitespace-pre-wrap break-words text-[10px] leading-relaxed text-foreground">
-        {text}
+      <div className="whitespace-pre-wrap break-words text-[10px] leading-relaxed text-foreground select-text cursor-text">
+        {highlightedTexts ? highlightTextInString(text, highlightedTexts) : text}
       </div>
     );
   }
@@ -61,7 +195,7 @@ function TextBlockViewImpl({ text, isUser }: Props) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}
-        components={markdownComponents}
+        components={components}
       >
         {text}
       </ReactMarkdown>

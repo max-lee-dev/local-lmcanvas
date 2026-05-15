@@ -33,6 +33,9 @@ export type CanvasStoreState = {
   saving: boolean;
   error: string | null;
   pendingPrefills: Record<NodeId, string>;
+  searchHighlights: Map<NodeId, Set<string>>;
+  setSearchHighlights: (nodeId: NodeId, textMatches: string[]) => void;
+  clearSearchHighlights: () => void;
 
   loadCanvas: (id: string) => Promise<void>;
   setName: (name: string) => void;
@@ -125,6 +128,22 @@ export const useCanvasStore = create<CanvasStoreState>()(
     saving: false,
     error: null,
     pendingPrefills: {},
+    searchHighlights: new Map(),
+
+    setSearchHighlights: (nodeId, textMatches) => {
+      set((s) => {
+        const next = new Map(s.searchHighlights);
+        next.set(nodeId, new Set(textMatches));
+        return { searchHighlights: next };
+      });
+    },
+
+    clearSearchHighlights: () => {
+      set((s) => {
+        if (s.searchHighlights.size === 0) return s;
+        return { searchHighlights: new Map() };
+      });
+    },
 
     loadCanvas: async (id: string) => {
       set({ loaded: false, error: null });
@@ -465,7 +484,11 @@ export const useCanvasStore = create<CanvasStoreState>()(
   }))
 );
 
-export function makeBlankNode(position: { x: number; y: number }, parentId?: NodeId): CanvasNode {
+export function makeBlankNode(
+  position: { x: number; y: number },
+  parentId?: NodeId,
+  addedContext?: string,
+): CanvasNode {
   return {
     id: nanoid(10),
     type: "custom",
@@ -475,6 +498,7 @@ export function makeBlankNode(position: { x: number; y: number }, parentId?: Nod
         messages: [],
         parentIds: parentId ? [parentId] : [],
         childIds: [],
+        ...(addedContext ? { addedContext } : {}),
       },
     },
   };

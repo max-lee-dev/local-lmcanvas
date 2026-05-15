@@ -3,6 +3,7 @@ import { FolderOpen, Plus, Settings } from "lucide-react";
 import { Canvas } from "@/components/Canvas/Canvas";
 import { makeBlankNode, useCanvasStore } from "@/hooks/useCanvasStore";
 import { SettingsModal } from "@/components/SettingsModal";
+import { SearchButton } from "@/components/Canvas/SearchModal";
 import { CanvasManager } from "@/components/CanvasManager/CanvasManager";
 import { prettyPath } from "@/lib/prettyPath";
 
@@ -61,8 +62,9 @@ export function CanvasPage({ id }: { id: string }) {
         </div>
       )}
 
-      {/* Top-right: settings */}
-      <div className="absolute top-3 right-3 z-30 no-drag">
+      {/* Top-right: search + settings */}
+      <div className="absolute top-3 right-3 z-30 no-drag flex items-center gap-1">
+        <SearchButton />
         <button
           onClick={() => setShowSettings(true)}
           className="flex h-7 w-7 items-center justify-center rounded-md text-foreground/70 hover:text-foreground hover:bg-muted cursor-pointer"

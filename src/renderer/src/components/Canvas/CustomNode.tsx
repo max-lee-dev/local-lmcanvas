@@ -3,6 +3,7 @@ import {
   Handle,
   NodeResizer,
   Position,
+  useReactFlow,
   useStore,
   type NodeProps,
 } from "@xyflow/react";
@@ -17,6 +18,7 @@ import { NodeResponse } from "./NodeResponse";
 import { NodePromptInput } from "./NodePromptInput";
 import { AskUserPrompt } from "./AskUserPrompt";
 import { SelectionActionButton } from "./SelectionActionButton";
+import { CustomNodeContextBanner } from "./CustomNodeContextBanner";
 import { useAskUserStore } from "@/hooks/useAskUserStore";
 import { useCenterOnNode } from "@/hooks/useCenterOnNode";
 import { useSelection } from "@/hooks/useSelection";
@@ -69,6 +71,7 @@ function CustomNodeImpl(props: NodeProps) {
   const setPrefill = useCanvasStore((s) => s.setPrefill);
   const clearMessages = useCanvasStore((s) => s.clearMessages);
   const zoom = useStore((s) => s.transform[2]);
+  const { screenToFlowPosition } = useReactFlow();
   const centerOnNode = useCenterOnNode();
 
   const [hovered, setHovered] = useState(false);
@@ -80,22 +83,38 @@ function CustomNodeImpl(props: NodeProps) {
   const selection = useSelection(rootRef);
 
   const branch = useCallback(
-    (prefill?: string) => {
+    (opts?: {
+      prefill?: string;
+      addedContext?: string;
+      selectionViewportY?: number;
+    }) => {
+      const prefill = opts?.prefill;
+      const addedContext = opts?.addedContext;
+      const selectionViewportY = opts?.selectionViewportY;
       const parentPos = getNode?.position ?? { x: 0, y: 0 };
-      const isRightLane = Boolean(prefill);
-      const position = isRightLane
-        ? {
-            x: parentPos.x + RIGHT_LANE_X_OFFSET,
-            y: parentPos.y + 30,
-          }
-        : {
-            x: parentPos.x,
-            y:
-              parentPos.y +
-              measureNodeHeight(id, zoom) +
-              VERTICAL_CHILD_OFFSET,
-          };
-      const child = makeBlankNode(position, id);
+      const isRightLane = Boolean(prefill) || Boolean(addedContext);
+      let position: { x: number; y: number };
+      if (isRightLane) {
+        const x = parentPos.x + RIGHT_LANE_X_OFFSET;
+        if (selectionViewportY != null) {
+          // Project the selection's viewport Y into flow coords so the new
+          // node sits at the same vertical level as where the user selected,
+          // not pinned to the top of the parent.
+          const projected = screenToFlowPosition({ x: 0, y: selectionViewportY });
+          position = { x, y: projected.y - FALLBACK_NODE_HEIGHT / 2 };
+        } else {
+          position = { x, y: parentPos.y + 30 };
+        }
+      } else {
+        position = {
+          x: parentPos.x,
+          y:
+            parentPos.y +
+            measureNodeHeight(id, zoom) +
+            VERTICAL_CHILD_OFFSET,
+        };
+      }
+      const child = makeBlankNode(position, id, addedContext);
       if (prefill) setPrefill(child.id, prefill);
       addNode(child);
       connectEdge(id, child.id);
@@ -128,7 +147,7 @@ function CustomNodeImpl(props: NodeProps) {
         focusNodeTextarea(child.id);
       });
     },
-    [id, getNode, addNode, connectEdge, setPrefill, zoom, movePosition, centerOnNode]
+    [id, getNode, addNode, connectEdge, setPrefill, zoom, movePosition, centerOnNode, screenToFlowPosition]
   );
 
   const messages = nodeData.chat.messages;
@@ -230,6 +249,28 @@ function CustomNodeImpl(props: NodeProps) {
 
   const showFollowUp = (hovered || selected) && hasSubmitted;
 
+  useEffect(() => {
+    if (!selection) return;
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== "Enter") return;
+      if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) {
+          return;
+        }
+      }
+      e.preventDefault();
+      const text = selection.text;
+      const viewportY = selection.position.y;
+      selection.clear({ removeRange: true });
+      branch({ addedContext: text, selectionViewportY: viewportY });
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [selection, branch]);
+
   return (
     <motion.div
       ref={rootRef}
@@ -259,11 +300,25 @@ function CustomNodeImpl(props: NodeProps) {
       <div
         className={clsx(
           "relative border rounded-[10px] transition-colors duration-300 px-5 pb-4 pt-12 shadow-sm bg-card",
-          selected
+          nodeData.chat.addedContext && "rounded-t-none border-t-0",
+          askUserRequest
+            ? "border-yellow-400/60"
+            : selected
             ? "border-accent bg-accent/10"
             : "border-border"
         )}
       >
+        {askUserRequest && (
+          <motion.div
+            className="pointer-events-none absolute inset-0 rounded-[10px] bg-yellow-400"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0.05, 0.18, 0.05] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          />
+        )}
+
+        <CustomNodeContextBanner addedContext={nodeData.chat.addedContext} />
+
         <div className="absolute left-4 top-3">
           <ModelBadge />
         </div>
@@ -315,7 +370,7 @@ function CustomNodeImpl(props: NodeProps) {
               )}
               title={canEditPrompt ? "Click to edit prompt" : undefined}
             >
-              <NodeResponse message={userMessage} />
+              <NodeResponse message={userMessage} nodeId={id} />
             </div>
           )}
           {userMessage && isEditingPrompt && (
@@ -340,7 +395,7 @@ function CustomNodeImpl(props: NodeProps) {
             </div>
           )}
           {assistantMessage && (
-            <NodeResponse message={assistantMessage} onStop={stop} />
+            <NodeResponse message={assistantMessage} onStop={stop} nodeId={id} />
           )}
           {askUserRequest && <AskUserPrompt request={askUserRequest} />}
         </div>
@@ -352,7 +407,10 @@ function CustomNodeImpl(props: NodeProps) {
             relativeTop={selection.relativeTop}
             absolutePosition={selection.position}
             onClick={() => {
-              branch(`Re: "${selection.text.slice(0, 200)}"\n\n`);
+              branch({
+                addedContext: selection.text,
+                selectionViewportY: selection.position.y,
+              });
               selection.clear({ removeRange: true });
             }}
           />

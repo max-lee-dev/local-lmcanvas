@@ -29,6 +29,7 @@ export function ModelBadge() {
   return (
     <div
       className="nodrag relative flex items-center gap-1 rounded-sm border border-border bg-card text-foreground px-1.5 py-[5px] text-xs font-medium cursor-default"
+      style={{ fontFamily: "var(--font-geist-pixel-square)" }}
       title={`Model: ${name}`}
     >
       <AnthropicLogo size={10} />

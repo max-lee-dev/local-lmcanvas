@@ -3,7 +3,6 @@ import {
   Background,
   BackgroundVariant,
   ConnectionLineType,
-  Controls,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
@@ -21,9 +20,13 @@ import { useCanvasStore, makeBlankNode } from "@/hooks/useCanvasStore";
 import { useDebouncedSave } from "@/hooks/useDebouncedSave";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useContextMenu } from "@/hooks/useContextMenu";
+import { useMinimapAutoHide } from "@/hooks/useMinimapAutoHide";
+import { usePreferencesStore } from "@/hooks/usePreferencesStore";
 import { getEdgeHandles } from "@/lib/edgeHandles";
+import { useSearchModal } from "@/providers/SearchModalProvider";
 import { CustomNode, focusNodeTextarea } from "./CustomNode";
 import { ContextMenu } from "./ContextMenu";
+import { SearchModalWrapper } from "./SearchModal";
 
 const nodeTypes = { custom: CustomNode };
 
@@ -47,6 +50,29 @@ function CanvasInner() {
 
   useDebouncedSave();
   useKeyboardShortcuts();
+
+  const showMinimap = usePreferencesStore((s) => s.showMinimap);
+  const panOnScrollSpeed = usePreferencesStore((s) => s.panOnScrollSpeed);
+  const minimap = useMinimapAutoHide(showMinimap);
+
+  const { showSearchModal, isSearchModalOpen, inputRef: searchInputRef } =
+    useSearchModal();
+  const clearSearchHighlights = useCanvasStore((s) => s.clearSearchHighlights);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        if (isSearchModalOpen && searchInputRef?.current) {
+          searchInputRef.current.focus();
+        } else {
+          showSearchModal();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isSearchModalOpen, searchInputRef, showSearchModal]);
 
   const {
     isOpen: ctxIsOpen,
@@ -227,6 +253,9 @@ function CanvasInner() {
         onConnect={onConnect}
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
+        onMoveStart={minimap.onMoveStart}
+        onMove={minimap.onMove}
+        onPaneClick={clearSearchHighlights}
         onPaneContextMenu={handlePaneContextMenu}
         onNodeContextMenu={handleNodeContextMenu}
         defaultViewport={{ x: 200, y: 200, zoom: 1 }}
@@ -240,7 +269,7 @@ function CanvasInner() {
         minZoom={0.1}
         deleteKeyCode={null}
         panOnScroll
-        panOnScrollSpeed={0.5}
+        panOnScrollSpeed={panOnScrollSpeed}
         zoomOnScroll={false}
         disableKeyboardA11y={true}
         zoomOnPinch
@@ -257,8 +286,18 @@ function CanvasInner() {
           size={1}
           color="var(--grid-line)"
         />
-        <Controls position="bottom-right" showInteractive={false} />
-        <MiniMap pannable zoomable position="bottom-left" />
+        {showMinimap && (
+          <MiniMap
+            pannable
+            zoomable
+            position="bottom-left"
+            style={{
+              opacity: minimap.visible ? 1 : 0,
+              transition: "opacity 250ms ease-out",
+              pointerEvents: minimap.visible ? "auto" : "none",
+            }}
+          />
+        )}
       </ReactFlow>
       <ContextMenu
         isOpen={ctxIsOpen}
@@ -268,6 +307,7 @@ function CanvasInner() {
         deleteNodeAtPointer={deleteNodeAtPointer}
         onClose={closeCtx}
       />
+      <SearchModalWrapper />
     </div>
   );
 }

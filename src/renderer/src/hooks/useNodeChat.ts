@@ -116,13 +116,19 @@ export function useNodeChat(nodeId: NodeId) {
         }
       });
 
+      const addedContext =
+        useCanvasStore.getState().nodes[nodeId]?.data.chat.addedContext;
+      const promptForModel = addedContext
+        ? `> ${addedContext.replace(/\n/g, "\n> ")}\n\n${trimmed}`
+        : trimmed;
+
       try {
         await window.api.chat.start({
           chatId,
           nodeId,
           canvasId,
           history,
-          prompt: trimmed,
+          prompt: promptForModel,
           attachments: attachments.length > 0 ? attachments : undefined,
         });
       } catch (err: unknown) {

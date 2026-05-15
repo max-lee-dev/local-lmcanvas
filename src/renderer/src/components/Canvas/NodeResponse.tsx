@@ -44,9 +44,10 @@ function groupBlocks(blocks: ContentBlock[]): RenderItem[] {
 type Props = {
   message: Message;
   onStop?: () => void;
+  nodeId?: string;
 };
 
-export function NodeResponse({ message, onStop }: Props) {
+export function NodeResponse({ message, onStop, nodeId }: Props) {
   const isUser = message.role === "user";
   const isError = message.status === "error";
   const isStreaming = message.status === "streaming";
@@ -65,9 +66,7 @@ export function NodeResponse({ message, onStop }: Props) {
     return (
       <div className="flex flex-col gap-2">
         {text && (
-          <div className="whitespace-pre-wrap break-words text-[10px] leading-relaxed text-foreground select-text cursor-text">
-            {text}
-          </div>
+          <TextBlockView text={text} isUser nodeId={nodeId} />
         )}
         {images.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
@@ -96,7 +95,7 @@ export function NodeResponse({ message, onStop }: Props) {
 
       {groupBlocks(message.blocks).map((item) => {
         if (item.kind === "text") {
-          return <TextBlockView key={item.key} text={item.text} />;
+          return <TextBlockView key={item.key} text={item.text} nodeId={nodeId} />;
         }
         if (item.kind === "thinking") {
           return <ThinkingView key={item.key} text={item.text} />;

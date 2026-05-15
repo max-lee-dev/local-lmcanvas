@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { HomePage } from "./pages/HomePage";
 import { CanvasPage } from "./pages/CanvasPage";
 import { subscribeAskUserRequests } from "./hooks/useAskUserStore";
+import { useApplyTheme } from "./hooks/useApplyTheme";
+import { SearchModalProvider } from "./providers/SearchModalProvider";
 
 type Route =
   | { name: "home" }
@@ -28,5 +30,11 @@ export function App() {
 
   useEffect(() => subscribeAskUserRequests(), []);
 
-  return route.name === "canvas" ? <CanvasPage id={route.id} /> : <HomePage />;
+  useApplyTheme();
+
+  return (
+    <SearchModalProvider>
+      {route.name === "canvas" ? <CanvasPage id={route.id} /> : <HomePage />}
+    </SearchModalProvider>
+  );
 }

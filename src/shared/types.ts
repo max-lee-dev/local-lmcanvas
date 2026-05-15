@@ -37,6 +37,7 @@ export type ChatData = {
   messages: Message[];
   parentIds: NodeId[];
   childIds: NodeId[];
+  addedContext?: string;
 };
 
 export type CanvasNodeType = "custom" | "stickyNote";
