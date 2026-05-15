@@ -57,7 +57,7 @@ export function SelectionActionButton({
         }}
         aria-label="Create follow-up from selection"
         tabIndex={0}
-        className="cursor-pointer pointer-events-auto z-50 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--accent-brand)] bg-[var(--accent-brand)] text-white shadow-lg hover:opacity-90 animate-in fade-in zoom-in-95 duration-200 nodrag"
+        className="cursor-pointer pointer-events-auto z-50 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--accent-brand)] bg-[var(--accent-brand)] text-[var(--background)] shadow-lg hover:opacity-90 animate-in fade-in zoom-in-95 duration-200 nodrag"
         style={{ position: positionClass as "fixed" | "absolute", ...style }}
       >
         <Plus className="h-4 w-4" />
