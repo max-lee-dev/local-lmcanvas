@@ -82,7 +82,10 @@ export function useContextMenu() {
     };
     const child = makeBlankNode(childPos, parentId);
     addNode(child);
-    connectEdge(parentId, child.id);
+    // Attach the parent end of the edge near the cursor Y so the connector
+    // emerges from the spot the user clicked instead of a fixed handle.
+    const sourceYOffset = cursorFlow.y - parent.position.y;
+    connectEdge(parentId, child.id, { sourceYOffset });
 
     // After the new node has mounted (rAF), measure, resolve collisions, pan
     // camera, then focus the textarea. RAF is required so the textarea/DOM
