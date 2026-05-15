@@ -231,10 +231,13 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
   const handleSubmit = (e?: React.FormEvent): void => {
     e?.preventDefault();
     const trimmed = value.trim();
+    const mentionStr = serializeMentions(mentions);
+    const combined = [mentionStr, trimmed].filter(Boolean).join(" ");
     if (streaming) return;
-    if (!trimmed && attachments.length === 0) return;
-    onSubmit(trimmed, attachments.length > 0 ? attachments : undefined);
+    if (!combined && attachments.length === 0) return;
+    onSubmit(combined, attachments.length > 0 ? attachments : undefined);
     setValue("");
+    setMentions([]);
     setAttachments([]);
   };
 
