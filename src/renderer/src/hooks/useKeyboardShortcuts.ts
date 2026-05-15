@@ -47,16 +47,16 @@ export function useKeyboardShortcuts() {
         connectEdge(id, child.id);
       }
 
-      // Backspace / Delete → remove selected node (but NOT when typing)
+      // Backspace / Delete → open in-app confirmation modal (but NOT when typing)
       if ((e.key === "Backspace" || e.key === "Delete") && !isEditable(e.target)) {
         const id = getSelectedNodeId();
         if (!id) return;
         e.preventDefault();
-        if (confirm("delete this node?")) removeNode(id);
+        requestDelete(id);
       }
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addNode, connectEdge, removeNode]);
+  }, [addNode, connectEdge, requestDelete]);
 }
