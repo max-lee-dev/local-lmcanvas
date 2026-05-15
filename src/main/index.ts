@@ -17,7 +17,6 @@ import {
   cancelAllForWebContents,
   completeRequest as completeAskUser,
 } from "./claude/askUserBridge";
-import { getProviderAuthStatus, openLoginTerminal } from "./auth/providerAuth";
 import { sendLaunchPing } from "./telemetry";
 import type {
   AskUserResponsePayload,
