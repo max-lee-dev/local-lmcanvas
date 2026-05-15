@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ArrowUpRight, RefreshCw } from "lucide-react";
 import type { Provider } from "@shared/types";
 import { useProviderAuth } from "@/hooks/useProviderAuth";
+import { ProviderLogo } from "@/components/Canvas/ProviderLogo";
 import { AuthStatusPill } from "./AuthStatusPill";
 import { PROVIDER_INFO } from "./providerInfo";
 
@@ -46,9 +47,8 @@ export function ProviderCard({ provider, onAuthChange, isFirst }: Props) {
     >
       <div
         className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-background text-base text-foreground"
-        style={{ fontFamily: "var(--font-geist-pixel-square)", fontWeight: 700 }}
       >
-        {info.name.charAt(0)}
+        <ProviderLogo provider={provider} size={20} className="opacity-90" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">

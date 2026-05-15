@@ -10,7 +10,7 @@ export type ProviderInfoState = {
 
 const DEFAULT_MODEL_BY_PROVIDER: Record<Provider, string> = {
   claude: "claude-opus-4-7",
-  codex: "gpt-5-codex",
+  codex: "gpt-5.3-codex",
   cursor: "auto",
 };
 
@@ -77,7 +77,7 @@ function prettyModelLabel(provider: Provider, modelId?: string): string {
     return modelId;
   }
   if (provider === "codex") {
-    if (!modelId || modelId.length === 0) return "GPT-5 Codex";
+    if (!modelId || modelId.length === 0) return "GPT-5.3 Codex";
     const lower = normalizeModelId(modelId);
     if (
       lower === "codex" ||
@@ -85,7 +85,7 @@ function prettyModelLabel(provider: Provider, modelId?: string): string {
       lower === "default" ||
       lower === "openai/default"
     ) {
-      return "GPT-5 Codex";
+      return "Codex (Default)";
     }
     return prettyOpenAIModelName(modelId);
   }
@@ -107,10 +107,10 @@ function prettyModelLabel(provider: Provider, modelId?: string): string {
 }
 
 function prettyOpenAIModelName(modelId?: string): string {
-  if (!modelId || modelId.length === 0) return "GPT-5 Codex";
+  if (!modelId || modelId.length === 0) return "GPT-5.3 Codex";
   const lower = normalizeModelId(modelId);
   if (lower === "auto") return "Auto";
-  if (lower === "codex") return "GPT-5 Codex";
+  if (lower === "codex") return "Codex (Default)";
   if (lower === "cursor" || lower === "cursor-agent") return "Auto";
 
   const sanitized = modelId.replace(/[\\/_]+/g, "-").replace(/\s+/g, "-");

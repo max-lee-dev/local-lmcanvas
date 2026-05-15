@@ -26,7 +26,7 @@ export function WelcomeStep({ onContinue }: Props) {
         className="mt-6 text-5xl leading-[1.05] text-foreground sm:text-6xl"
         style={{ fontFamily: "var(--font-geist-pixel-square)", fontWeight: 700 }}
       >
-        Chat is a dead end.
+        Linear chat is a dead end.
       </h1>
 
       <p
