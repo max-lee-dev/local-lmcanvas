@@ -364,27 +364,39 @@ function ThumbChip({
   attachment: Attachment;
   onRemove: () => void;
 }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
   const src = `data:${attachment.mediaType};base64,${attachment.base64}`;
   return (
-    <div className="relative group/thumb">
-      <img
-        src={src}
-        alt=""
-        className="h-10 w-10 rounded-md object-cover border border-border"
+    <>
+      <div className="relative group/thumb">
+        <img
+          src={src}
+          alt=""
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setPreviewOpen(true);
+          }}
+          className="h-10 w-10 rounded-md object-cover border border-border cursor-zoom-in hover:opacity-90 transition-opacity"
+        />
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-foreground text-card flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity cursor-pointer z-10"
+          aria-label="Remove attachment"
+        >
+          <X className="h-2 w-2" />
+        </button>
+      </div>
+      <ImagePreviewModal
+        src={previewOpen ? src : null}
+        onClose={() => setPreviewOpen(false)}
       />
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onRemove();
-        }}
-        className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-foreground text-card flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity cursor-pointer"
-        aria-label="Remove attachment"
-      >
-        <X className="h-2 w-2" />
-      </button>
-    </div>
+    </>
   );
 }
 
