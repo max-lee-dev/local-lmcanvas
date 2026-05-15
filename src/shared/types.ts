@@ -61,6 +61,17 @@ export type CanvasEdge = {
   targetHandle?: string;
 };
 
+export type Provider = "claude" | "codex" | "cursor";
+
+export const PROVIDERS: readonly Provider[] = ["claude", "codex", "cursor"] as const;
+
+export type ProviderConfig = {
+  /** Override the default binary name. */
+  binPath?: string;
+  /** Optional model override for this provider. */
+  model?: string;
+};
+
 export type Canvas = {
   id: string;
   name: string;
@@ -69,6 +80,8 @@ export type Canvas = {
   updatedAt: number;
   nodes: CanvasNode[];
   edges: CanvasEdge[];
+  /** Which provider this canvas uses. Falls back to AppSettings.defaultProvider. */
+  provider?: Provider;
 };
 
 export type CanvasSummary = {
@@ -78,10 +91,16 @@ export type CanvasSummary = {
   createdAt: number;
   updatedAt: number;
   nodeCount: number;
+  provider?: Provider;
 };
 
 export type AppSettings = {
   systemPrompt?: string;
+  /** @deprecated kept for back-compat; mirrors providers.claude.model */
   claudeModel?: string;
+  /** @deprecated kept for back-compat; mirrors providers.claude.binPath */
   claudeBinPath?: string;
+  defaultProvider?: Provider;
+  providers?: Partial<Record<Provider, ProviderConfig>>;
+  onboardingCompleted?: boolean;
 };
