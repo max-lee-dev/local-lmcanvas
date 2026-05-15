@@ -155,8 +155,7 @@ function CustomNodeImpl(props: NodeProps) {
   const userMessage = messages.find((m) => m.role === "user");
   const assistantMessage = messages.find((m) => m.role === "assistant");
   const hasSubmitted = Boolean(userMessage);
-  const assistantStreaming = assistantMessage?.status === "streaming";
-  const canEditPrompt = hasSubmitted && !assistantStreaming && !streaming;
+  const canEditPrompt = hasSubmitted;
 
   const userText = userMessage
     ? userMessage.blocks
@@ -164,6 +163,13 @@ function CustomNodeImpl(props: NodeProps) {
         .map((b) => b.text)
         .join("")
     : "";
+
+  const userAttachments = useMemo<Attachment[]>(() => {
+    if (!userMessage) return [];
+    return userMessage.blocks
+      .filter((b): b is ImageBlock => b.type === "image")
+      .map((b) => ({ mediaType: b.mediaType, base64: b.base64 }));
+  }, [userMessage]);
 
   const beginEdit = useCallback(() => {
     if (!canEditPrompt) return;
@@ -173,11 +179,11 @@ function CustomNodeImpl(props: NodeProps) {
   }, [canEditPrompt]);
 
   const commitEdit = useCallback(
-    (text: string) => {
+    (text: string, attachments?: Attachment[]) => {
       stop();
       clearMessages(id);
       setIsEditingPrompt(false);
-      void submit(text);
+      void submit(text, attachments);
     },
     [id, stop, clearMessages, submit]
   );
