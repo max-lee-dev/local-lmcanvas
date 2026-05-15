@@ -24,11 +24,13 @@ import { useMinimapAutoHide } from "@/hooks/useMinimapAutoHide";
 import { usePreferencesStore } from "@/hooks/usePreferencesStore";
 import { getEdgeHandles } from "@/lib/edgeHandles";
 import { useSearchModal } from "@/providers/SearchModalProvider";
+import { useCommandPalette } from "@/providers/CommandPaletteProvider";
 import { CustomNode, focusNodeTextarea } from "./CustomNode";
 import { ContextMenu } from "./ContextMenu";
 import { OffsetEdge } from "./OffsetEdge";
 import { SearchModalWrapper } from "./SearchModal";
 import { MergeToolbar } from "./MergeToolbar";
+import { CommandPaletteWrapper } from "./CommandPalette";
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { offset: OffsetEdge };
@@ -60,6 +62,12 @@ function CanvasInner() {
 
   const { showSearchModal, isSearchModalOpen, inputRef: searchInputRef } =
     useSearchModal();
+  const {
+    showCommandPalette,
+    hideCommandPalette,
+    isCommandPaletteOpen,
+    inputRef: commandInputRef,
+  } = useCommandPalette();
   const clearSearchHighlights = useCanvasStore((s) => s.clearSearchHighlights);
 
   useEffect(() => {
@@ -71,11 +79,29 @@ function CanvasInner() {
         } else {
           showSearchModal();
         }
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        if (isCommandPaletteOpen) {
+          if (commandInputRef?.current) commandInputRef.current.focus();
+          else hideCommandPalette();
+        } else {
+          showCommandPalette();
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isSearchModalOpen, searchInputRef, showSearchModal]);
+  }, [
+    isSearchModalOpen,
+    searchInputRef,
+    showSearchModal,
+    isCommandPaletteOpen,
+    commandInputRef,
+    showCommandPalette,
+    hideCommandPalette,
+  ]);
 
   const {
     isOpen: ctxIsOpen,
@@ -329,6 +355,7 @@ function CanvasInner() {
       />
       <SearchModalWrapper />
       <MergeToolbar />
+      <CommandPaletteWrapper />
     </div>
   );
 }

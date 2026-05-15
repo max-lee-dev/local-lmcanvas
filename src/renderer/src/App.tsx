@@ -5,6 +5,7 @@ import { OnboardingPage } from "./pages/OnboardingPage";
 import { subscribeAskUserRequests } from "./hooks/useAskUserStore";
 import { useApplyTheme } from "./hooks/useApplyTheme";
 import { SearchModalProvider } from "./providers/SearchModalProvider";
+import { CommandPaletteProvider } from "./providers/CommandPaletteProvider";
 
 type Route =
   | { name: "home" }
@@ -50,13 +51,15 @@ export function App() {
 
   return (
     <SearchModalProvider>
-      {route.name === "canvas" ? (
-        <CanvasPage id={route.id} />
-      ) : route.name === "onboarding" ? (
-        <OnboardingPage />
-      ) : (
-        <HomePage />
-      )}
+      <CommandPaletteProvider>
+        {route.name === "canvas" ? (
+          <CanvasPage id={route.id} />
+        ) : route.name === "onboarding" ? (
+          <OnboardingPage />
+        ) : (
+          <HomePage />
+        )}
+      </CommandPaletteProvider>
     </SearchModalProvider>
   );
 }
