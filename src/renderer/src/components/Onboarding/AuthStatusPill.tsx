@@ -6,6 +6,7 @@ type Props = {
   status: ProviderAuthStatus | null;
   isLoading: boolean;
   isPolling: boolean;
+  compact?: boolean;
 };
 
 type Variant = "loading" | "not-installed" | "not-signed-in" | "connected";
@@ -20,6 +21,13 @@ function classify(p: Props): { variant: Variant; label: string } {
     return { variant: "not-signed-in", label: "Not signed in" };
   return { variant: "connected", label: "Connected" };
 }
+
+const COMPACT_LABEL: Record<Variant, string> = {
+  loading: "…",
+  "not-installed": "Off",
+  "not-signed-in": "Out",
+  connected: "",
+};
 
 const STYLES: Record<Variant, string> = {
   loading: "bg-muted text-muted-foreground border-border",
