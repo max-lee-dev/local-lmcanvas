@@ -62,7 +62,8 @@ export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void
     opts.onEvent(ev);
   };
 
-  const proc = spawn(bin, args, { stdio: ["pipe", "pipe", "pipe"] });
+  const env = await shellEnv();
+  const proc = spawn(bin, args, { stdio: ["pipe", "pipe", "pipe"], env });
 
   if (opts.signal) {
     if (opts.signal.aborted) proc.kill("SIGTERM");
