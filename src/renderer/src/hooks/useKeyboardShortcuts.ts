@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { useCanvasStore, makeBlankNode } from "./useCanvasStore";
+import { useConfirmDeleteStore } from "./useConfirmDeleteStore";
 
 export function useKeyboardShortcuts() {
   const addNode = useCanvasStore((s) => s.addNode);
   const connectEdge = useCanvasStore((s) => s.connectEdge);
-  const removeNode = useCanvasStore((s) => s.removeNode);
+  const requestDelete = useConfirmDeleteStore((s) => s.request);
 
   useEffect(() => {
     const getSelectedNodeId = (): string | null => {
