@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpRight, RefreshCw } from "lucide-react";
 import type { Provider } from "@shared/types";
@@ -17,8 +18,9 @@ export function ProviderCard({ provider, onAuthChange }: Props) {
   const authenticated = auth.status?.authenticated ?? false;
   const installed = auth.status?.installed ?? false;
 
-  // Bubble up auth state so the parent can gate "Continue" without re-probing.
-  if (onAuthChange) onAuthChange(provider, authenticated);
+  useEffect(() => {
+    onAuthChange?.(provider, authenticated);
+  }, [authenticated, provider, onAuthChange]);
 
   const handleSignIn = async () => {
     try {
