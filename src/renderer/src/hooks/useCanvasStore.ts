@@ -297,13 +297,15 @@ export const useCanvasStore = create<CanvasStoreState>()(
       get().markDirty();
     },
 
-    connectEdge: (source, target) => {
+    connectEdge: (source, target, opts) => {
       set((s) => {
         if (source === target) return s;
         if (!s.nodes[source] || !s.nodes[target]) return s;
         const id = makeEdgeId(source, target);
         if (s.edges.some((e) => e.id === id)) return s;
-        const edges = [...s.edges, { id, source, target }];
+        const edge: CanvasEdge = { id, source, target };
+        if (opts?.sourceYOffset != null) edge.sourceYOffset = opts.sourceYOffset;
+        const edges = [...s.edges, edge];
         const nodes = { ...s.nodes };
         const parent = nodes[source];
         nodes[source] = {

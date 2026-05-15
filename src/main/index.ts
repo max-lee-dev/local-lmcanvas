@@ -18,6 +18,7 @@ import {
   completeRequest as completeAskUser,
 } from "./claude/askUserBridge";
 import { sendLaunchPing } from "./telemetry";
+import { getShellPath } from "./shellPath";
 import type {
   AskUserResponsePayload,
   ChatEvent,
