@@ -54,13 +54,14 @@ export function NodePromptInput({
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const [mentionQuery, setMentionQuery] = useState("");
   const [highlightIdx, setHighlightIdx] = useState(0);
-  const [allFiles, setAllFiles] = useState<string[]>([]);
+  const [allEntries, setAllEntries] = useState<FileEntry[]>([]);
   const filesLoadedForCwdRef = useRef<string | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
 
   const mentionOpen = mentionStart !== null;
-  const filteredFiles = useMemo(
-    () => (mentionOpen ? filterFiles(allFiles, mentionQuery) : []),
-    [mentionOpen, allFiles, mentionQuery]
+  const filteredEntries = useMemo(
+    () => (mentionOpen ? filterEntries(allEntries, mentionQuery) : []),
+    [mentionOpen, allEntries, mentionQuery]
   );
 
   useEffect(() => {

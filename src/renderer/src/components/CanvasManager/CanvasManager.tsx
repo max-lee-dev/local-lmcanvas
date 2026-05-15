@@ -18,7 +18,7 @@ type CanvasManagerProps = {
   onOpenChange?: (isOpen: boolean) => void;
 };
 
-type DraftCanvas = { name: string; cwd: string };
+type DraftCanvas = { name: string; cwd: string; provider: Provider };
 
 export function CanvasManager({
   currentCanvasId = null,
