@@ -8,26 +8,30 @@ import {
   type KeyboardEvent,
   type WheelEvent,
 } from "react";
-import type { FileEntry } from "@shared/ipc";
+import type { FileEntry, SlashItem } from "@shared/ipc";
 
-// A single piece of editor content. Mentions are first-class so that callers
-// can serialize them back to `@path` tokens at submit time.
+// A single piece of editor content. Mentions and slash chips are first-class
+// so callers can serialize them back to wire-format tokens at submit time.
 export type Segment =
   | { kind: "text"; text: string }
-  | { kind: "mention"; entry: FileEntry };
+  | { kind: "mention"; entry: FileEntry }
+  | { kind: "slash"; item: SlashItem };
 
-// Information about an in-progress `@` mention under the caret. Reported via
-// `onTriggerChange` whenever the user types so the parent can drive the picker.
-export type MentionTrigger = {
-  query: string;
-};
+// In-progress trigger under the caret. `@` opens the file picker; `/` opens
+// the slash command + skill picker. Reported via `onTriggerChange`.
+export type EditorTrigger =
+  | { kind: "mention"; query: string }
+  | { kind: "slash"; query: string };
+// Back-compat alias for older imports.
+export type MentionTrigger = EditorTrigger;
 
 export type MentionEditorHandle = {
   focus: (placeCaretAtEnd?: boolean) => void;
-  // Replace the active `@query` (caret to nearest preceding `@`) with a chip
-  // and a trailing space. No-op if there's no active trigger.
+  // Replace the active `@query` with a mention chip + trailing space.
   insertMentionAtTrigger: (entry: FileEntry) => void;
-  getActiveTrigger: () => MentionTrigger | null;
+  // Replace the active `/query` with a slash chip + trailing space.
+  insertSlashAtTrigger: (item: SlashItem) => void;
+  getActiveTrigger: () => EditorTrigger | null;
   getSegments: () => Segment[];
   setSegments: (segs: Segment[]) => void;
   clear: () => void;
@@ -41,7 +45,7 @@ type Props = {
   style?: CSSProperties;
   autoFocus?: boolean;
   onChange?: (segments: Segment[]) => void;
-  onTriggerChange?: (trigger: MentionTrigger | null) => void;
+  onTriggerChange?: (trigger: EditorTrigger | null) => void;
   onSubmit?: () => void;
   onCancel?: () => void;
   onPaste?: (e: ClipboardEvent<HTMLDivElement>) => void;
@@ -56,6 +60,10 @@ const FOLDER_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>';
 const FILE_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>';
+const COMMAND_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></svg>';
+const SKILL_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>';
 
 const HTML_ESCAPES: Record<string, string> = {
   "&": "&amp;",
@@ -72,6 +80,10 @@ function escapeHtml(s: string): string {
 function chipLabel(entry: FileEntry): string {
   const suffix = entry.type === "dir" && !entry.path.endsWith("/") ? "/" : "";
   return `@${entry.path}${suffix}`;
+}
+
+function slashChipLabel(item: SlashItem): string {
+  return item.kind === "command" ? `/${item.name}` : `${item.name} skill`;
 }
 
 function buildChipElement(entry: FileEntry): HTMLSpanElement {
@@ -115,6 +127,46 @@ function buildChipElement(entry: FileEntry): HTMLSpanElement {
   return span;
 }
 
+function buildSlashChipElement(item: SlashItem): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.contentEditable = "false";
+  span.setAttribute("data-slash", item.name);
+  span.setAttribute("data-slash-kind", item.kind);
+  span.setAttribute("data-slash-source", item.source);
+  if (item.description) span.setAttribute("data-slash-desc", item.description);
+  span.setAttribute("title", slashChipLabel(item));
+
+  const isSkill = item.kind === "skill";
+  Object.assign(span.style, {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "2px",
+    padding: "0 3px",
+    margin: "0 1px",
+    borderRadius: "3px",
+    fontSize: "9px",
+    lineHeight: "1.4",
+    verticalAlign: "baseline",
+    backgroundColor: isSkill
+      ? "color-mix(in oklab, var(--foreground) 18%, transparent)"
+      : "color-mix(in oklab, var(--foreground) 9%, transparent)",
+    color: "var(--foreground)",
+    userSelect: "none",
+    cursor: "default",
+    fontFamily: "inherit",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+  } as Partial<CSSStyleDeclaration>);
+
+  const icon = isSkill ? SKILL_SVG : COMMAND_SVG;
+  const prefix = isSkill ? "" : "/";
+  span.innerHTML = `${icon}<span style="font-family:inherit"><span style="opacity:.75">${prefix}</span><span>${escapeHtml(item.name)}</span>${
+    isSkill ? '<span style="opacity:.75"> skill</span>' : ""
+  }</span>`;
+
+  return span;
+}
+
 function parseDom(root: HTMLElement): Segment[] {
   const segs: Segment[] = [];
 
@@ -134,9 +186,20 @@ function parseDom(root: HTMLElement): Segment[] {
       if (child.nodeType !== Node.ELEMENT_NODE) continue;
       const el = child as HTMLElement;
       const path = el.getAttribute("data-mention");
+      const slashName = el.getAttribute("data-slash");
       if (path) {
         const type = el.getAttribute("data-mention-type") === "dir" ? "dir" : "file";
         segs.push({ kind: "mention", entry: { path, type } });
+      } else if (slashName) {
+        const kind = el.getAttribute("data-slash-kind") === "skill" ? "skill" : "command";
+        const sourceAttr = el.getAttribute("data-slash-source") ?? "user";
+        const source =
+          sourceAttr === "project" || sourceAttr === "plugin" ? sourceAttr : "user";
+        const description = el.getAttribute("data-slash-desc") ?? "";
+        segs.push({
+          kind: "slash",
+          item: { kind, name: slashName, description, source },
+        });
       } else if (el.tagName === "BR") {
         pushText("\n");
       } else if (el.tagName === "DIV" || el.tagName === "P") {
@@ -163,13 +226,15 @@ function renderSegmentsToRoot(root: HTMLElement, segs: Segment[]): void {
   for (const seg of segs) {
     if (seg.kind === "text") {
       root.appendChild(document.createTextNode(seg.text));
-    } else {
+    } else if (seg.kind === "mention") {
       root.appendChild(buildChipElement(seg.entry));
+    } else {
+      root.appendChild(buildSlashChipElement(seg.item));
     }
   }
 }
 
-function detectTrigger(root: HTMLElement): MentionTrigger | null {
+function detectTrigger(root: HTMLElement): EditorTrigger | null {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return null;
   const range = sel.getRangeAt(0);
@@ -183,7 +248,7 @@ function detectTrigger(root: HTMLElement): MentionTrigger | null {
 
   for (let i = offset - 1; i >= 0; i--) {
     const ch = text[i];
-    if (ch === "@") {
+    if (ch === "@" || ch === "/") {
       let isStart = false;
       if (i > 0) {
         if (/\s/.test(text[i - 1])) isStart = true;
@@ -202,11 +267,71 @@ function detectTrigger(root: HTMLElement): MentionTrigger | null {
         }
       }
       if (!isStart) return null;
-      return { query: text.slice(i + 1, offset) };
+      const query = text.slice(i + 1, offset);
+      // Slash names use letters/digits/dash/underscore/colon (namespaces).
+      // If the in-progress text contains anything else, abandon the trigger so
+      // ordinary text like "and/or" doesn't open the picker mid-word.
+      if (ch === "/" && query.length > 0 && !/^[\w:-]*$/.test(query)) return null;
+      return { kind: ch === "@" ? "mention" : "slash", query };
     }
     if (/\s/.test(ch)) return null;
   }
   return null;
+}
+
+// Shared chip-insertion logic for `@` and `/` triggers. Replaces the active
+// `<triggerChar>query` text with the supplied chip element and a leading space,
+// then collapses the caret to right after that space.
+function replaceTriggerWithChip(
+  el: HTMLDivElement | null,
+  triggerChar: "@" | "/",
+  chip: HTMLSpanElement,
+  onChange?: (segs: Segment[]) => void,
+  onTriggerChange?: (trigger: EditorTrigger | null) => void,
+): void {
+  if (!el) return;
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+  const range = sel.getRangeAt(0);
+  if (!el.contains(range.startContainer)) return;
+  const node = range.startContainer;
+  if (node.nodeType !== Node.TEXT_NODE) return;
+  const textNode = node as Text;
+  const text = textNode.textContent ?? "";
+  const offset = range.startOffset;
+
+  let atIdx = -1;
+  for (let i = offset - 1; i >= 0; i--) {
+    if (text[i] === triggerChar) {
+      atIdx = i;
+      break;
+    }
+    if (/\s/.test(text[i])) return;
+  }
+  if (atIdx < 0) return;
+
+  const before = text.slice(0, atIdx);
+  const after = text.slice(offset);
+
+  textNode.textContent = before;
+  const tailText = after.startsWith(" ") ? after : ` ${after}`;
+  const tailNode = document.createTextNode(tailText);
+
+  const parent = textNode.parentNode!;
+  const next = textNode.nextSibling;
+  parent.insertBefore(chip, next);
+  parent.insertBefore(tailNode, next);
+
+  if ((textNode.textContent ?? "") === "") parent.removeChild(textNode);
+
+  const newRange = document.createRange();
+  newRange.setStart(tailNode, 1);
+  newRange.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(newRange);
+
+  onChange?.(parseDom(el));
+  onTriggerChange?.(null);
 }
 
 function placeCaretAtEnd(root: HTMLElement): void {
@@ -266,58 +391,16 @@ export const MentionEditor = forwardRef<MentionEditorHandle, Props>(
           if (placeAtEnd) placeCaretAtEnd(el);
         },
         insertMentionAtTrigger(entry) {
-          const el = editorRef.current;
-          if (!el) return;
-          const sel = window.getSelection();
-          if (!sel || sel.rangeCount === 0) return;
-          const range = sel.getRangeAt(0);
-          if (!el.contains(range.startContainer)) return;
-          const node = range.startContainer;
-          if (node.nodeType !== Node.TEXT_NODE) return;
-          const textNode = node as Text;
-          const text = textNode.textContent ?? "";
-          const offset = range.startOffset;
-
-          let atIdx = -1;
-          for (let i = offset - 1; i >= 0; i--) {
-            if (text[i] === "@") {
-              atIdx = i;
-              break;
-            }
-            if (/\s/.test(text[i])) return;
-          }
-          if (atIdx < 0) return;
-
-          const before = text.slice(0, atIdx);
-          const after = text.slice(offset);
-
-          textNode.textContent = before;
-          const chip = buildChipElement(entry);
-          // Always keep a leading space in the tail node so the caret has a
-          // home immediately after the chip and subsequent typing starts on a
-          // word boundary. If the remaining tail already begins with
-          // whitespace, don't double up.
-          const tailText = after.startsWith(" ") ? after : ` ${after}`;
-          const tailNode = document.createTextNode(tailText);
-
-          const parent = textNode.parentNode!;
-          const next = textNode.nextSibling;
-          parent.insertBefore(chip, next);
-          parent.insertBefore(tailNode, next);
-
-          // Drop the now-empty "before" text node so the chip isn't preceded
-          // by a phantom node (which can break selection at start-of-line).
-          if ((textNode.textContent ?? "") === "") parent.removeChild(textNode);
-
-          // Caret lands right after the leading space.
-          const newRange = document.createRange();
-          newRange.setStart(tailNode, 1);
-          newRange.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(newRange);
-
-          onChange?.(parseDom(el));
-          onTriggerChange?.(null);
+          replaceTriggerWithChip(editorRef.current, "@", buildChipElement(entry), onChange, onTriggerChange);
+        },
+        insertSlashAtTrigger(item) {
+          replaceTriggerWithChip(
+            editorRef.current,
+            "/",
+            buildSlashChipElement(item),
+            onChange,
+            onTriggerChange,
+          );
         },
         getActiveTrigger() {
           const el = editorRef.current;
@@ -442,11 +525,19 @@ export const MentionEditor = forwardRef<MentionEditorHandle, Props>(
 
 export function segmentsToText(segs: Segment[]): string {
   return segs
-    .map((s) =>
-      s.kind === "text"
-        ? s.text
-        : `@${s.entry.path}${s.entry.type === "dir" && !s.entry.path.endsWith("/") ? "/" : ""}`,
-    )
+    .map((s) => {
+      if (s.kind === "text") return s.text;
+      if (s.kind === "mention") {
+        const suffix =
+          s.entry.type === "dir" && !s.entry.path.endsWith("/") ? "/" : "";
+        return `@${s.entry.path}${suffix}`;
+      }
+      // Slash chips: commands serialize to `/name`, skills to a directive the
+      // agent reads as an instruction to invoke the Skill tool.
+      return s.item.kind === "command"
+        ? `/${s.item.name}`
+        : `Use the \`${s.item.name}\` skill.`;
+    })
     .join("");
 }
 

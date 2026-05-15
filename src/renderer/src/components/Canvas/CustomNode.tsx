@@ -49,11 +49,18 @@ function measureNodeHeight(nodeId: string, zoom: number): number {
 function focusNodeTextarea(nodeId: string): void {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      const textarea = document.querySelector<HTMLTextAreaElement>(
-        `.react-flow__node[data-id="${nodeId}"] textarea`,
+      const editor = document.querySelector<HTMLElement>(
+        `.react-flow__node[data-id="${nodeId}"] [contenteditable="true"], .react-flow__node[data-id="${nodeId}"] textarea`,
       );
-      if (textarea) {
-        textarea.focus({ preventScroll: true });
+      if (!editor) return;
+      editor.focus({ preventScroll: true });
+      if (editor.isContentEditable) {
+        const range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
       }
     });
   });

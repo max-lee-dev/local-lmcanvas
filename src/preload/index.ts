@@ -40,6 +40,9 @@ const api: LmcApi = {
   files: {
     list: (cwd: string) => ipcRenderer.invoke("files:list", cwd),
   },
+  slash: {
+    list: (cwd: string) => ipcRenderer.invoke("slash:list", cwd),
+  },
   providers: {
     authStatus: (provider: Provider) =>
       ipcRenderer.invoke("providers:authStatus", provider),

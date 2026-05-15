@@ -47,6 +47,18 @@ export type FileEntry = {
   type: "file" | "dir";
 };
 
+export type SlashItemKind = "command" | "skill";
+export type SlashItemSource = "user" | "project" | "plugin";
+
+export type SlashItem = {
+  kind: SlashItemKind;
+  /** Name without the leading slash. Namespaced commands use `ns:name`. */
+  name: string;
+  /** One-line description from frontmatter (skills) or first paragraph (commands). */
+  description: string;
+  source: SlashItemSource;
+};
+
 export type ChatStartArgs = {
   chatId: string;
   /** The node initiating the chat — surfaced to the askUser flow so prompts render inline. */
@@ -132,6 +144,10 @@ export type LmcApi = {
   };
   files: {
     list(cwd: string): Promise<FileEntry[]>;
+  };
+  slash: {
+    /** List slash commands + skills available from `~/.claude` and the canvas cwd. */
+    list(cwd: string): Promise<SlashItem[]>;
   };
   providers: {
     /** Probe a provider's CLI install + auth state. */

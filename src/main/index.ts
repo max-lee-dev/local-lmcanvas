@@ -13,6 +13,7 @@ import { buildPromptWithHistory } from "./claude/history";
 import { runAgent } from "./agents";
 import { getProviderAuthStatus, openLoginTerminal } from "./auth/providerAuth";
 import { listFiles } from "./files";
+import { listSlashItems } from "./slashItems";
 import {
   cancelAllForWebContents,
   completeRequest as completeAskUser,
@@ -25,6 +26,7 @@ import type {
   ChatStartArgs,
   CanvasCreateArgs,
   FileEntry,
+  SlashItem,
 } from "@shared/ipc";
 import type { AppSettings, Canvas, Provider } from "@shared/types";
 
@@ -86,6 +88,9 @@ const activeChats = new Map<string, AbortController>();
 const FILES_CACHE_TTL_MS = 10_000;
 const filesCache = new Map<string, { at: number; files: FileEntry[] }>();
 
+const SLASH_CACHE_TTL_MS = 10_000;
+const slashCache = new Map<string, { at: number; items: SlashItem[] }>();
+
 function registerIpc(): void {
   ipcMain.handle("canvases:list", async () => listCanvases());
   ipcMain.handle("canvases:create", async (_e, args: CanvasCreateArgs) => createCanvas(args));
@@ -117,6 +122,16 @@ function registerIpc(): void {
     const files = await listFiles(cwd);
     filesCache.set(cwd, { at: now, files });
     return files;
+  });
+
+  ipcMain.handle("slash:list", async (_e, cwd: string): Promise<SlashItem[]> => {
+    const key = cwd ?? "";
+    const now = Date.now();
+    const cached = slashCache.get(key);
+    if (cached && now - cached.at < SLASH_CACHE_TTL_MS) return cached.items;
+    const items = await listSlashItems(key);
+    slashCache.set(key, { at: now, items });
+    return items;
   });
 
   ipcMain.handle("chat:start", async (e, args: ChatStartArgs) => {

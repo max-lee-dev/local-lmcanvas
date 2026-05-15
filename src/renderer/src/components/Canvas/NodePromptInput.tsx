@@ -8,6 +8,7 @@ import {
 } from "react";
 import { X } from "lucide-react";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
+import { useProviderInfo } from "@/hooks/useProviderInfo";
 import { forwardWheelAtBoundary } from "@/lib/scrollPan";
 import {
   MentionPicker,
@@ -15,16 +16,21 @@ import {
   getFilesForCwd,
 } from "./MentionPicker";
 import {
+  SlashPicker,
+  filterSlashItems,
+  getSlashItemsForCwd,
+} from "./SlashPicker";
+import {
   MentionEditor,
   segmentsAreEmpty,
   segmentsToText,
   textToSegments,
   type MentionEditorHandle,
-  type MentionTrigger,
+  type EditorTrigger,
   type Segment,
 } from "./MentionEditor";
 import { ImagePreviewModal } from "./ImagePreviewModal";
-import type { Attachment, FileEntry } from "@shared/ipc";
+import type { Attachment, FileEntry, SlashItem } from "@shared/ipc";
 import type { ImageMediaType } from "@shared/types";
 
 type Props = {
@@ -76,22 +82,37 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
   const consumePrefill = useCanvasStore((s) => s.consumePrefill);
   const pending = useCanvasStore((s) => s.pendingPrefills[nodeId]);
   const cwd = useCanvasStore((s) => s.cwd);
+  const { provider } = useProviderInfo();
+  const slashEnabled = provider === "claude";
   const editorRef = useRef<MentionEditorHandle | null>(null);
 
-  const [trigger, setTrigger] = useState<MentionTrigger | null>(null);
+  const [trigger, setTrigger] = useState<EditorTrigger | null>(null);
   const [highlightIdx, setHighlightIdx] = useState(0);
   const [allEntries, setAllEntries] = useState<FileEntry[]>([]);
+  const [allSlashItems, setAllSlashItems] = useState<SlashItem[]>([]);
   const filesLoadedForCwdRef = useRef<string | null>(null);
+  const slashLoadedForCwdRef = useRef<string | null>(null);
 
-  const mentionOpen = trigger !== null;
+  const mentionOpen = trigger?.kind === "mention";
+  const slashOpen = trigger?.kind === "slash";
   const filteredEntries = useMemo(
-    () => (trigger ? filterEntries(allEntries, trigger.query) : []),
+    () =>
+      trigger?.kind === "mention" ? filterEntries(allEntries, trigger.query) : [],
     [trigger, allEntries],
   );
+  const filteredSlashItems = useMemo(
+    () =>
+      trigger?.kind === "slash"
+        ? filterSlashItems(allSlashItems, trigger.query)
+        : [],
+    [trigger, allSlashItems],
+  );
+  const activeResultsLength =
+    trigger?.kind === "slash" ? filteredSlashItems.length : filteredEntries.length;
 
   useEffect(() => {
-    if (highlightIdx >= filteredEntries.length) setHighlightIdx(0);
-  }, [filteredEntries.length, highlightIdx]);
+    if (highlightIdx >= activeResultsLength) setHighlightIdx(0);
+  }, [activeResultsLength, highlightIdx]);
 
   const ensureFilesLoaded = (): void => {
     if (!cwd) return;
@@ -104,14 +125,38 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
       });
   };
 
-  const handleTriggerChange = (next: MentionTrigger | null): void => {
-    if (next && !trigger) ensureFilesLoaded();
-    setTrigger(next);
-    if (!next) setHighlightIdx(0);
+  const ensureSlashItemsLoaded = (): void => {
+    const key = cwd ?? "";
+    if (slashLoadedForCwdRef.current === key) return;
+    slashLoadedForCwdRef.current = key;
+    void getSlashItemsForCwd(key)
+      .then((items) => setAllSlashItems(items))
+      .catch(() => {
+        slashLoadedForCwdRef.current = null;
+      });
+  };
+
+  const handleTriggerChange = (next: EditorTrigger | null): void => {
+    // Slash commands and skills are a Claude-only feature: they're loaded from
+    // ~/.claude/{commands,skills} and expanded by the agent SDK. For codex /
+    // cursor, swallow the trigger so the menu never opens.
+    const effective = next && next.kind === "slash" && !slashEnabled ? null : next;
+    if (effective && effective.kind === "mention" && trigger?.kind !== "mention") {
+      ensureFilesLoaded();
+    }
+    if (effective && effective.kind === "slash" && trigger?.kind !== "slash") {
+      ensureSlashItemsLoaded();
+    }
+    setTrigger(effective);
+    if (!effective) setHighlightIdx(0);
   };
 
   const selectMention = (entry: FileEntry): void => {
     editorRef.current?.insertMentionAtTrigger(entry);
+  };
+
+  const selectSlashItem = (item: SlashItem): void => {
+    editorRef.current?.insertSlashAtTrigger(item);
   };
 
   useEffect(() => {
@@ -171,27 +216,32 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
     }
   };
 
-  // Intercept arrow / Enter / Escape while the picker is open so they drive
-  // the picker instead of the editor's default behavior. Returning true tells
-  // the editor to skip its own keydown handling.
+  // Intercept arrow / Enter / Escape while a picker is open so they drive
+  // it instead of the editor's default behavior. Returning true tells the
+  // editor to skip its own keydown handling.
   const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): boolean => {
-    if (mentionOpen && filteredEntries.length > 0) {
+    const pickerLen =
+      trigger?.kind === "slash" ? filteredSlashItems.length : filteredEntries.length;
+    if (trigger && pickerLen > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setHighlightIdx((i) => (i + 1) % filteredEntries.length);
+        setHighlightIdx((i) => (i + 1) % pickerLen);
         return true;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setHighlightIdx(
-          (i) => (i - 1 + filteredEntries.length) % filteredEntries.length,
-        );
+        setHighlightIdx((i) => (i - 1 + pickerLen) % pickerLen);
         return true;
       }
       if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
-        const pick = filteredEntries[highlightIdx];
-        if (pick) selectMention(pick);
+        if (trigger.kind === "slash") {
+          const pick = filteredSlashItems[highlightIdx];
+          if (pick) selectSlashItem(pick);
+        } else {
+          const pick = filteredEntries[highlightIdx];
+          if (pick) selectMention(pick);
+        }
         return true;
       }
       if (e.key === "Escape") {
@@ -253,6 +303,15 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
             highlightIdx={highlightIdx}
             onHoverIndex={setHighlightIdx}
             onSelect={selectMention}
+          />
+        )}
+        {slashOpen && (
+          <SlashPicker
+            query={trigger.query}
+            items={allSlashItems}
+            highlightIdx={highlightIdx}
+            onHoverIndex={setHighlightIdx}
+            onSelect={selectSlashItem}
           />
         )}
       </div>
