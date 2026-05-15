@@ -264,6 +264,17 @@ export function CanvasManager({
                                 : "no folder selected"}
                             </div>
                           </div>
+                          <div>
+                            <div className="mb-1 text-[11px] font-medium text-muted-foreground">
+                              provider
+                            </div>
+                            <ProviderPicker
+                              value={draft.provider}
+                              onChange={(p) =>
+                                setDraft({ ...draft, provider: p })
+                              }
+                            />
+                          </div>
                           <div className="flex items-center justify-end">
                             <button
                               onClick={() => void submitCreate()}

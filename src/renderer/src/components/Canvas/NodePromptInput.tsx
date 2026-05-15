@@ -258,76 +258,85 @@ export function NodePromptInput({
       )}
 
       <div className="flex items-center relative group">
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={(e) =>
-            handleValueChange(e.target.value, e.target.selectionStart)
-          }
-          onKeyUp={(e) => {
-            // Caret moved via arrows / clicks — re-evaluate mention state
-            if (
-              e.key === "ArrowLeft" ||
-              e.key === "ArrowRight" ||
-              e.key === "Home" ||
-              e.key === "End"
-            ) {
+        <div className="relative w-full">
+          <MentionHighlight value={value} scrollTop={scrollTop} />
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) =>
+              handleValueChange(e.target.value, e.target.selectionStart)
+            }
+            onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+            onKeyUp={(e) => {
+              // Caret moved via arrows / clicks — re-evaluate mention state
+              if (
+                e.key === "ArrowLeft" ||
+                e.key === "ArrowRight" ||
+                e.key === "Home" ||
+                e.key === "End"
+              ) {
+                const el = textareaRef.current;
+                if (el) handleValueChange(value, el.selectionStart);
+              }
+            }}
+            onClick={() => {
               const el = textareaRef.current;
               if (el) handleValueChange(value, el.selectionStart);
-            }
-          }}
-          onClick={() => {
-            const el = textareaRef.current;
-            if (el) handleValueChange(value, el.selectionStart);
-          }}
-          onBlur={() => closeMention()}
-          onPaste={handlePaste}
-          placeholder="Enter a prompt..."
-          style={{ minHeight: "12px", color: "var(--foreground)" }}
-          className="w-full text-[10px] p-0 nodrag resize-none bg-transparent font-normal focus:outline-none overflow-y-auto cursor-text"
-          onKeyDown={(e) => {
-            if (mentionOpen && filteredFiles.length > 0) {
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                setHighlightIdx((i) => (i + 1) % filteredFiles.length);
-                return;
+            }}
+            onBlur={() => closeMention()}
+            onPaste={handlePaste}
+            placeholder="Enter a prompt..."
+            style={{
+              minHeight: "12px",
+              color: "transparent",
+              caretColor: "var(--foreground)",
+            }}
+            className="relative w-full text-[10px] p-0 nodrag resize-none bg-transparent font-normal focus:outline-none overflow-y-auto cursor-text"
+            onKeyDown={(e) => {
+              if (mentionOpen && filteredEntries.length > 0) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setHighlightIdx((i) => (i + 1) % filteredEntries.length);
+                  return;
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setHighlightIdx(
+                    (i) =>
+                      (i - 1 + filteredEntries.length) % filteredEntries.length
+                  );
+                  return;
+                }
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  const pick = filteredEntries[highlightIdx];
+                  if (pick) selectMention(pick);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  closeMention();
+                  return;
+                }
               }
-              if (e.key === "ArrowUp") {
+              if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                setHighlightIdx(
-                  (i) => (i - 1 + filteredFiles.length) % filteredFiles.length
-                );
-                return;
-              }
-              if (e.key === "Enter" || e.key === "Tab") {
+                textareaRef.current?.blur();
+                handleSubmit(e);
+              } else if (e.key === "Escape" && onCancel) {
                 e.preventDefault();
-                const pick = filteredFiles[highlightIdx];
-                if (pick) selectMention(pick);
-                return;
+                textareaRef.current?.blur();
+                onCancel();
               }
-              if (e.key === "Escape") {
-                e.preventDefault();
-                closeMention();
-                return;
-              }
-            }
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              textareaRef.current?.blur();
-              handleSubmit(e);
-            } else if (e.key === "Escape" && onCancel) {
-              e.preventDefault();
-              textareaRef.current?.blur();
-              onCancel();
-            }
-          }}
-          onWheel={forwardWheelAtBoundary}
-          aria-label="Prompt input"
-        />
+            }}
+            onWheel={forwardWheelAtBoundary}
+            aria-label="Prompt input"
+          />
+        </div>
         {mentionOpen && (
           <MentionPicker
             query={mentionQuery}
-            files={allFiles}
+            entries={allEntries}
             highlightIdx={highlightIdx}
             onHoverIndex={setHighlightIdx}
             onSelect={selectMention}
