@@ -31,6 +31,7 @@ export function CanvasManager({
   useEffect(() => {
     onOpenChange?.(isOpen);
   }, [isOpen, onOpenChange]);
+  useEffect(() => onOpenSettings(() => setShowSettings(true)), []);
   const [isLargeScreen, setIsLargeScreen] = useState(true);
   const [canvases, setCanvases] = useState<CanvasSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
