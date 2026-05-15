@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { nanoid } from "nanoid";
-import { useCanvasStore } from "./useCanvasStore";
+import { useCanvasStoreApi } from "./useCanvasStore";
 import type {
   CanvasNode,
   ImageBlock,
@@ -14,6 +14,7 @@ import type { Attachment, ChatEvent } from "@shared/ipc";
 import { buildMergeContext } from "@shared/history";
 
 export function useNodeChat(nodeId: NodeId) {
+  const storeApi = useCanvasStoreApi();
   const [streaming, setStreaming] = useState(false);
   const activeChatIdRef = useRef<string | null>(null);
 
@@ -22,14 +23,14 @@ export function useNodeChat(nodeId: NodeId) {
       const trimmed = promptText.trim();
       if (!trimmed && attachments.length === 0) return;
 
-      const canvasId = useCanvasStore.getState().canvasId;
+      const canvasId = storeApi.getState().canvasId;
       if (!canvasId) {
         return;
       }
 
       setStreaming(true);
 
-      const store = useCanvasStore.getState();
+      const store = storeApi.getState();
       const nodeBeforeSubmit = store.nodes[nodeId];
       const isFirstMergePrompt =
         !!nodeBeforeSubmit &&
@@ -71,7 +72,7 @@ export function useNodeChat(nodeId: NodeId) {
         status: "streaming",
       });
 
-      const fullHistory = useCanvasStore.getState().getHistoryForNode(nodeId);
+      const fullHistory = storeApi.getState().getHistoryForNode(nodeId);
       const history = fullHistory.slice(0, -2);
 
       const chatId = nanoid();
@@ -85,12 +86,12 @@ export function useNodeChat(nodeId: NodeId) {
         }
         setStreaming(false);
         activeChatIdRef.current = null;
-        void useCanvasStore.getState().save();
+        void storeApi.getState().save();
       };
 
       off = window.api.chat.onEvent((ev: ChatEvent) => {
         if (ev.chatId !== chatId) return;
-        const s = useCanvasStore.getState();
+        const s = storeApi.getState();
         switch (ev.type) {
           case "start":
             return;
@@ -137,7 +138,7 @@ export function useNodeChat(nodeId: NodeId) {
       });
 
       const addedContext =
-        useCanvasStore.getState().nodes[nodeId]?.data.chat.addedContext;
+        storeApi.getState().nodes[nodeId]?.data.chat.addedContext;
       let promptForModel = addedContext
         ? `> ${addedContext.replace(/\n/g, "\n> ")}\n\n${trimmed}`
         : trimmed;
@@ -156,11 +157,11 @@ export function useNodeChat(nodeId: NodeId) {
         });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        useCanvasStore.getState().errorMessage(nodeId, asstMsgId, message);
+        storeApi.getState().errorMessage(nodeId, asstMsgId, message);
         cleanup();
       }
     },
-    [nodeId]
+    [nodeId, storeApi]
   );
 
   const stop = useCallback(() => {

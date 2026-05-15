@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Plus, Settings } from "lucide-react";
 import { Canvas } from "@/components/Canvas/Canvas";
-import { makeBlankNode, useCanvasStore } from "@/hooks/useCanvasStore";
+import {
+  CanvasStoreProvider,
+  makeBlankNode,
+  useCanvasStore,
+} from "@/hooks/useCanvasStore";
 import { SettingsModal } from "@/components/SettingsModal";
 import { SearchButton } from "@/components/Canvas/SearchModal";
 import { CanvasManager } from "@/components/CanvasManager/CanvasManager";
@@ -10,6 +14,14 @@ import { DeleteNodeModal } from "@/components/Canvas/DeleteNodeModal";
 import { onOpenSettings } from "@/lib/openSettings";
 
 export function CanvasPage({ id }: { id: string }) {
+  return (
+    <CanvasStoreProvider>
+      <CanvasPageInner id={id} />
+    </CanvasStoreProvider>
+  );
+}
+
+function CanvasPageInner({ id }: { id: string }) {
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
   const loaded = useCanvasStore((s) => s.loaded);
   const canvasId = useCanvasStore((s) => s.canvasId);

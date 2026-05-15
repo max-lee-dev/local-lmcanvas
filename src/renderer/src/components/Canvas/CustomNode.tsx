@@ -11,7 +11,7 @@ import { motion } from "framer-motion";
 import { Check, Copy, GitMerge, Plus } from "lucide-react";
 import { MergeButton } from "./MergeButton";
 import clsx from "clsx";
-import { makeBlankNode, useCanvasStore } from "@/hooks/useCanvasStore";
+import { makeBlankNode, useCanvasStore, useCanvasStoreApi } from "@/hooks/useCanvasStore";
 import { ModelBadge } from "./ModelBadge";
 import { useNodeChat } from "@/hooks/useNodeChat";
 import type { CanvasNode, ImageBlock } from "@shared/types";
@@ -83,6 +83,7 @@ function CustomNodeImpl(props: NodeProps) {
   const mergeIds = useCanvasStore((s) => s.mergeIds);
   const startMerge = useCanvasStore((s) => s.startMerge);
   const toggleMergeNode = useCanvasStore((s) => s.toggleMergeNode);
+  const storeApi = useCanvasStoreApi();
   const zoom = useStore((s) => s.transform[2]);
   const { screenToFlowPosition } = useReactFlow();
   const centerOnNode = useCenterOnNode();
@@ -142,7 +143,7 @@ function CustomNodeImpl(props: NodeProps) {
       // resolve horizontal collisions, animate the camera to center on the
       // child at zoom 1.5, and focus its textarea.
       requestAnimationFrame(() => {
-        const state = useCanvasStore.getState();
+        const state = storeApi.getState();
         const measure = makeDomHeightMeasurer(zoom);
         const moves = resolveCollisions(child.id, state.nodes, measure, {
           fixedWidth: NODE_WIDTH,
@@ -152,7 +153,7 @@ function CustomNodeImpl(props: NodeProps) {
           movePosition(movedId, moves[movedId]);
         }
 
-        const fresh = useCanvasStore.getState().nodes[child.id];
+        const fresh = storeApi.getState().nodes[child.id];
         if (fresh) {
           const h = measure(child.id);
           centerOnNode(
@@ -166,7 +167,7 @@ function CustomNodeImpl(props: NodeProps) {
         focusNodeTextarea(child.id);
       });
     },
-    [id, getNode, addNode, connectEdge, setPrefill, zoom, movePosition, centerOnNode, screenToFlowPosition]
+    [id, getNode, addNode, connectEdge, setPrefill, zoom, movePosition, centerOnNode, screenToFlowPosition, storeApi]
   );
 
   const messages = nodeData.chat.messages;

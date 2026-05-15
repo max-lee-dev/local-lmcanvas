@@ -1,8 +1,9 @@
 import { useEffect } from "react";
-import { useCanvasStore, makeBlankNode } from "./useCanvasStore";
+import { useCanvasStore, useCanvasStoreApi, makeBlankNode } from "./useCanvasStore";
 import { useConfirmDeleteStore } from "./useConfirmDeleteStore";
 
 export function useKeyboardShortcuts() {
+  const storeApi = useCanvasStoreApi();
   const addNode = useCanvasStore((s) => s.addNode);
   const connectEdge = useCanvasStore((s) => s.connectEdge);
   const requestDelete = useConfirmDeleteStore((s) => s.request);
@@ -45,7 +46,7 @@ export function useKeyboardShortcuts() {
         const id = getSelectedNodeId();
         if (!id) return;
         e.preventDefault();
-        const state = useCanvasStore.getState();
+        const state = storeApi.getState();
         const parent = state.nodes[id];
         if (!parent) return;
         const offsetY = (parent.data.chat.childIds.length ?? 0) * 40;
@@ -74,5 +75,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addNode, connectEdge, requestDelete]);
+  }, [addNode, connectEdge, requestDelete, storeApi]);
 }

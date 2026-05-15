@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useReactFlow, useStore, type Node } from "@xyflow/react";
-import { makeBlankNode, useCanvasStore } from "./useCanvasStore";
+import { makeBlankNode, useCanvasStore, useCanvasStoreApi } from "./useCanvasStore";
 import { focusNodeTextarea } from "@/components/Canvas/CustomNode";
 import { useCenterOnNode } from "./useCenterOnNode";
 import {
@@ -24,6 +24,7 @@ export function useContextMenu() {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [rightClickedNodeId, setRightClickedNodeId] = useState<string | null>(null);
 
+  const storeApi = useCanvasStoreApi();
   const addNode = useCanvasStore((s) => s.addNode);
   const connectEdge = useCanvasStore((s) => s.connectEdge);
   const removeNode = useCanvasStore((s) => s.removeNode);
@@ -70,7 +71,7 @@ export function useContextMenu() {
     // Child node (right-clicked an existing node): ignore cursor, place to
     // the right of the parent on the same y row — matches avera's
     // computeRightLaneBranchX exactly.
-    const parent = useCanvasStore.getState().nodes[parentId];
+    const parent = storeApi.getState().nodes[parentId];
     if (!parent) return;
 
     // Child y follows the cursor (where the user right-clicked), so the new
@@ -91,7 +92,7 @@ export function useContextMenu() {
     // camera, then focus the textarea. RAF is required so the textarea/DOM
     // node exists for the height measurer.
     requestAnimationFrame(() => {
-      const state = useCanvasStore.getState();
+      const state = storeApi.getState();
       const measure = makeDomHeightMeasurer(zoom);
       const moves = resolveCollisions(child.id, state.nodes, measure, {
         fixedWidth: NODE_WIDTH,
@@ -103,7 +104,7 @@ export function useContextMenu() {
       }
 
       // Camera: center on the final child position at zoom 1.5, animated 400ms.
-      const fresh = useCanvasStore.getState().nodes[child.id];
+      const fresh = storeApi.getState().nodes[child.id];
       if (fresh) {
         const h = measure(child.id);
         centerOnNode(
@@ -125,6 +126,7 @@ export function useContextMenu() {
     position.y,
     rightClickedNodeId,
     screenToFlowPosition,
+    storeApi,
     zoom,
   ]);
 

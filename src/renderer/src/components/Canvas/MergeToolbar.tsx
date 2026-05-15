@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { GitMerge, X } from "lucide-react";
-import { useCanvasStore } from "@/hooks/useCanvasStore";
+import { useCanvasStore, useCanvasStoreApi } from "@/hooks/useCanvasStore";
 import { focusNodeTextarea } from "./CustomNode";
 import {
   FALLBACK_NODE_HEIGHT,
@@ -15,6 +15,7 @@ export function MergeToolbar() {
   const cancelMerge = useCanvasStore((s) => s.cancelMerge);
   const commitMerge = useCanvasStore((s) => s.commitMerge);
   const nodes = useCanvasStore((s) => s.nodes);
+  const storeApi = useCanvasStoreApi();
   const centerOnNode = useCenterOnNode();
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export function MergeToolbar() {
     const newId = commitMerge();
     if (!newId) return;
     requestAnimationFrame(() => {
-      const fresh = useCanvasStore.getState().nodes[newId];
+      const fresh = storeApi.getState().nodes[newId];
       if (fresh) {
         centerOnNode(
           fresh.position.x,
