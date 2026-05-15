@@ -52,6 +52,18 @@ export function CanvasManager({
     void refresh();
   }, []);
 
+  // Pull the default provider preference so the new-canvas form pre-selects it.
+  useEffect(() => {
+    let cancelled = false;
+    void window.api.settings.read().then((s) => {
+      if (cancelled) return;
+      if (s.defaultProvider) setDefaultProvider(s.defaultProvider);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     const check = () => setIsLargeScreen(window.innerWidth >= 768);
     check();

@@ -123,13 +123,16 @@ export function NodePromptInput({
     }
   };
 
-  const selectMention = (path: string): void => {
+  const selectMention = (entry: FileEntry): void => {
     if (mentionStart === null) return;
     const el = textareaRef.current;
     const caret = el?.selectionStart ?? value.length;
     const before = value.slice(0, mentionStart);
     const after = value.slice(caret);
-    const insert = `@${path} `;
+    // Trailing slash on folders gives both a visual cue and a hint to the
+    // model that the mention refers to the whole directory.
+    const suffix = entry.type === "dir" ? "/" : "";
+    const insert = `@${entry.path}${suffix} `;
     const nextValue = before + insert + after;
     setValue(nextValue);
     closeMention();
