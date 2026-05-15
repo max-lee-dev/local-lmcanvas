@@ -40,6 +40,12 @@ const api: LmcApi = {
   files: {
     list: (cwd: string) => ipcRenderer.invoke("files:list", cwd),
   },
+  providers: {
+    authStatus: (provider: Provider) =>
+      ipcRenderer.invoke("providers:authStatus", provider),
+    openLoginTerminal: (provider: Provider) =>
+      ipcRenderer.invoke("providers:openLogin", provider),
+  },
   askUser: {
     onRequest: (handler: (req: AskUserRequest) => void) => {
       const listener = (_: Electron.IpcRendererEvent, req: AskUserRequest) =>
