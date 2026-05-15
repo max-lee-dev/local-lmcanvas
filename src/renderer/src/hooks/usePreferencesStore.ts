@@ -1,7 +1,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type ThemeMode = "light" | "dark" | "auto";
+export type ThemeMode =
+  | "light"
+  | "dark"
+  | "auto"
+  | "solarized-light"
+  | "solarized-dark"
+  | "nord"
+  | "dracula"
+  | "sepia";
 
 export type PreferencesState = {
   showMinimap: boolean;

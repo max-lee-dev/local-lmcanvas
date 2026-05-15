@@ -95,6 +95,126 @@
   --yellow: oklch(0.8 0.2 85);
 }
 
+/* Solarized Light — ethanschoonover.com/solarized */
+.theme-solarized-light {
+  --background: #eee8d5;
+  --foreground: #586e75;
+  --card: #fdf6e3;
+  --card-foreground: #586e75;
+  --popover: #fdf6e3;
+  --popover-foreground: #586e75;
+  --primary: #073642;
+  --primary-foreground: #fdf6e3;
+  --secondary: #fdf6e3;
+  --secondary-foreground: #586e75;
+  --muted: #fdf6e3;
+  --muted-foreground: #93a1a1;
+  --accent: #fdf6e3;
+  --accent-foreground: #586e75;
+  --accent-brand: #268bd2;
+  --destructive: #dc322f;
+  --border: #d8d2c0;
+  --grid-line: #e3ddca;
+  --input: #d8d2c0;
+  --ring: #93a1a1;
+}
+
+/* Solarized Dark */
+.theme-solarized-dark {
+  --background: #002b36;
+  --foreground: #93a1a1;
+  --card: #073642;
+  --card-foreground: #93a1a1;
+  --popover: #073642;
+  --popover-foreground: #93a1a1;
+  --primary: #eee8d5;
+  --primary-foreground: #073642;
+  --secondary: #073642;
+  --secondary-foreground: #93a1a1;
+  --muted: #073642;
+  --muted-foreground: #657b83;
+  --accent: #073642;
+  --accent-foreground: #93a1a1;
+  --accent-brand: #b58900;
+  --destructive: #dc322f;
+  --border: rgba(147, 161, 161, 0.15);
+  --grid-line: rgba(147, 161, 161, 0.08);
+  --input: rgba(147, 161, 161, 0.2);
+  --ring: #586e75;
+}
+
+/* Nord — nordtheme.com */
+.theme-nord {
+  --background: #2e3440;
+  --foreground: #d8dee9;
+  --card: #3b4252;
+  --card-foreground: #eceff4;
+  --popover: #3b4252;
+  --popover-foreground: #eceff4;
+  --primary: #eceff4;
+  --primary-foreground: #2e3440;
+  --secondary: #434c5e;
+  --secondary-foreground: #eceff4;
+  --muted: #434c5e;
+  --muted-foreground: #7b88a1;
+  --accent: #434c5e;
+  --accent-foreground: #eceff4;
+  --accent-brand: #88c0d0;
+  --destructive: #bf616a;
+  --border: rgba(216, 222, 233, 0.15);
+  --grid-line: rgba(216, 222, 233, 0.08);
+  --input: rgba(216, 222, 233, 0.2);
+  --ring: #4c566a;
+}
+
+/* Dracula — draculatheme.com */
+.theme-dracula {
+  --background: #282a36;
+  --foreground: #f8f8f2;
+  --card: #343746;
+  --card-foreground: #f8f8f2;
+  --popover: #343746;
+  --popover-foreground: #f8f8f2;
+  --primary: #f8f8f2;
+  --primary-foreground: #282a36;
+  --secondary: #44475a;
+  --secondary-foreground: #f8f8f2;
+  --muted: #44475a;
+  --muted-foreground: #6272a4;
+  --accent: #44475a;
+  --accent-foreground: #f8f8f2;
+  --accent-brand: #bd93f9;
+  --destructive: #ff5555;
+  --border: rgba(248, 248, 242, 0.12);
+  --grid-line: rgba(248, 248, 242, 0.06);
+  --input: rgba(248, 248, 242, 0.18);
+  --ring: #6272a4;
+}
+
+/* Sepia / Paper — warm reading theme */
+.theme-sepia {
+  --background: #f4ecd8;
+  --foreground: #5b4636;
+  --card: #faf3e0;
+  --card-foreground: #5b4636;
+  --popover: #faf3e0;
+  --popover-foreground: #5b4636;
+  --primary: #3d2f23;
+  --primary-foreground: #faf3e0;
+  --secondary: #ece1c4;
+  --secondary-foreground: #5b4636;
+  --muted: #ece1c4;
+  --muted-foreground: #8b7355;
+  --accent: #ece1c4;
+  --accent-foreground: #5b4636;
+  --accent-brand: #a0522d;
+  --destructive: #b22222;
+  --border: #d6c9a8;
+  --grid-line: #e3d8b8;
+  --input: #d6c9a8;
+  --ring: #a0907a;
+}
+
 html,
 body,
 #root {
