@@ -65,8 +65,8 @@ export function NodePromptInput({
   );
 
   useEffect(() => {
-    if (highlightIdx >= filteredFiles.length) setHighlightIdx(0);
-  }, [filteredFiles.length, highlightIdx]);
+    if (highlightIdx >= filteredEntries.length) setHighlightIdx(0);
+  }, [filteredEntries.length, highlightIdx]);
 
   const closeMention = (): void => {
     setMentionStart(null);
