@@ -26,9 +26,11 @@ import { getEdgeHandles } from "@/lib/edgeHandles";
 import { useSearchModal } from "@/providers/SearchModalProvider";
 import { CustomNode, focusNodeTextarea } from "./CustomNode";
 import { ContextMenu } from "./ContextMenu";
+import { OffsetEdge } from "./OffsetEdge";
 import { SearchModalWrapper } from "./SearchModal";
 
 const nodeTypes = { custom: CustomNode };
+const edgeTypes = { offset: OffsetEdge };
 
 const defaultEdgeOptions = {
   type: "default",
