@@ -191,8 +191,9 @@ export async function openLoginTerminal(
   // escape double quotes for the embedded AppleScript string
   const cmd = `${bin} login`.replace(/"/g, '\\"');
   const script = `tell application "Terminal" to do script "${cmd}"`;
+  const env = await shellEnv();
   await new Promise<void>((resolve, reject) => {
-    const proc = spawn("osascript", ["-e", script], { stdio: "ignore" });
+    const proc = spawn("osascript", ["-e", script], { stdio: "ignore", env });
     proc.on("error", reject);
     proc.on("close", (code) => {
       if (code === 0) resolve();
