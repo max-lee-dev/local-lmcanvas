@@ -6,6 +6,13 @@ const DEFAULTS: AppSettings = {
   systemPrompt: "",
   claudeModel: undefined,
   claudeBinPath: "claude",
+  defaultProvider: "claude",
+  providers: {
+    claude: { binPath: "claude" },
+    codex: { binPath: "codex" },
+    cursor: { binPath: "cursor-agent" },
+  },
+  onboardingCompleted: false,
 };
 
 export async function readSettings(): Promise<AppSettings> {
