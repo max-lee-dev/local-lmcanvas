@@ -152,6 +152,22 @@ function CanvasInner() {
   const rfEdges = useMemo<Edge[]>(() => {
     const dragging = draggingIdsRef.current;
     return edgesState.map((e) => {
+      // Edges that carry a `sourceYOffset` route through OffsetEdge, which
+      // overrides the source attach point — handle recomputation would just
+      // be ignored, so we skip it.
+      if (e.sourceYOffset != null) {
+        return {
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          type: "offset",
+          // Pin the target side to the left so the bezier reads as a
+          // right-lane connector; OffsetEdge picks source side adaptively.
+          targetHandle: e.targetHandle ?? "target-left",
+          data: { sourceYOffset: e.sourceYOffset },
+          style: edgeStyle,
+        };
+      }
       const touchesDrag = dragging.has(e.source) || dragging.has(e.target);
       let sourceHandle = e.sourceHandle ?? "source-bottom";
       let targetHandle = e.targetHandle ?? "target-top";
