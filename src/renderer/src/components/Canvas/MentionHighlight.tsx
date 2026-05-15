@@ -55,6 +55,7 @@ export const MentionHighlight = forwardRef<HTMLDivElement, Props>(
           whiteSpace: "pre-wrap",
           wordWrap: "break-word",
           overflowWrap: "break-word",
+          lineHeight: 1.4,
         }}
       >
         <div style={{ transform: `translateY(${-scrollTop}px)` }}>
