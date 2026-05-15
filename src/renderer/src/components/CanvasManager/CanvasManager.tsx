@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Folder, Loader2, PanelLeft, Plus, Settings, X } from "lucide-react";
 import type { Canvas, CanvasSummary, Provider } from "@shared/types";
-import { navigate } from "@/App";
+import { navigateToCanvas } from "@/lib/canvasNavigation";
 import { prettyPath } from "@/lib/prettyPath";
 import { SettingsModal } from "@/components/SettingsModal";
 import { CanvasItem } from "./CanvasItem";
@@ -121,7 +121,7 @@ export function CanvasManager({
         provider: draft.provider,
       });
       setDraft(null);
-      navigate(`/canvas/${c.id}`);
+      navigateToCanvas(c.id);
     } finally {
       setIsCreating(false);
     }
@@ -129,7 +129,7 @@ export function CanvasManager({
 
   const handleSelect = (canvas: CanvasSummary) => {
     searchRef.current?.close();
-    navigate(`/canvas/${canvas.id}`);
+    navigateToCanvas(canvas.id);
   };
 
   const handleRename = async (id: string, newName: string) => {

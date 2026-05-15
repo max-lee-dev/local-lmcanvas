@@ -1,0 +1,144 @@
+import { useEffect } from "react";
+import { Plus, X } from "lucide-react";
+import { Canvas } from "@/components/Canvas/Canvas";
+import {
+  CanvasStoreProvider,
+  makeBlankNode,
+  useCanvasStore,
+} from "@/hooks/useCanvasStore";
+import { PaneProvider, useActivePaneStore } from "@/hooks/useActivePane";
+import { SearchButton } from "@/components/Canvas/SearchModal";
+import { CanvasBreadcrumb } from "@/components/CanvasManager/CanvasBreadcrumb";
+import { DeleteNodeModal } from "@/components/Canvas/DeleteNodeModal";
+import { SearchModalProvider } from "@/providers/SearchModalProvider";
+import { CommandPaletteProvider } from "@/providers/CommandPaletteProvider";
+import { closePane } from "@/lib/canvasNavigation";
+
+type CanvasPaneProps = {
+  /** The canvas to load into this pane. Also serves as the pane's identity. */
+  id: string;
+  /** True when this pane is one of two panes in a split layout. */
+  splitMode: boolean;
+};
+
+/**
+ * A single canvas pane. Owns its store + its search/palette providers so each
+ * pane has independent modal state. Multiple panes can mount side-by-side for
+ * split-screen. The pane registers as active on mousedown so global keyboard
+ * shortcuts and the delete modal route to the focused pane.
+ */
+export function CanvasPane({ id, splitMode }: CanvasPaneProps) {
+  return (
+    <PaneProvider id={id}>
+      <CanvasStoreProvider>
+        <SearchModalProvider>
+          <CommandPaletteProvider>
+            <CanvasPaneInner id={id} splitMode={splitMode} />
+          </CommandPaletteProvider>
+        </SearchModalProvider>
+      </CanvasStoreProvider>
+    </PaneProvider>
+  );
+}
+
+function CanvasPaneInner({ id, splitMode }: CanvasPaneProps) {
+  const loadCanvas = useCanvasStore((s) => s.loadCanvas);
+  const loaded = useCanvasStore((s) => s.loaded);
+  const canvasId = useCanvasStore((s) => s.canvasId);
+  const cwd = useCanvasStore((s) => s.cwd);
+  const error = useCanvasStore((s) => s.error);
+  const saving = useCanvasStore((s) => s.saving);
+  const nodeCount = useCanvasStore((s) => Object.keys(s.nodes).length);
+  const addNode = useCanvasStore((s) => s.addNode);
+  const setActive = useActivePaneStore((s) => s.setActive);
+  const activePaneId = useActivePaneStore((s) => s.activePaneId);
+
+  const isActive = activePaneId === id;
+
+  const createFirstNode = () => {
+    addNode(makeBlankNode({ x: 0, y: 0 }));
+  };
+
+  useEffect(() => {
+    if (id && canvasId !== id) void loadCanvas(id);
+  }, [id, canvasId, loadCanvas]);
+
+  // Auto-claim active in single-pane mode so keyboard shortcuts have a target
+  // before any user interaction.
+  useEffect(() => {
+    if (!splitMode) setActive(id);
+  }, [id, splitMode, setActive]);
+
+  return (
+    <div
+      className="relative h-full w-full overflow-hidden"
+      onMouseDownCapture={() => setActive(id)}
+    >
+      {/* Active-pane outline (only meaningful in split mode) */}
+      {splitMode && isActive && (
+        <div className="pointer-events-none absolute inset-0 z-40 ring-2 ring-inset ring-primary/40" />
+      )}
+
+      {/* Top-center breadcrumb */}
+      {(cwd || saving) && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 no-drag">
+          <CanvasBreadcrumb
+            cwd={cwd}
+            currentCanvasId={id}
+            saving={saving}
+            splitMode={splitMode}
+          />
+        </div>
+      )}
+
+      {/* Top-right: per-pane controls (search + close-pane in split) */}
+      <div className="absolute top-3 right-3 z-30 no-drag flex items-center gap-1">
+        <SearchButton />
+        {splitMode && (
+          <button
+            onClick={() => closePane(id)}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-foreground/70 hover:text-foreground hover:bg-muted cursor-pointer"
+            title="close pane"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* Canvas */}
+      <div className="absolute inset-0">
+        {!loaded && (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            loading…
+          </div>
+        )}
+        {loaded && error && (
+          <div className="flex h-full items-center justify-center text-sm text-destructive">
+            {error}
+          </div>
+        )}
+        {loaded && !error && (
+          <>
+            {nodeCount === 0 && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3">
+                <button
+                  onClick={createFirstNode}
+                  className="pointer-events-auto flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground shadow-md hover:opacity-90 cursor-pointer"
+                >
+                  <Plus size={14} />
+                  new node
+                </button>
+                <div className="pointer-events-none text-xs text-muted-foreground">
+                  or double-click anywhere on the canvas
+                </div>
+              </div>
+            )}
+            <Canvas />
+          </>
+        )}
+      </div>
+
+      <DeleteNodeModal />
+    </div>
+  );
+}

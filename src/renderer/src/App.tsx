@@ -4,17 +4,20 @@ import { CanvasPage } from "./pages/CanvasPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { subscribeAskUserRequests } from "./hooks/useAskUserStore";
 import { useApplyTheme } from "./hooks/useApplyTheme";
-import { SearchModalProvider } from "./providers/SearchModalProvider";
-import { CommandPaletteProvider } from "./providers/CommandPaletteProvider";
 
 type Route =
   | { name: "home" }
   | { name: "onboarding" }
-  | { name: "canvas"; id: string };
+  | { name: "canvas"; ids: [string] | [string, string] };
 
 function parseHash(hash: string): Route {
   const h = hash.replace(/^#/, "");
-  if (h.startsWith("/canvas/")) return { name: "canvas", id: h.slice("/canvas/".length) };
+  if (h.startsWith("/canvas/")) {
+    const rest = h.slice("/canvas/".length);
+    const parts = rest.split("/").filter(Boolean);
+    if (parts.length >= 2) return { name: "canvas", ids: [parts[0], parts[1]] };
+    if (parts.length === 1) return { name: "canvas", ids: [parts[0]] };
+  }
   if (h === "/onboarding") return { name: "onboarding" };
   return { name: "home" };
 }
@@ -49,17 +52,7 @@ export function App() {
 
   useApplyTheme();
 
-  return (
-    <SearchModalProvider>
-      <CommandPaletteProvider>
-        {route.name === "canvas" ? (
-          <CanvasPage id={route.id} />
-        ) : route.name === "onboarding" ? (
-          <OnboardingPage />
-        ) : (
-          <HomePage />
-        )}
-      </CommandPaletteProvider>
-    </SearchModalProvider>
-  );
+  if (route.name === "canvas") return <CanvasPage ids={route.ids} />;
+  if (route.name === "onboarding") return <OnboardingPage />;
+  return <HomePage />;
 }

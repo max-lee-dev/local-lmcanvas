@@ -25,6 +25,7 @@ import { usePreferencesStore } from "@/hooks/usePreferencesStore";
 import { getEdgeHandles } from "@/lib/edgeHandles";
 import { useSearchModal } from "@/providers/SearchModalProvider";
 import { useCommandPalette } from "@/providers/CommandPaletteProvider";
+import { useIsActivePane } from "@/hooks/useActivePane";
 import { CustomNode, focusNodeTextarea } from "./CustomNode";
 import { ContextMenu } from "./ContextMenu";
 import { OffsetEdge } from "./OffsetEdge";
@@ -53,8 +54,10 @@ function CanvasInner() {
   const movePosition = useCanvasStore((s) => s.movePosition);
   const removeNode = useCanvasStore((s) => s.removeNode);
 
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
   useDebouncedSave();
-  useKeyboardShortcuts();
+  useKeyboardShortcuts(wrapperRef);
 
   const showMinimap = usePreferencesStore((s) => s.showMinimap);
   const panOnScrollSpeed = usePreferencesStore((s) => s.panOnScrollSpeed);
@@ -69,8 +72,10 @@ function CanvasInner() {
     inputRef: commandInputRef,
   } = useCommandPalette();
   const clearSearchHighlights = useCanvasStore((s) => s.clearSearchHighlights);
+  const isActive = useIsActivePane();
 
   useEffect(() => {
+    if (!isActive) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
         e.preventDefault();
@@ -94,6 +99,7 @@ function CanvasInner() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [
+    isActive,
     isSearchModalOpen,
     searchInputRef,
     showSearchModal,
@@ -264,7 +270,6 @@ function CanvasInner() {
   );
 
   const { screenToFlowPosition } = useReactFlow();
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   const onPaneDoubleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -336,7 +341,7 @@ function CanvasInner() {
           <MiniMap
             pannable
             zoomable
-            position="bottom-left"
+            position="bottom-right"
             style={{
               opacity: minimap.visible ? 1 : 0,
               transition: "opacity 250ms ease-out",

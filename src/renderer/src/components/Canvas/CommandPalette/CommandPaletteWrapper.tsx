@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { useCommandPalette } from "@/providers/CommandPaletteProvider";
+import { useIsActivePane } from "@/hooks/useActivePane";
 import { CommandPalette, type CommandPaletteAction } from "./CommandPalette";
 
 export function CommandPaletteWrapper() {
+  const isActive = useIsActivePane();
   const inputRef = useRef<HTMLInputElement>(null);
   const { setInputRef } = useCommandPalette();
   const rf = useReactFlow();
 
   useEffect(() => {
+    if (!isActive) return;
     setInputRef(inputRef);
-  }, [setInputRef]);
+  }, [isActive, setInputRef]);
 
   const actions = useMemo<CommandPaletteAction[]>(
     () => [
@@ -37,6 +40,8 @@ export function CommandPaletteWrapper() {
     ],
     [rf],
   );
+
+  if (!isActive) return null;
 
   return <CommandPalette actions={actions} inputRef={inputRef} />;
 }

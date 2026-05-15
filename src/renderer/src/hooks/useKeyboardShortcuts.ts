@@ -1,26 +1,35 @@
-import { useEffect } from "react";
+import { useEffect, type RefObject } from "react";
 import { useCanvasStore, useCanvasStoreApi, makeBlankNode } from "./useCanvasStore";
 import { useConfirmDeleteStore } from "./useConfirmDeleteStore";
+import { useIsActivePane } from "./useActivePane";
 
-export function useKeyboardShortcuts() {
+export function useKeyboardShortcuts(
+  containerRef?: RefObject<HTMLElement | null>,
+) {
+  const isActive = useIsActivePane();
   const storeApi = useCanvasStoreApi();
   const addNode = useCanvasStore((s) => s.addNode);
   const connectEdge = useCanvasStore((s) => s.connectEdge);
   const requestDelete = useConfirmDeleteStore((s) => s.request);
 
   useEffect(() => {
+    if (!isActive) return;
+    const scope = (): ParentNode => containerRef?.current ?? document;
+
     const getSelectedNodeId = (): string | null => {
       const active = document.activeElement;
-      if (active && (active as HTMLElement).closest?.(".react-flow__node")) {
+      const root = containerRef?.current;
+      const focusedIsInScope = !root || (active instanceof Node && root.contains(active));
+      if (focusedIsInScope && active && (active as HTMLElement).closest?.(".react-flow__node")) {
         const el = (active as HTMLElement).closest<HTMLElement>(".react-flow__node");
         return el?.getAttribute("data-id") ?? null;
       }
-      const selected = document.querySelector<HTMLElement>(".react-flow__node.selected");
+      const selected = scope().querySelector<HTMLElement>(".react-flow__node.selected");
       return selected?.getAttribute("data-id") ?? null;
     };
 
     const getSelectedNodeIds = (): string[] => {
-      const nodes = document.querySelectorAll<HTMLElement>(".react-flow__node.selected");
+      const nodes = scope().querySelectorAll<HTMLElement>(".react-flow__node.selected");
       const ids: string[] = [];
       nodes.forEach((el) => {
         const id = el.getAttribute("data-id");
@@ -75,5 +84,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addNode, connectEdge, requestDelete, storeApi]);
+  }, [isActive, containerRef, addNode, connectEdge, requestDelete, storeApi]);
 }

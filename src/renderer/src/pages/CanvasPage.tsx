@@ -1,69 +1,44 @@
-import { useEffect, useState } from "react";
-import { Plus, Settings } from "lucide-react";
-import { Canvas } from "@/components/Canvas/Canvas";
-import {
-  CanvasStoreProvider,
-  makeBlankNode,
-  useCanvasStore,
-} from "@/hooks/useCanvasStore";
+import { useEffect, useRef, useState } from "react";
+import { Settings } from "lucide-react";
+import { CanvasPane } from "@/components/Canvas/CanvasPane";
+import { SplitDivider } from "@/components/Canvas/SplitDivider";
 import { SettingsModal } from "@/components/SettingsModal";
-import { SearchButton } from "@/components/Canvas/SearchModal";
 import { CanvasManager } from "@/components/CanvasManager/CanvasManager";
-import { CanvasBreadcrumb } from "@/components/CanvasManager/CanvasBreadcrumb";
-import { DeleteNodeModal } from "@/components/Canvas/DeleteNodeModal";
+import { useActivePaneStore } from "@/hooks/useActivePane";
 import { onOpenSettings } from "@/lib/openSettings";
 
-export function CanvasPage({ id }: { id: string }) {
-  return (
-    <CanvasStoreProvider>
-      <CanvasPageInner id={id} />
-    </CanvasStoreProvider>
-  );
-}
+type CanvasPageProps = {
+  ids: [string] | [string, string];
+};
 
-function CanvasPageInner({ id }: { id: string }) {
-  const loadCanvas = useCanvasStore((s) => s.loadCanvas);
-  const loaded = useCanvasStore((s) => s.loaded);
-  const canvasId = useCanvasStore((s) => s.canvasId);
-  const cwd = useCanvasStore((s) => s.cwd);
-  const error = useCanvasStore((s) => s.error);
-  const saving = useCanvasStore((s) => s.saving);
-  const nodeCount = useCanvasStore((s) => Object.keys(s.nodes).length);
-  const addNode = useCanvasStore((s) => s.addNode);
+/**
+ * Top-level canvas route. Renders the sidebar + global settings + either a
+ * single pane or two side-by-side panes with a draggable divider.
+ */
+export function CanvasPage({ ids }: CanvasPageProps) {
   const [showSettings, setShowSettings] = useState(false);
-
-  const createFirstNode = () => {
-    addNode(makeBlankNode({ x: 0, y: 0 }));
-  };
-
-  useEffect(() => {
-    if (id && canvasId !== id) void loadCanvas(id);
-  }, [id, canvasId, loadCanvas]);
+  const [splitFraction, setSplitFraction] = useState(0.5);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const activePaneId = useActivePaneStore((s) => s.activePaneId);
+  const isSplit = ids.length === 2;
 
   useEffect(() => onOpenSettings(() => setShowSettings(true)), []);
 
+  // Sidebar tracks whichever pane is active so highlight + sidebar actions
+  // follow the user's focus.
+  const sidebarCanvasId =
+    isSplit && activePaneId === ids[1] ? ids[1] : ids[0];
+
   return (
     <div className="relative h-screen w-screen overflow-hidden">
-      {/* Invisible drag strip across the top of the window for moving the window */}
+      {/* Invisible drag strip across the top for moving the window */}
       <div className="pointer-events-none absolute top-0 left-0 right-0 h-12 z-10 app-drag" />
 
       {/* Sidebar (handles its own toggle button) */}
-      <CanvasManager currentCanvasId={id} />
+      <CanvasManager currentCanvasId={sidebarCanvasId} />
 
-      {/* Top-center: breadcrumb pill with canvas switcher dropdown on hover */}
-      {(cwd || saving) && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 no-drag">
-          <CanvasBreadcrumb
-            cwd={cwd}
-            currentCanvasId={id}
-            saving={saving}
-          />
-        </div>
-      )}
-
-      {/* Top-right: search + settings */}
-      <div className="absolute top-3 right-3 z-30 no-drag flex items-center gap-1">
-        <SearchButton />
+      {/* Top-right: global settings */}
+      <div className="absolute top-3 right-3 z-50 no-drag flex items-center gap-1">
         <button
           onClick={() => setShowSettings(true)}
           className="flex h-7 w-7 items-center justify-center rounded-md text-foreground/70 hover:text-foreground hover:bg-muted cursor-pointer"
@@ -73,41 +48,30 @@ function CanvasPageInner({ id }: { id: string }) {
         </button>
       </div>
 
-      {/* Canvas — fills the entire window */}
-      <div className="absolute inset-0">
-        {!loaded && (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            loading…
-          </div>
-        )}
-        {loaded && error && (
-          <div className="flex h-full items-center justify-center text-sm text-destructive">
-            {error}
-          </div>
-        )}
-        {loaded && !error && (
+      {/* Panes */}
+      <div ref={splitContainerRef} className="absolute inset-0 flex">
+        {isSplit ? (
           <>
-            {nodeCount === 0 && (
-              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3">
-                <button
-                  onClick={createFirstNode}
-                  className="pointer-events-auto flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground shadow-md hover:opacity-90 cursor-pointer"
-                >
-                  <Plus size={14} />
-                  new node
-                </button>
-                <div className="pointer-events-none text-xs text-muted-foreground">
-                  or double-click anywhere on the canvas
-                </div>
-              </div>
-            )}
-            <Canvas />
+            <div style={{ width: `${splitFraction * 100}%` }} className="h-full">
+              <CanvasPane key={`a-${ids[0]}`} id={ids[0]} splitMode />
+            </div>
+            <SplitDivider
+              fraction={splitFraction}
+              onFractionChange={setSplitFraction}
+              containerRef={splitContainerRef}
+            />
+            <div className="h-full flex-1">
+              <CanvasPane key={`b-${ids[1]}`} id={ids[1]} splitMode />
+            </div>
           </>
+        ) : (
+          <div className="h-full w-full">
+            <CanvasPane key={`main-${ids[0]}`} id={ids[0]} splitMode={false} />
+          </div>
         )}
       </div>
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
-      <DeleteNodeModal />
     </div>
   );
 }

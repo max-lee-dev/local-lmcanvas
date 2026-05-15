@@ -3,12 +3,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, X } from "lucide-react";
 import { useConfirmDeleteStore } from "@/hooks/useConfirmDeleteStore";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
+import { useIsActivePane } from "@/hooks/useActivePane";
 
 export function DeleteNodeModal() {
+  const isActive = useIsActivePane();
   const pendingIds = useConfirmDeleteStore((s) => s.pendingIds);
   const clear = useConfirmDeleteStore((s) => s.clear);
   const removeNode = useCanvasStore((s) => s.removeNode);
-  const isOpen = pendingIds.length > 0;
+  const isOpen = isActive && pendingIds.length > 0;
   const count = pendingIds.length;
 
   const confirmButtonRef = useRef<HTMLButtonElement>(null);

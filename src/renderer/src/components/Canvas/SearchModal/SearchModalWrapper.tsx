@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef } from "react";
 import type { CanvasNode } from "@shared/types";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { useCenterOnNode } from "@/hooks/useCenterOnNode";
+import { useIsActivePane } from "@/hooks/useActivePane";
 import { useSearchModal } from "@/providers/SearchModalProvider";
 import { SearchModal } from "./SearchModal";
 
 export function SearchModalWrapper() {
+  const isActive = useIsActivePane();
   const nodes = useCanvasStore((s) => s.nodes);
   const setSearchHighlights = useCanvasStore((s) => s.setSearchHighlights);
   const clearSearchHighlights = useCanvasStore((s) => s.clearSearchHighlights);
@@ -14,8 +16,9 @@ export function SearchModalWrapper() {
   const centerOnNode = useCenterOnNode();
 
   useEffect(() => {
+    if (!isActive) return;
     setInputRef(inputRef);
-  }, [setInputRef]);
+  }, [isActive, setInputRef]);
 
   useEffect(() => {
     if (isSearchModalOpen) clearSearchHighlights();
@@ -39,6 +42,8 @@ export function SearchModalWrapper() {
     },
     [setSearchHighlights, clearSearchHighlights],
   );
+
+  if (!isActive) return null;
 
   return (
     <SearchModal

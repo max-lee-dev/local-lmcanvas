@@ -1,20 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Folder, FolderOpen } from "lucide-react";
+import { ChevronDown, Columns2, Folder, FolderOpen } from "lucide-react";
 import type { CanvasSummary } from "@shared/types";
-import { navigate } from "@/App";
 import { prettyPath } from "@/lib/prettyPath";
+import { navigateToCanvas, openInSplit } from "@/lib/canvasNavigation";
 
 type CanvasBreadcrumbProps = {
   cwd: string;
   currentCanvasId: string;
   saving: boolean;
+  /** True when this pane is one of two in a split. Hides "open in split" for slot "b". */
+  splitMode?: boolean;
 };
 
 export function CanvasBreadcrumb({
   cwd,
   currentCanvasId,
   saving,
+  splitMode = false,
 }: CanvasBreadcrumbProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [canvases, setCanvases] = useState<CanvasSummary[]>([]);
@@ -100,27 +103,44 @@ export function CanvasBreadcrumb({
             ) : (
               <div className="max-h-[320px] overflow-y-auto py-1">
                 {otherCanvases.map((c) => (
-                  <button
+                  <div
                     key={c.id}
-                    onClick={() => {
-                      setIsOpen(false);
-                      navigate(`/canvas/${c.id}`);
-                    }}
-                    className="w-full flex flex-col items-start px-2.5 py-1.5 text-left hover:bg-muted cursor-pointer"
+                    className="group flex items-center w-full hover:bg-muted"
                   >
-                    <div className="text-xs font-medium text-foreground truncate w-full">
-                      {c.name || "untitled canvas"}
-                    </div>
-                    <div
-                      className="text-[10px] text-muted-foreground truncate w-full flex items-center gap-1"
-                      title={c.cwd}
+                    <button
+                      onClick={() => {
+                        setIsOpen(false);
+                        navigateToCanvas(c.id);
+                      }}
+                      className="flex-1 min-w-0 flex flex-col items-start px-2.5 py-1.5 text-left cursor-pointer"
                     >
-                      <Folder size={10} className="shrink-0" />
-                      <span className="truncate">
-                        {c.cwd ? prettyPath(c.cwd) : "no folder"}
-                      </span>
-                    </div>
-                  </button>
+                      <div className="text-xs font-medium text-foreground truncate w-full">
+                        {c.name || "untitled canvas"}
+                      </div>
+                      <div
+                        className="text-[10px] text-muted-foreground truncate w-full flex items-center gap-1"
+                        title={c.cwd}
+                      >
+                        <Folder size={10} className="shrink-0" />
+                        <span className="truncate">
+                          {c.cwd ? prettyPath(c.cwd) : "no folder"}
+                        </span>
+                      </div>
+                    </button>
+                    {!splitMode && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsOpen(false);
+                          openInSplit(c.id);
+                        }}
+                        className="flex h-7 w-7 mr-1 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-background cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="open in split"
+                      >
+                        <Columns2 size={12} />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
