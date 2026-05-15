@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { consumeJsonl } from "./jsonlReader";
 import { shellEnv } from "../shellPath";
+import { writeAttachmentsToTemp } from "./attachmentTempFiles";
 import {
   composePromptWithSystem,
   errorMessage,
