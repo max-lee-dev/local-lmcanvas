@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const DEFAULT_LABEL = "Sonnet 4.6";
+const DEFAULT_LABEL = "Opus 4.7";
 
 export function useModelName(): string {
   const [name, setName] = useState<string>(DEFAULT_LABEL);

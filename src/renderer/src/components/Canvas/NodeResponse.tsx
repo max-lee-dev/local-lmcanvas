@@ -72,11 +72,9 @@ export function NodeResponse({ message, onStop, nodeId }: Props) {
         {images.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {images.map((img, i) => (
-              <img
+              <UserImage
                 key={i}
                 src={`data:${img.mediaType};base64,${img.base64}`}
-                alt=""
-                className="max-h-32 max-w-[180px] rounded-md border border-border object-cover"
               />
             ))}
           </div>
