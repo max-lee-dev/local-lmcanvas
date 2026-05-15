@@ -236,18 +236,6 @@ function registerIpc(): void {
     const hash = canvasId ? `/canvas/${canvasId}` : "/";
     createWindow(hash);
   });
-
-  ipcMain.handle("providers:authStatus", async (_e, provider: Provider) => {
-    const settings = await readSettings();
-    const binPath = settings.providers?.[provider]?.binPath;
-    return getProviderAuthStatus(provider, binPath);
-  });
-
-  ipcMain.handle("providers:openLogin", async (_e, provider: Provider) => {
-    const settings = await readSettings();
-    const binPath = settings.providers?.[provider]?.binPath;
-    await openLoginTerminal(provider, binPath);
-  });
 }
 
 app.whenReady().then(() => {
