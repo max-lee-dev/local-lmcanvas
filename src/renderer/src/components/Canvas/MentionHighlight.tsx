@@ -51,7 +51,7 @@ export const MentionHighlight = forwardRef<HTMLDivElement, Props>(
         aria-hidden
         className="absolute inset-0 pointer-events-none overflow-hidden text-[10px] font-normal"
         style={{
-          color: "transparent",
+          color: "var(--foreground)",
           whiteSpace: "pre-wrap",
           wordWrap: "break-word",
           overflowWrap: "break-word",
