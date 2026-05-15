@@ -7,6 +7,7 @@ import type {
   CanvasEdge,
   CanvasNode,
   ContentBlock,
+  ErrorCode,
   Message,
   NodeId,
   Provider,
