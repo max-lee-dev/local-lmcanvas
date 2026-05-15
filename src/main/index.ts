@@ -239,7 +239,17 @@ function registerIpc(): void {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // macOS GUI apps inherit a minimal PATH that lacks /opt/homebrew/bin,
+  // ~/.nvm/.../bin, ~/.local/bin etc. — resolve the user's shell PATH so
+  // every spawned CLI (including the one inside claude-agent-sdk) can find
+  // its binary.
+  try {
+    process.env.PATH = await getShellPath();
+  } catch {
+    // best-effort; fall through with whatever PATH we have
+  }
+
   registerIpc();
   createWindow();
   void sendLaunchPing();
