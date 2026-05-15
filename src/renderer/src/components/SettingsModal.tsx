@@ -81,20 +81,6 @@ export function SettingsModal({ open, onClose }: Props) {
 
             <div className="flex flex-col gap-4">
               <div>
-                <label className="text-xs font-medium text-muted-foreground">
-                  system prompt
-                </label>
-                <textarea
-                  value={settings.systemPrompt ?? ""}
-                  onChange={(e) =>
-                    setSettings({ ...settings, systemPrompt: e.target.value })
-                  }
-                  className="mt-1 min-h-[80px] w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                  placeholder="optional system prompt passed to every turn"
-                />
-              </div>
-
-              <div className="pt-2 border-t border-border">
                 <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   providers
                 </h3>
