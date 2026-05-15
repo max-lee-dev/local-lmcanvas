@@ -59,6 +59,13 @@ export type CanvasEdge = {
   target: NodeId;
   sourceHandle?: string;
   targetHandle?: string;
+  /**
+   * Pixel offset along the parent's local Y axis where the edge should attach,
+   * captured at child-creation time so the connector emerges near the point
+   * the user was looking at (cursor on right-click, or selection on branch).
+   * Undefined → use default handle-based routing.
+   */
+  sourceYOffset?: number;
 };
 
 export type Provider = "claude" | "codex" | "cursor";
