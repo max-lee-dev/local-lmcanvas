@@ -96,6 +96,10 @@ export async function deleteCanvas(id: string): Promise<void> {
   }
 }
 
+function isProvider(value: unknown): value is Provider {
+  return typeof value === "string" && (PROVIDERS as readonly string[]).includes(value);
+}
+
 function migrateCanvas(raw: Partial<Canvas> & Record<string, unknown>): Canvas | null {
   if (typeof raw.id !== "string" || typeof raw.name !== "string") return null;
   const nodes: CanvasNode[] = Array.isArray(raw.nodes)
@@ -109,6 +113,7 @@ function migrateCanvas(raw: Partial<Canvas> & Record<string, unknown>): Canvas |
     updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : Date.now(),
     nodes,
     edges: Array.isArray(raw.edges) ? raw.edges : [],
+    provider: isProvider(raw.provider) ? raw.provider : undefined,
   };
 }
 
