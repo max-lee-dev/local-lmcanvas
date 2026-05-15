@@ -445,10 +445,16 @@ export const useCanvasStore = create<CanvasStoreState>()(
       get().markDirty();
     },
 
-    errorMessage: (nodeId, messageId, error) => {
+    errorMessage: (nodeId, messageId, error, opts) => {
       set((s) => {
         const nodes = updateMessages(s.nodes, nodeId, (messages) =>
-          mapMessage(messages, messageId, (m) => ({ ...m, status: "error", error }))
+          mapMessage(messages, messageId, (m) => ({
+            ...m,
+            status: "error",
+            error,
+            errorCode: opts?.code,
+            errorProvider: opts?.provider,
+          }))
         );
         return nodes ? { nodes } : s;
       });
