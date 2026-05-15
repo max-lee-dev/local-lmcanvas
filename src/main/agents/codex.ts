@@ -109,11 +109,9 @@ export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void
 
     if (!doneEmitted) {
       if (code !== 0 && code !== null) {
-        emit({
-          kind: "error",
-          message: `codex exited with code ${code}${stderrBuf ? `\n${stderrBuf}` : ""}`,
-        });
-        emit({ kind: "done", isError: true });
+        const message = `codex exited with code ${code}${stderrBuf ? `\n${stderrBuf}` : ""}`;
+        emit({ kind: "error", message });
+        emit({ kind: "done", isError: true, result: message });
       } else {
         emit({ kind: "done", isError: false });
       }
