@@ -427,6 +427,7 @@ function CustomNodeImpl(props: NodeProps) {
           {userMessage && isEditingPrompt && (
             <div className="-mx-1 -my-0.5 rounded-md bg-accent/10 px-1 py-0.5 ring-1 ring-accent/30">
               <NodePromptInput
+                ref={promptInputRef}
                 nodeId={id}
                 initialValue={userText}
                 initialAttachments={userAttachments}
