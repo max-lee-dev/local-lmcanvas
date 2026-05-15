@@ -6,6 +6,7 @@ import { TextBlockView } from "./blocks/TextBlockView";
 import { ToolGroupView } from "./blocks/ToolGroupView";
 import { ThinkingView } from "./blocks/ThinkingView";
 import { ImagePreviewModal } from "./ImagePreviewModal";
+import { ErrorBlock } from "./ErrorBlock";
 
 type RenderItem =
   | { kind: "text"; text: string; key: string }
