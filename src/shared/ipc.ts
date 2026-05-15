@@ -69,6 +69,16 @@ export type ChatEvent =
 export type CanvasCreateArgs = {
   name: string;
   cwd: string;
+  provider?: Provider;
+};
+
+export type ProviderAuthStatus = {
+  provider: Provider;
+  installed: boolean;
+  authenticated: boolean;
+  binPath: string | null;
+  /** Optional message — e.g. version string when ok, or error explanation when not. */
+  detail?: string;
 };
 
 export type LmcApi = {
