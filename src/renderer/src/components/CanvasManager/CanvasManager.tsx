@@ -294,10 +294,10 @@ export function CanvasManager({
                               {isCreating ? (
                                 <>
                                   <Loader2 className="h-3 w-3 animate-spin" />
-                                  creating…
+                                  Creating…
                                 </>
                               ) : (
-                                "create"
+                                "Create"
                               )}
                             </button>
                           </div>
