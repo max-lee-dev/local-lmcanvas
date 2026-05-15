@@ -110,7 +110,7 @@ export type LmcApi = {
     openPath(path: string): Promise<void>;
   };
   files: {
-    list(cwd: string): Promise<string[]>;
+    list(cwd: string): Promise<FileEntry[]>;
   };
   providers: {
     /** Probe a provider's CLI install + auth state. */
