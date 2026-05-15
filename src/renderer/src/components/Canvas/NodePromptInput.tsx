@@ -296,12 +296,7 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
             onBlur={() => closeMention()}
             onPaste={handlePaste}
             placeholder="Enter a prompt..."
-            style={{
-              minHeight: "12px",
-              color: "transparent",
-              caretColor: "var(--foreground)",
-              lineHeight: 1.4,
-            }}
+            style={{ minHeight: "12px" }}
             className="relative w-full text-[10px] p-0 nodrag resize-none bg-transparent font-normal focus:outline-none overflow-y-auto cursor-text"
             onKeyDown={(e) => {
               if (mentionOpen && filteredEntries.length > 0) {
