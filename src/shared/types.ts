@@ -24,6 +24,8 @@ export type ImageBlock = {
 
 export type ContentBlock = TextBlock | ToolUseBlock | ThinkingBlock | ImageBlock;
 
+export type ErrorCode = "auth_required";
+
 export type Message = {
   id: string;
   role: "user" | "assistant";
@@ -31,6 +33,10 @@ export type Message = {
   createdAt: number;
   status?: MessageStatus;
   error?: string;
+  /** Machine-readable error category — drives in-UI affordances like "Re-authenticate". */
+  errorCode?: ErrorCode;
+  /** Which provider produced the error (so the UI can guide re-auth). */
+  errorProvider?: Provider;
 };
 
 export type ChatData = {
