@@ -378,7 +378,8 @@ function CustomNodeImpl(props: NodeProps) {
           type="button"
           onClick={handleDeleteClick}
           className={clsx(
-            "nodrag z-50 -right-2.5 -top-2.5 p-1.5 rounded-lg absolute cursor-pointer text-muted-foreground flex items-center justify-center transition-opacity duration-75",
+            "nodrag z-50 -right-2.5 p-1.5 rounded-lg absolute cursor-pointer text-muted-foreground flex items-center justify-center transition-opacity duration-75",
+            nodeData.chat.addedContext ? "-top-13" : "-top-2.5",
             isConfirmingDelete ? "hover:bg-muted/50" : "hover:bg-muted",
             "hover:text-foreground",
             hovered || selected ? "opacity-60 hover:opacity-100" : "opacity-0 pointer-events-none"
