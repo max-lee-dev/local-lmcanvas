@@ -129,6 +129,14 @@ export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void
   } catch (err) {
     emit({ kind: "error", message: errorMessage(err) });
     if (!doneEmitted) emit({ kind: "done", isError: true });
+  } finally {
+    if (attachmentCleanup) {
+      try {
+        await attachmentCleanup();
+      } catch {
+        // best-effort; temp files in os.tmpdir() are cleared by the OS eventually
+      }
+    }
   }
 }
 
