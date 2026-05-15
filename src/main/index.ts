@@ -21,6 +21,7 @@ import type {
   ChatEvent,
   ChatStartArgs,
   CanvasCreateArgs,
+  FileEntry,
 } from "@shared/ipc";
 import type { AppSettings, Canvas } from "@shared/types";
 
