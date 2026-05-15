@@ -5,10 +5,11 @@ import { useConfirmDeleteStore } from "@/hooks/useConfirmDeleteStore";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
 
 export function DeleteNodeModal() {
-  const pendingId = useConfirmDeleteStore((s) => s.pendingId);
+  const pendingIds = useConfirmDeleteStore((s) => s.pendingIds);
   const clear = useConfirmDeleteStore((s) => s.clear);
   const removeNode = useCanvasStore((s) => s.removeNode);
-  const isOpen = pendingId !== null;
+  const isOpen = pendingIds.length > 0;
+  const count = pendingIds.length;
 
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -31,7 +32,7 @@ export function DeleteNodeModal() {
   }, [isOpen, clear]);
 
   const onConfirm = () => {
-    if (pendingId) removeNode(pendingId);
+    for (const id of pendingIds) removeNode(id);
     clear();
   };
 
@@ -63,7 +64,7 @@ export function DeleteNodeModal() {
             >
               <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-foreground tracking-tight">
-                  Delete node
+                  {count > 1 ? `Delete ${count} nodes` : "Delete node"}
                 </h2>
                 <button
                   type="button"
@@ -83,7 +84,9 @@ export function DeleteNodeModal() {
                   </span>
                 </p>
                 <p className="text-sm text-foreground">
-                  delete this node? this cannot be undone.
+                  {count > 1
+                    ? `delete these ${count} nodes? this cannot be undone.`
+                    : "delete this node? this cannot be undone."}
                 </p>
               </div>
 

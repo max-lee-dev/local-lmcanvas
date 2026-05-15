@@ -18,6 +18,16 @@ export function useKeyboardShortcuts() {
       return selected?.getAttribute("data-id") ?? null;
     };
 
+    const getSelectedNodeIds = (): string[] => {
+      const nodes = document.querySelectorAll<HTMLElement>(".react-flow__node.selected");
+      const ids: string[] = [];
+      nodes.forEach((el) => {
+        const id = el.getAttribute("data-id");
+        if (id) ids.push(id);
+      });
+      return ids;
+    };
+
     const isEditable = (el: EventTarget | null): boolean => {
       if (!(el instanceof HTMLElement)) return false;
       const tag = el.tagName;
@@ -49,10 +59,16 @@ export function useKeyboardShortcuts() {
 
       // Backspace / Delete → open in-app confirmation modal (but NOT when typing)
       if ((e.key === "Backspace" || e.key === "Delete") && !isEditable(e.target)) {
-        const id = getSelectedNodeId();
-        if (!id) return;
+        const ids = getSelectedNodeIds();
+        if (ids.length === 0) {
+          const id = getSelectedNodeId();
+          if (!id) return;
+          e.preventDefault();
+          requestDelete(id);
+          return;
+        }
         e.preventDefault();
-        requestDelete(id);
+        requestDelete(ids);
       }
     };
 
