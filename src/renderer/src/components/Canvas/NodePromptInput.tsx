@@ -5,10 +5,11 @@ import { useTextareaAutoResize } from "@/hooks/useTextareaAutoResize";
 import { forwardWheelAtBoundary } from "@/lib/scrollPan";
 import {
   MentionPicker,
-  filterFiles,
+  filterEntries,
   getFilesForCwd,
 } from "./MentionPicker";
-import type { Attachment } from "@shared/ipc";
+import { MentionHighlight } from "./MentionHighlight";
+import type { Attachment, FileEntry } from "@shared/ipc";
 import type { ImageMediaType } from "@shared/types";
 
 type Props = {
