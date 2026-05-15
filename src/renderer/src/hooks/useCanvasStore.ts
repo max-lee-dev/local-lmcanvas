@@ -182,6 +182,7 @@ export const useCanvasStore = create<CanvasStoreState>()(
         name: canvas.name,
         cwd: canvas.cwd,
         createdAt: canvas.createdAt,
+        provider: canvas.provider,
         nodes,
         edges: canvas.edges,
         loaded: true,
@@ -191,6 +192,11 @@ export const useCanvasStore = create<CanvasStoreState>()(
 
     setName: (name) => {
       set({ name });
+      get().markDirty();
+    },
+
+    setProvider: (provider) => {
+      set({ provider });
       get().markDirty();
     },
 
