@@ -10,7 +10,8 @@ import {
 } from "./storage/canvases";
 import { readSettings, writeSettings } from "./storage/settings";
 import { buildPromptWithHistory } from "./claude/history";
-import { runClaude } from "./claude/runner";
+import { runAgent } from "./agents";
+import { getProviderAuthStatus, openLoginTerminal } from "./auth/providerAuth";
 import { listFiles } from "./files";
 import {
   cancelAllForWebContents,
