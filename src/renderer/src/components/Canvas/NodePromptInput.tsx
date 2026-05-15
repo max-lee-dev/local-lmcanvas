@@ -264,16 +264,19 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
         </div>
       )}
 
+      <MentionChips
+        value={value}
+        onRemove={(m) => removeMention(m)}
+      />
+
       <div className="flex items-center relative group">
         <div className="relative w-full">
-          <MentionHighlight value={value} scrollTop={scrollTop} />
           <textarea
             ref={textareaRef}
             value={value}
             onChange={(e) =>
               handleValueChange(e.target.value, e.target.selectionStart)
             }
-            onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
             onKeyUp={(e) => {
               // Caret moved via arrows / clicks — re-evaluate mention state
               if (
