@@ -11,7 +11,7 @@ export function CustomNodeContextBanner({
 
   return (
     <div
-      className="absolute left-0 right-0 top-0 -translate-y-full p-1 rounded-lg rounded-b-none border border-b-0 border-border bg-card text-foreground max-h-32 overflow-y-auto"
+      className="absolute -left-px -right-px top-0 -translate-y-full p-1 rounded-[10px] rounded-b-none border border-b-0 border-border bg-card text-foreground max-h-32 overflow-y-auto"
       aria-label="Copied context"
     >
       <div className="flex items-center gap-3 px-3 py-2 rounded-t-[6px] rounded-b-none bg-muted">
