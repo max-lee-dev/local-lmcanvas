@@ -227,6 +227,7 @@ function registerIpc(): void {
 app.whenReady().then(() => {
   registerIpc();
   createWindow();
+  void sendLaunchPing();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
