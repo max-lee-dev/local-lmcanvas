@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import type { Provider } from "@shared/types";
 import type { ProviderAuthStatus } from "@shared/ipc";
+import { shellEnv } from "../shellPath";
 
 const DEFAULT_BIN: Record<Provider, string> = {
   claude: "claude",
