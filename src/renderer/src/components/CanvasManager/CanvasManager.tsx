@@ -139,8 +139,14 @@ export function CanvasManager({
     void refresh();
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`delete "${name}"? this cannot be undone.`)) return;
+  const handleDelete = (id: string, name: string) => {
+    setPendingDelete({ id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
     setDeletingCanvasId(id);
     try {
       await window.api.canvases.delete(id);
