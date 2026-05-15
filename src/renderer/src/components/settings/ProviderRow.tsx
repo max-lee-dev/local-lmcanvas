@@ -116,9 +116,9 @@ export function ProviderRow({
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="grid gap-2 border-t border-border px-3 py-2.5">
+            <div className="grid gap-1.5 border-t border-border px-2 py-2">
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground">
+                <label className="text-[10px] font-medium text-muted-foreground">
                   binary path
                 </label>
                 <input
@@ -127,11 +127,11 @@ export function ProviderRow({
                     onConfigChange({ ...(config ?? {}), binPath: e.target.value })
                   }
                   placeholder={`default: "${provider}"`}
-                  className="mt-1 w-full rounded-md border border-border bg-card px-2 py-1 text-xs"
+                  className="mt-0.5 w-full rounded-md border border-border bg-card px-1.5 py-0.5 text-[11px]"
                 />
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground">
+                <label className="text-[10px] font-medium text-muted-foreground">
                   model (optional)
                 </label>
                 <input
@@ -139,8 +139,8 @@ export function ProviderRow({
                   onChange={(e) =>
                     onConfigChange({ ...(config ?? {}), model: e.target.value })
                   }
-                  placeholder="leave blank for provider default"
-                  className="mt-1 w-full rounded-md border border-border bg-card px-2 py-1 text-xs"
+                  placeholder="provider default"
+                  className="mt-0.5 w-full rounded-md border border-border bg-card px-1.5 py-0.5 text-[11px]"
                 />
               </div>
             </div>
