@@ -107,6 +107,12 @@ export type LmcApi = {
   files: {
     list(cwd: string): Promise<string[]>;
   };
+  providers: {
+    /** Probe a provider's CLI install + auth state. */
+    authStatus(provider: Provider): Promise<ProviderAuthStatus>;
+    /** Open a shell session to run `<bin> login` for the given provider, in the user's terminal. */
+    openLoginTerminal(provider: Provider): Promise<void>;
+  };
   askUser: {
     /** Subscribe to incoming ask-user requests from the agent. Returns an unsubscribe function. */
     onRequest(handler: (req: AskUserRequest) => void): () => void;
