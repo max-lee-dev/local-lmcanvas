@@ -200,10 +200,6 @@ function CustomNodeImpl(props: NodeProps) {
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [isEditingPrompt]);
 
-  useEffect(() => {
-    if (assistantStreaming && isEditingPrompt) setIsEditingPrompt(false);
-  }, [assistantStreaming, isEditingPrompt]);
-
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const assistantText = lastAssistant
     ? lastAssistant.blocks
