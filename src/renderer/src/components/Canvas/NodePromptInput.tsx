@@ -71,7 +71,6 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
   const [highlightIdx, setHighlightIdx] = useState(0);
   const [allEntries, setAllEntries] = useState<FileEntry[]>([]);
   const filesLoadedForCwdRef = useRef<string | null>(null);
-  const [scrollTop, setScrollTop] = useState(0);
 
   const mentionOpen = mentionStart !== null;
   const filteredEntries = useMemo(
