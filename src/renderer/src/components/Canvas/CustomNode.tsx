@@ -78,9 +78,11 @@ function CustomNodeImpl(props: NodeProps) {
   const [hovered, setHovered] = useState(false);
   const [isEditingPrompt, setIsEditingPrompt] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const askUserRequest = useAskUserStore((s) => s.byNode[id]);
   const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const promptInputRef = useRef<NodePromptInputHandle | null>(null);
   const selection = useSelection(rootRef);
 
   const branch = useCallback(
