@@ -9,6 +9,7 @@ import {
 } from "@xyflow/react";
 import { motion } from "framer-motion";
 import { Check, Copy, GitMerge, Plus } from "lucide-react";
+import { MergeButton } from "./MergeButton";
 import clsx from "clsx";
 import { makeBlankNode, useCanvasStore } from "@/hooks/useCanvasStore";
 import { ModelBadge } from "./ModelBadge";
@@ -412,28 +413,6 @@ function CustomNodeImpl(props: NodeProps) {
           )}
         </div>
 
-        {/* Merge button — only visible when not already in merge mode. */}
-        {!merging && hasSubmitted && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              startMerge(id);
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            className={clsx(
-              "nodrag z-50 p-1.5 rounded-lg absolute cursor-pointer text-muted-foreground flex items-center justify-center transition-opacity duration-75 hover:bg-muted hover:text-foreground",
-              nodeData.chat.addedContext ? "-top-13" : "-top-2.5",
-              "right-6",
-              hovered || selected ? "opacity-60 hover:opacity-100" : "opacity-0 pointer-events-none"
-            )}
-            title="Merge with another conversation"
-            aria-label="Merge with another conversation"
-          >
-            <GitMerge className="w-3 h-3" />
-          </button>
-        )}
-
         {/* Delete button — avera-style: top-right, opacity 0.6 idle, 1.0 on hover */}
         <button
           type="button"
@@ -543,13 +522,20 @@ function CustomNodeImpl(props: NodeProps) {
           </div>
         )}
 
-        {/* Footer follow-up button — avera-exact: rounded-xl, bg-foreground text-card, h-7 min-w-[50px] */}
+        {/* Footer actions — avera-exact: merge + follow-up, rounded-xl pills */}
         <div
           className={clsx(
             "nodrag absolute -bottom-4 left-0 right-0 flex justify-center gap-1 transition-opacity duration-150",
             showFollowUp ? "opacity-100" : "opacity-0 pointer-events-none"
           )}
         >
+          {!merging && (
+            <MergeButton
+              disabled={!showFollowUp}
+              id={id}
+              onClick={startMerge}
+            />
+          )}
           <button
             type="button"
             onClick={() => branch()}
