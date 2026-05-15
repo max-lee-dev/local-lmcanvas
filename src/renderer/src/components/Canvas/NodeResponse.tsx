@@ -109,11 +109,7 @@ export function NodeResponse({ message, onStop, nodeId }: Props) {
         </div>
       )}
 
-      {isError && message.error && (
-        <div className="mt-1 rounded-[6px] border border-destructive/30 bg-destructive/5 px-2 py-1 text-[10px] text-destructive">
-          {message.error}
-        </div>
-      )}
+      {isError && message.error && <ErrorBlock message={message} />}
     </div>
   );
 }
