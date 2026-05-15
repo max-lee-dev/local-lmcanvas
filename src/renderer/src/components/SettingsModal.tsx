@@ -8,6 +8,7 @@ import {
   PanSpeedSetting,
   ThemeSetting,
   ProviderRow,
+  TelemetrySetting,
 } from "./settings";
 
 type Props = {
