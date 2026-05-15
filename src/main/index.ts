@@ -62,6 +62,15 @@ function createWindow(hash?: string): BrowserWindow {
 
   win.on("ready-to-show", () => win.show());
 
+  win.webContents.on("console-message", (_e, level, msg, line, src) => {
+    // eslint-disable-next-line no-console
+    console.log(`[renderer ${level}] ${msg} (${src}:${line})`);
+  });
+  win.webContents.on("render-process-gone", (_e, details) => {
+    // eslint-disable-next-line no-console
+    console.log(`[renderer gone] reason=${details.reason} exit=${details.exitCode}`);
+  });
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http")) shell.openExternal(url);
     return { action: "deny" };
