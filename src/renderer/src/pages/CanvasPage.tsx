@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { FolderOpen, Plus, Settings } from "lucide-react";
+import { Plus, Settings } from "lucide-react";
 import { Canvas } from "@/components/Canvas/Canvas";
 import { makeBlankNode, useCanvasStore } from "@/hooks/useCanvasStore";
 import { SettingsModal } from "@/components/SettingsModal";
 import { SearchButton } from "@/components/Canvas/SearchModal";
 import { CanvasManager } from "@/components/CanvasManager/CanvasManager";
+import { CanvasBreadcrumb } from "@/components/CanvasManager/CanvasBreadcrumb";
 import { DeleteNodeModal } from "@/components/Canvas/DeleteNodeModal";
-import { prettyPath } from "@/lib/prettyPath";
 import { onOpenSettings } from "@/lib/openSettings";
 
 export function CanvasPage({ id }: { id: string }) {
@@ -38,31 +38,14 @@ export function CanvasPage({ id }: { id: string }) {
       {/* Sidebar (handles its own toggle button) */}
       <CanvasManager currentCanvasId={id} />
 
-      {/* Top-center: breadcrumb pill (folder + node count + saving state) */}
-      {(cwd || nodeCount > 0 || saving) && (
+      {/* Top-center: breadcrumb pill with canvas switcher dropdown on hover */}
+      {(cwd || saving) && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 no-drag">
-          <div className="flex items-center gap-2 rounded-md border border-border bg-card/90 backdrop-blur px-2.5 py-1.5 text-xs shadow-sm">
-            {cwd && (
-              <button
-                onClick={() => void window.api.shell.openPath(cwd)}
-                className="flex items-center gap-1.5 text-foreground/80 hover:text-foreground cursor-pointer"
-                title={`reveal ${cwd}`}
-              >
-                <FolderOpen size={12} />
-                <span>{prettyPath(cwd)}</span>
-              </button>
-            )}
-            {cwd && (nodeCount > 0 || saving) && (
-              <span className="text-border">·</span>
-            )}
-            <span className="text-muted-foreground">
-              {saving
-                ? "saving…"
-                : nodeCount === 0
-                  ? "empty"
-                  : `${nodeCount} node${nodeCount === 1 ? "" : "s"}`}
-            </span>
-          </div>
+          <CanvasBreadcrumb
+            cwd={cwd}
+            currentCanvasId={id}
+            saving={saving}
+          />
         </div>
       )}
 
