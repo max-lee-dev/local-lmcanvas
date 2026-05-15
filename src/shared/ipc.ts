@@ -1,4 +1,12 @@
-import type { AppSettings, Canvas, CanvasSummary, ImageMediaType, Message, Provider } from "./types";
+import type {
+  AppSettings,
+  Canvas,
+  CanvasSummary,
+  ErrorCode,
+  ImageMediaType,
+  Message,
+  Provider,
+} from "./types";
 
 export type AskUserOption = {
   label: string;
