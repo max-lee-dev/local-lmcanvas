@@ -243,34 +243,12 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
     }
   };
 
-  const handleDragOver: React.DragEventHandler<HTMLFormElement> = (e) => {
-    if (!e.dataTransfer?.types?.includes("Files")) return;
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(true);
-  };
-  const handleDragLeave: React.DragEventHandler<HTMLFormElement> = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(false);
-  };
-  const handleDrop: React.DragEventHandler<HTMLFormElement> = (e) => {
-    if (!e.dataTransfer?.files || e.dataTransfer.files.length === 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(false);
-    void addFiles(e.dataTransfer.files);
-  };
-
   return (
     <form
       onSubmit={handleSubmit}
       className="relative nodrag min-h-[47px]"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
     >
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pb-1.5">
