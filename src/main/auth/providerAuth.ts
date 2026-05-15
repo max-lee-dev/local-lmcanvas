@@ -19,14 +19,15 @@ type ProbeResult = {
   spawnError?: string;
 };
 
-function probe(bin: string, args: string[]): Promise<ProbeResult> {
+async function probe(bin: string, args: string[]): Promise<ProbeResult> {
+  const env = await shellEnv();
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
     let settled = false;
     let proc: ReturnType<typeof spawn>;
     try {
-      proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
+      proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"], env });
     } catch (err) {
       resolve({
         code: null,
