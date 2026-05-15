@@ -58,7 +58,11 @@ export async function writeCanvas(canvas: Canvas): Promise<void> {
   await writeFile(canvasFilePath(canvas.id), JSON.stringify(updated, null, 2), "utf-8");
 }
 
-export async function createCanvas(args: { name: string; cwd: string }): Promise<Canvas> {
+export async function createCanvas(args: {
+  name: string;
+  cwd: string;
+  provider?: Provider;
+}): Promise<Canvas> {
   await ensureDirs();
   const id = nanoid(10);
   const now = Date.now();
@@ -70,6 +74,7 @@ export async function createCanvas(args: { name: string; cwd: string }): Promise
     updatedAt: now,
     nodes: [],
     edges: [],
+    provider: args.provider,
   };
   await writeCanvas(canvas);
   return canvas;
