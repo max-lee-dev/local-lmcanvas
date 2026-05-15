@@ -38,6 +38,7 @@ export function CanvasManager({
   const [deletingCanvasId, setDeletingCanvasId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftCanvas | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [defaultProvider, setDefaultProvider] = useState<Provider>("claude");
   const searchRef = useRef<CanvasSearchRef>(null);
 
   const refresh = async () => {

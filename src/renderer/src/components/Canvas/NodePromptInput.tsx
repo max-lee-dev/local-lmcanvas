@@ -79,7 +79,7 @@ export function NodePromptInput({
     if (filesLoadedForCwdRef.current === cwd) return;
     filesLoadedForCwdRef.current = cwd;
     void getFilesForCwd(cwd)
-      .then((files) => setAllFiles(files))
+      .then((entries) => setAllEntries(entries))
       .catch(() => {
         // swallow: picker just shows empty
         filesLoadedForCwdRef.current = null;
