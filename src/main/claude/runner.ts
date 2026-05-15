@@ -123,6 +123,14 @@ export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<vo
 
   const emit = (ev: RunnerEvent): void => {
     if (ev.kind === "done") doneEmitted = true;
+    if (ev.kind === "error" && !ev.code && isAuthError(ev.message)) {
+      opts.onEvent({ ...ev, code: "auth_required" });
+      return;
+    }
+    if (ev.kind === "done" && ev.isError && !ev.code && isAuthError(ev.result ?? "")) {
+      opts.onEvent({ ...ev, code: "auth_required" });
+      return;
+    }
     opts.onEvent(ev);
   };
 

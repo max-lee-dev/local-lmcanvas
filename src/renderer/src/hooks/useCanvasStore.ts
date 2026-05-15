@@ -9,6 +9,7 @@ import type {
   ContentBlock,
   Message,
   NodeId,
+  Provider,
   TextBlock,
   ToolUseBlock,
 } from "@shared/types";
