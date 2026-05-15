@@ -28,6 +28,8 @@ export function CanvasPage({ id }: { id: string }) {
     if (id && canvasId !== id) void loadCanvas(id);
   }, [id, canvasId, loadCanvas]);
 
+  useEffect(() => onOpenSettings(() => setShowSettings(true)), []);
+
   return (
     <div className="relative h-screen w-screen overflow-hidden">
       {/* Invisible drag strip across the top of the window for moving the window */}
