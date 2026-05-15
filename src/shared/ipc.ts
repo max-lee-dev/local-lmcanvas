@@ -34,6 +34,11 @@ export type Attachment = {
   base64: string;
 };
 
+export type FileEntry = {
+  path: string;
+  type: "file" | "dir";
+};
+
 export type ChatStartArgs = {
   chatId: string;
   /** The node initiating the chat — surfaced to the askUser flow so prompts render inline. */
