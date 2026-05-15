@@ -1,13 +1,30 @@
 import type { WebContents } from "electron";
 import type { Attachment } from "@shared/ipc";
+import type { ErrorCode } from "@shared/types";
 
 export type RunnerEvent =
   | { kind: "text_delta"; text: string }
   | { kind: "tool_use"; toolUseId: string; name: string; input: unknown }
   | { kind: "tool_result"; toolUseId: string; content: string; isError: boolean }
   | { kind: "thinking_delta"; text: string }
-  | { kind: "done"; isError?: boolean; result?: string }
-  | { kind: "error"; message: string };
+  | { kind: "done"; isError?: boolean; result?: string; code?: ErrorCode }
+  | { kind: "error"; message: string; code?: ErrorCode };
+
+const AUTH_PATTERNS: RegExp[] = [
+  /\b(not\s+(?:logged|signed)\s+in|not\s+authenticated)\b/i,
+  /\b(unauthorized|401|403)\b/i,
+  /\b(authentication\s+failed|auth\s+failed)\b/i,
+  /\b(token|session)\s+(?:has\s+)?expired\b/i,
+  /please\s+(?:run\s+)?(?:[`'"]?\S+[`'"]?\s+)?log(?:\s+in|in)/i,
+  /run\s+[`'"]?\S+\s+login[`'"]?/i,
+  /sign\s+in\s+(?:with|to)/i,
+  /api[\s_-]?key\s+(?:invalid|missing|required)/i,
+];
+
+export function isAuthError(message: string): boolean {
+  if (!message) return false;
+  return AUTH_PATTERNS.some((re) => re.test(message));
+}
 
 export type RunAgentOpts = {
   cwd: string;
