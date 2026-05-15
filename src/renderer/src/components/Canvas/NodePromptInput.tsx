@@ -190,6 +190,21 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
     setAttachments((prev) => [...prev, ...next]);
   };
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      addFiles,
+      focus: () => {
+        const el = textareaRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(el.value.length, el.value.length);
+        }
+      },
+    }),
+    [],
+  );
+
   const handleSubmit = (e?: React.FormEvent): void => {
     e?.preventDefault();
     const trimmed = value.trim();
