@@ -76,8 +76,21 @@ export type ChatEvent =
       isError: boolean;
     }
   | { chatId: string; type: "thinking_delta"; text: string }
-  | { chatId: string; type: "done"; isError?: boolean; result?: string }
-  | { chatId: string; type: "error"; message: string };
+  | {
+      chatId: string;
+      type: "done";
+      isError?: boolean;
+      result?: string;
+      code?: ErrorCode;
+      provider?: Provider;
+    }
+  | {
+      chatId: string;
+      type: "error";
+      message: string;
+      code?: ErrorCode;
+      provider?: Provider;
+    };
 
 export type CanvasCreateArgs = {
   name: string;
