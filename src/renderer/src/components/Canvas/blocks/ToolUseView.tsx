@@ -12,21 +12,29 @@ import { getToolIcon, getToolSummary } from "./toolMeta";
 
 type Props = {
   block: ToolUseBlock;
+  awaitingText?: boolean;
 };
 
-export function ToolUseView({ block }: Props) {
+export function ToolUseView({ block, awaitingText = false }: Props) {
   if (block.name === "TodoWrite") {
     return <TodoWriteView block={block} />;
   }
-  return <GenericToolView block={block} />;
+  return <GenericToolView block={block} awaitingText={awaitingText} />;
 }
 
-function GenericToolView({ block }: { block: ToolUseBlock }) {
+function GenericToolView({
+  block,
+  awaitingText,
+}: {
+  block: ToolUseBlock;
+  awaitingText: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   const Icon = getToolIcon(block.name);
   const summary = getToolSummary(block.name, block.input);
   const running = !block.result;
   const isError = block.result?.isError === true;
+  const showLoader = running || awaitingText;
 
   return (
     <div
@@ -67,7 +75,7 @@ function GenericToolView({ block }: { block: ToolUseBlock }) {
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
-          {running ? (
+          {showLoader ? (
             <Loader2 size={11} className="animate-spin text-muted-foreground" />
           ) : isError ? (
             <span className="text-[9px] font-medium text-destructive">failed</span>

@@ -7,21 +7,23 @@ import { getToolIcon } from "./toolMeta";
 
 type Props = {
   blocks: ToolUseBlock[];
+  awaitingText?: boolean;
 };
 
-export function ToolGroupView({ blocks }: Props) {
+export function ToolGroupView({ blocks, awaitingText = false }: Props) {
   const [expanded, setExpanded] = useState(false);
 
   if (blocks.length === 1) {
-    return <ToolUseView block={blocks[0]} />;
+    return <ToolUseView block={blocks[0]} awaitingText={awaitingText} />;
   }
 
   const errorCount = blocks.filter((b) => b.result?.isError).length;
   const pendingCount = blocks.filter((b) => !b.result).length;
   const isRunning = pendingCount > 0;
   const hasErrors = errorCount > 0;
+  const showLoader = isRunning || awaitingText;
 
-  const statusIcon = isRunning ? (
+  const statusIcon = showLoader ? (
     <Loader2 size={12} className="animate-spin text-muted-foreground" />
   ) : hasErrors ? (
     <AlertCircle size={12} className="text-destructive" />

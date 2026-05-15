@@ -1,6 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import type { AppSettings } from "@shared/types";
-import { SETTINGS_FILE, ensureDirs } from "./paths";
+import { SETTINGS_FILE, atomicWriteFile, ensureDirs } from "./paths";
 
 const DEFAULTS: AppSettings = {
   systemPrompt: "",
@@ -40,6 +40,6 @@ export async function readSettings(): Promise<AppSettings> {
 export async function writeSettings(settings: AppSettings): Promise<AppSettings> {
   await ensureDirs();
   const merged = mergeWithDefaults(settings);
-  await writeFile(SETTINGS_FILE, JSON.stringify(merged, null, 2), "utf-8");
+  await atomicWriteFile(SETTINGS_FILE, JSON.stringify(merged, null, 2));
   return merged;
 }

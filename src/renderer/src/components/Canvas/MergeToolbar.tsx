@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { GitMerge, X } from "lucide-react";
 import { useCanvasStore, useCanvasStoreApi } from "@/hooks/useCanvasStore";
-import { focusNodeTextarea } from "./CustomNode";
+import { focusNodeTextarea } from "@/lib/nodeDom";
 import {
   FALLBACK_NODE_HEIGHT,
   NODE_WIDTH,

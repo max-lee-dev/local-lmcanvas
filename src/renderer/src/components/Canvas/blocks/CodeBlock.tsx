@@ -34,7 +34,6 @@ export const CodeBlock = memo(function CodeBlock({ code, language, innerProps }:
           title="Copy"
         >
           {copied ? <Check size={10} /> : <Copy size={10} />}
-          <span>{copied ? "copied" : "copy"}</span>
         </button>
       </div>
       <pre className="node-scroll nowheel m-0 overflow-x-auto px-3 py-2 text-[9.5px] leading-snug">

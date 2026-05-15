@@ -57,8 +57,12 @@ export function CanvasPage({ ids }: CanvasPageProps) {
       {/* Sidebar (handles its own toggle button) */}
       <CanvasManager currentCanvasId={sidebarCanvasId} />
 
-      {/* Top-right: global settings */}
-      <div className="absolute top-3 right-3 z-50 no-drag flex items-center gap-1">
+      {/* Top-right: global settings. Shifted left in split mode so it never
+          crowds the left pane's right-anchored search button when the divider
+          is dragged close to the right edge. */}
+      <div
+        className={`absolute top-3 ${isSplit ? "right-12" : "right-3"} z-50 no-drag flex items-center gap-1`}
+      >
         <button
           onClick={() => setShowSettings(true)}
           className="flex h-7 w-7 items-center justify-center rounded-md text-foreground/70 hover:text-foreground hover:bg-muted cursor-pointer"

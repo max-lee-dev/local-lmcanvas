@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useReactFlow, useStore, type Node } from "@xyflow/react";
 import { makeBlankNode, useCanvasStore, useCanvasStoreApi } from "./useCanvasStore";
-import { focusNodeTextarea } from "@/components/Canvas/CustomNode";
+import { focusNodeTextarea } from "@/lib/nodeDom";
 import { useCenterOnNode } from "./useCenterOnNode";
 import {
   FALLBACK_NODE_HEIGHT,

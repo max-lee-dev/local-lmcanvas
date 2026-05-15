@@ -55,7 +55,7 @@
   },
   "build": {
     "appId": "com.lmcanvas.local",
-    "productName": "local-lmcanvas",
+    "productName": "LMCanvas",
     "files": [
       "out/**/*",
       "package.json",

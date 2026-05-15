@@ -45,7 +45,7 @@ function createWindow(hash?: string): BrowserWindow {
     height: 840,
     minWidth: 360,
     minHeight: 480,
-    title: "local-lmcanvas",
+    title: "LMCanvas",
     titleBarStyle: "hiddenInset",
     backgroundColor: "#fafafa",
     icon: icon.isEmpty() ? undefined : icon,

@@ -5,6 +5,7 @@ import rehypeHighlight from "rehype-highlight";
 import clsx from "clsx";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { CodeBlock } from "./CodeBlock";
+import { UserMessageBody } from "./UserMessageBody";
 
 type Props = {
   text: string;
@@ -249,8 +250,12 @@ function TextBlockViewImpl({ text, isUser, nodeId }: Props) {
 
   if (isUser) {
     return (
-      <div className="whitespace-pre-wrap break-words text-[10px] leading-relaxed text-foreground select-text cursor-text">
-        {highlightedTexts ? highlightTextInString(text, highlightedTexts) : text}
+      <div className="whitespace-pre-wrap break-words text-[10px] leading-[1.4] text-foreground select-text cursor-text">
+        {highlightedTexts ? (
+          highlightTextInString(text, highlightedTexts)
+        ) : (
+          <UserMessageBody text={text} />
+        )}
       </div>
     );
   }

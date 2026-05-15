@@ -93,15 +93,26 @@ export function NodeResponse({ message, onStop, nodeId }: Props) {
     >
       {isStreaming && !hasAnyContent && <GeneratingIndicator onStop={onStop} />}
 
-      {groupBlocks(message.blocks).map((item) => {
-        if (item.kind === "text") {
-          return <TextBlockView key={item.key} text={item.text} nodeId={nodeId} />;
-        }
-        if (item.kind === "thinking") {
-          return <ThinkingView key={item.key} text={item.text} />;
-        }
-        return <ToolGroupView key={item.key} blocks={item.blocks} />;
-      })}
+      {(() => {
+        const items = groupBlocks(message.blocks);
+        const lastIdx = items.length - 1;
+        return items.map((item, idx) => {
+          if (item.kind === "text") {
+            return <TextBlockView key={item.key} text={item.text} nodeId={nodeId} />;
+          }
+          if (item.kind === "thinking") {
+            return <ThinkingView key={item.key} text={item.text} />;
+          }
+          const awaitingText = isStreaming && idx === lastIdx;
+          return (
+            <ToolGroupView
+              key={item.key}
+              blocks={item.blocks}
+              awaitingText={awaitingText}
+            />
+          );
+        });
+      })()}
 
       {isStreaming && hasAnyContent && (
         <div className="pt-0.5">

@@ -81,7 +81,7 @@ function CanvasPaneInner({ id, splitMode, controlsSide = "right" }: CanvasPanePr
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden"
+      className="group relative h-full w-full overflow-hidden"
       onMouseDownCapture={() => setActive(id)}
     >
       {/* Active-pane outline (only meaningful in split mode) */}
@@ -111,7 +111,7 @@ function CanvasPaneInner({ id, splitMode, controlsSide = "right" }: CanvasPanePr
         {splitMode && (
           <button
             onClick={() => closePane(id)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-foreground/70 hover:text-foreground hover:bg-muted cursor-pointer"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-foreground/70 hover:text-foreground hover:bg-muted cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
             title="close pane"
           >
             <X size={14} />

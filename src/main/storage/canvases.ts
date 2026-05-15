@@ -1,10 +1,10 @@
-import { readdir, readFile, writeFile, unlink } from "node:fs/promises";
+import { readdir, readFile, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { nanoid } from "nanoid";
 import type { Canvas, CanvasNode, CanvasSummary, Message, Provider } from "@shared/types";
 import { PROVIDERS } from "@shared/types";
 import { migrateMessage } from "@shared/history";
-import { CANVASES_DIR, canvasFilePath, ensureDirs } from "./paths";
+import { CANVASES_DIR, atomicWriteFile, canvasFilePath, ensureDirs } from "./paths";
 
 export async function listCanvases(): Promise<CanvasSummary[]> {
   await ensureDirs();
@@ -12,8 +12,9 @@ export async function listCanvases(): Promise<CanvasSummary[]> {
   const summaries: CanvasSummary[] = [];
   for (const f of files) {
     if (!f.endsWith(".json")) continue;
+    const full = `${CANVASES_DIR}/${f}`;
     try {
-      const raw = await readFile(`${CANVASES_DIR}/${f}`, "utf-8");
+      const raw = await readFile(full, "utf-8");
       const parsed = JSON.parse(raw) as Partial<Canvas>;
       if (!parsed.id || !parsed.name) continue;
       summaries.push({
@@ -25,8 +26,8 @@ export async function listCanvases(): Promise<CanvasSummary[]> {
         nodeCount: parsed.nodes?.length ?? 0,
         provider: isProvider(parsed.provider) ? parsed.provider : undefined,
       });
-    } catch {
-      // skip corrupt files
+    } catch (err) {
+      console.error(`[canvases] failed to load ${full}:`, err);
     }
   }
   summaries.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -55,7 +56,7 @@ export async function readCanvas(id: string): Promise<Canvas | null> {
 export async function writeCanvas(canvas: Canvas): Promise<void> {
   await ensureDirs();
   const updated: Canvas = { ...canvas, updatedAt: Date.now() };
-  await writeFile(canvasFilePath(canvas.id), JSON.stringify(updated, null, 2), "utf-8");
+  await atomicWriteFile(canvasFilePath(canvas.id), JSON.stringify(updated, null, 2));
 }
 
 export async function createCanvas(args: {
