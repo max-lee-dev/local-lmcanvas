@@ -405,6 +405,7 @@ function CustomNodeImpl(props: NodeProps) {
         <div className="select-text nodrag -ml-[5px] pl-[5px]">
           {!hasSubmitted && (
             <NodePromptInput
+              ref={promptInputRef}
               nodeId={id}
               onSubmit={submit}
               onStop={stop}
