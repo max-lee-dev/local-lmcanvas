@@ -37,27 +37,6 @@ type CodexEvent =
   | { type: string; [k: string]: unknown };
 
 export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void> {
-  if (opts.attachments && opts.attachments.length > 0) {
-    opts.onEvent({
-      kind: "error",
-      message: "Image attachments are not yet supported for the codex provider.",
-    });
-    opts.onEvent({ kind: "done", isError: true });
-    return;
-  }
-
-  const bin = opts.binPath || "codex";
-  const args = [
-    "exec",
-    "--json",
-    "--skip-git-repo-check",
-    "--dangerously-bypass-approvals-and-sandbox",
-    "--cd",
-    opts.cwd,
-    ...(opts.model ? ["-c", `model="${opts.model}"`] : []),
-    "-",
-  ];
-
   let doneEmitted = false;
   const emit = (ev: RunnerEvent): void => {
     if (ev.kind === "done") doneEmitted = true;
@@ -71,6 +50,36 @@ export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void
     }
     opts.onEvent(ev);
   };
+
+  let attachmentCleanup: (() => Promise<void>) | null = null;
+  let imagePaths: string[] = [];
+  if (opts.attachments && opts.attachments.length > 0) {
+    try {
+      const written = await writeAttachmentsToTemp(opts.attachments);
+      imagePaths = written.paths;
+      attachmentCleanup = written.cleanup;
+    } catch (err) {
+      emit({
+        kind: "error",
+        message: `Failed to stage codex image attachments: ${errorMessage(err)}`,
+      });
+      emit({ kind: "done", isError: true });
+      return;
+    }
+  }
+
+  const bin = opts.binPath || "codex";
+  const args = [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--cd",
+    opts.cwd,
+    ...(opts.model ? ["-c", `model="${opts.model}"`] : []),
+    ...imagePaths.flatMap((p) => ["-i", p]),
+    "-",
+  ];
 
   const env = await shellEnv();
   const proc = spawn(bin, args, { stdio: ["pipe", "pipe", "pipe"], env });
