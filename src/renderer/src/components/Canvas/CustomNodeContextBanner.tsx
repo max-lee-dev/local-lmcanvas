@@ -19,10 +19,7 @@ export function CustomNodeContextBanner({
           size={10}
           className="shrink-0 text-muted-foreground"
         />
-        <div
-          className="font-medium line-clamp-1 text-muted-foreground"
-          style={{ fontSize: "8px" }}
-        >
+        <div className="text-[8px] leading-none tracking-tight font-medium line-clamp-1 text-muted-foreground">
           {addedContext}
         </div>
       </div>
