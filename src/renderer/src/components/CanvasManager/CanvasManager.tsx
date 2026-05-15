@@ -89,7 +89,7 @@ export function CanvasManager({
   const noResults = isSearching && filteredCanvases.length === 0;
 
   const beginCreate = () => {
-    setDraft({ name: "", cwd: "" });
+    setDraft({ name: "", cwd: "", provider: defaultProvider });
   };
 
   const cancelCreate = () => {
@@ -99,7 +99,11 @@ export function CanvasManager({
   const pickFolder = async () => {
     const folder = await window.api.dialog.pickFolder();
     if (!folder) return;
-    setDraft((d) => (d ? { ...d, cwd: folder } : { name: "", cwd: folder }));
+    setDraft((d) =>
+      d
+        ? { ...d, cwd: folder }
+        : { name: "", cwd: folder, provider: defaultProvider },
+    );
   };
 
   const submitCreate = async () => {
@@ -107,7 +111,11 @@ export function CanvasManager({
     const name = draft.name.trim() || "untitled canvas";
     setIsCreating(true);
     try {
-      const c = await window.api.canvases.create({ name, cwd: draft.cwd });
+      const c = await window.api.canvases.create({
+        name,
+        cwd: draft.cwd,
+        provider: draft.provider,
+      });
       setDraft(null);
       navigate(`/canvas/${c.id}`);
     } finally {
