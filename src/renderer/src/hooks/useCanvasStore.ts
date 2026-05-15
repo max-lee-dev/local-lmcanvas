@@ -60,7 +60,12 @@ export type CanvasStoreState = {
     isError: boolean
   ) => void;
   finalizeMessage: (nodeId: NodeId, messageId: string) => void;
-  errorMessage: (nodeId: NodeId, messageId: string, error: string) => void;
+  errorMessage: (
+    nodeId: NodeId,
+    messageId: string,
+    error: string,
+    opts?: { code?: ErrorCode; provider?: Provider }
+  ) => void;
   clearMessages: (nodeId: NodeId) => void;
   getHistoryForNode: (id: NodeId) => Message[];
   serialize: () => Canvas | null;
