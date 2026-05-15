@@ -106,6 +106,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family:
+    var(--font-geist-sans),
     var(--font-geist-pixel-square),
     var(--font-lato),
     -apple-system,
@@ -116,6 +117,19 @@ body {
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+code,
+pre,
+.font-mono {
+  font-family:
+    var(--font-geist-mono),
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
 }
 
 /* macOS-style draggable titlebar */
