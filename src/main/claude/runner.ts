@@ -12,22 +12,40 @@ import { dirname, join, sep } from "node:path";
 const nodeRequire = createRequire(import.meta.url);
 
 function resolveClaudeBin(): string | undefined {
-  const pkgName = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
+  const binName = process.platform === "win32" ? "claude.exe" : "claude";
+  const platformPkg = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
+  const candidates: string[] = [];
+  // 1. Try direct resolution (works in dev when bun/npm hoists the platform pkg flat).
   try {
-    const pkgJsonPath = nodeRequire.resolve(`${pkgName}/package.json`);
-    let binPath = join(dirname(pkgJsonPath), process.platform === "win32" ? "claude.exe" : "claude");
+    const direct = nodeRequire.resolve(`${platformPkg}/package.json`);
+    candidates.push(join(dirname(direct), binName));
+  } catch {
+    /* not hoisted */
+  }
+  // 2. Try via the SDK package (works when the platform binary is nested inside
+  //    the SDK's own node_modules — this is what bun does, and what ends up in
+  //    the asar after electron-builder).
+  try {
+    const sdkPkgJson = nodeRequire.resolve("@anthropic-ai/claude-agent-sdk/package.json");
+    candidates.push(
+      join(dirname(sdkPkgJson), "node_modules", "@anthropic-ai", platformPkg, binName),
+    );
+  } catch {
+    /* sdk not resolvable, shouldn't happen */
+  }
+  for (let candidate of candidates) {
     // Packaged Electron resolves into app.asar (a file, not a dir) — spawn needs the unpacked copy.
     const asarSeg = `${sep}app.asar${sep}`;
-    if (binPath.includes(asarSeg)) {
-      binPath = binPath.replace(asarSeg, `${sep}app.asar.unpacked${sep}`);
+    if (candidate.includes(asarSeg)) {
+      candidate = candidate.replace(asarSeg, `${sep}app.asar.unpacked${sep}`);
     }
-    return binPath;
-  } catch {
-    return undefined;
+    return candidate;
   }
+  return undefined;
 }
 
 const CLAUDE_BIN_PATH = resolveClaudeBin();
+console.log("[lmcanvas] CLAUDE_BIN_PATH =", CLAUDE_BIN_PATH);
 import type {
   BetaContentBlock,
   BetaRawContentBlockDeltaEvent,
