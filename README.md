@@ -70,3 +70,19 @@ Files are human-readable JSON.
 
 **Blank window** — check the DevTools console (opens automatically in dev). For prod, `bun run dev` once to see errors.
 
+## Contributing
+
+PRs welcome — including AI/vibe-coded ones. See [CONTRIBUTING.md](./CONTRIBUTING.md) for dev setup, conventions, and how to file issues. AI agents should also read [AGENTS.md](./AGENTS.md).
+
+## Vision
+
+Local-first, canvas-native, bring-your-own-CLI. See [VISION.md](./VISION.md) for the longer take and [CHANGELOG.md](./CHANGELOG.md) for what's shipped.
+
+## Security
+
+Report vulnerabilities privately via [GitHub Security Advisories](https://github.com/max-lee-dev/local-lmcanvas/security/advisories/new). See [SECURITY.md](./SECURITY.md).
+
+## License
+
+[MIT](./LICENSE) © 2026 Max Lee
+
