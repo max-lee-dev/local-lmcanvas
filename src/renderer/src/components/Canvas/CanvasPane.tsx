@@ -19,6 +19,12 @@ type CanvasPaneProps = {
   id: string;
   /** True when this pane is one of two panes in a split layout. */
   splitMode: boolean;
+  /**
+   * Which side of the pane the per-pane controls (search + close) anchor to.
+   * Defaults to "right". In split mode the right pane uses "left" so the
+   * controls frame the divider instead of crowding the global settings gear.
+   */
+  controlsSide?: "left" | "right";
 };
 
 /**
@@ -27,13 +33,17 @@ type CanvasPaneProps = {
  * split-screen. The pane registers as active on mousedown so global keyboard
  * shortcuts and the delete modal route to the focused pane.
  */
-export function CanvasPane({ id, splitMode }: CanvasPaneProps) {
+export function CanvasPane({ id, splitMode, controlsSide = "right" }: CanvasPaneProps) {
   return (
     <PaneProvider id={id}>
       <CanvasStoreProvider>
         <SearchModalProvider>
           <CommandPaletteProvider>
-            <CanvasPaneInner id={id} splitMode={splitMode} />
+            <CanvasPaneInner
+              id={id}
+              splitMode={splitMode}
+              controlsSide={controlsSide}
+            />
           </CommandPaletteProvider>
         </SearchModalProvider>
       </CanvasStoreProvider>
@@ -41,7 +51,7 @@ export function CanvasPane({ id, splitMode }: CanvasPaneProps) {
   );
 }
 
-function CanvasPaneInner({ id, splitMode }: CanvasPaneProps) {
+function CanvasPaneInner({ id, splitMode, controlsSide = "right" }: CanvasPaneProps) {
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
   const loaded = useCanvasStore((s) => s.loaded);
   const canvasId = useCanvasStore((s) => s.canvasId);
@@ -91,8 +101,12 @@ function CanvasPaneInner({ id, splitMode }: CanvasPaneProps) {
         </div>
       )}
 
-      {/* Top-right: per-pane controls (search + close-pane in split) */}
-      <div className="absolute top-3 right-3 z-30 no-drag flex items-center gap-1">
+      {/* Per-pane controls (search + close-pane in split). Anchored to whichever
+          side keeps it away from the global settings gear in the viewport's
+          top-right corner. */}
+      <div
+        className={`absolute top-3 ${controlsSide === "left" ? "left-3" : "right-3"} z-30 no-drag flex items-center gap-1`}
+      >
         <SearchButton />
         {splitMode && (
           <button

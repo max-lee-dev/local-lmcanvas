@@ -14,7 +14,7 @@ import clsx from "clsx";
 import { makeBlankNode, useCanvasStore, useCanvasStoreApi } from "@/hooks/useCanvasStore";
 import { ModelBadge } from "./ModelBadge";
 import { useNodeChat } from "@/hooks/useNodeChat";
-import type { CanvasNode, ImageBlock } from "@shared/types";
+import type { CanvasNode, ImageBlock, Message } from "@shared/types";
 import type { Attachment } from "@shared/ipc";
 import { NodeResponse } from "./NodeResponse";
 import { NodePromptInput, type NodePromptInputHandle } from "./NodePromptInput";
@@ -35,6 +35,8 @@ import {
   makeDomHeightMeasurer,
   resolveCollisions,
 } from "@/lib/collisionResolution";
+import { playFinishSound } from "@/lib/finishSound";
+import { usePreferencesStore } from "@/hooks/usePreferencesStore";
 
 type CustomNodeData = CanvasNode["data"];
 
@@ -92,6 +94,8 @@ function CustomNodeImpl(props: NodeProps) {
   const [isEditingPrompt, setIsEditingPrompt] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [justFinished, setJustFinished] = useState(false);
+  const wasStreamingRef = useRef(false);
   const askUserRequest = useAskUserStore((s) => s.byNode[id]);
   const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -318,6 +322,30 @@ function CustomNodeImpl(props: NodeProps) {
   };
 
   useEffect(() => {
+    const wasStreaming = wasStreamingRef.current;
+    wasStreamingRef.current = streaming;
+    if (!wasStreaming || streaming) return;
+    const node = storeApi.getState().nodes[id];
+    if (!node) return;
+    const msgs = node.data.chat.messages;
+    let lastAssistantMsg: Message | undefined;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === "assistant") {
+        lastAssistantMsg = msgs[i];
+        break;
+      }
+    }
+    if (lastAssistantMsg?.status !== "complete") return;
+    setJustFinished(true);
+    const prefs = usePreferencesStore.getState();
+    if (prefs.finishSoundEnabled) playFinishSound(prefs.finishSound);
+  }, [streaming, id, storeApi]);
+
+  useEffect(() => {
+    if (hovered && justFinished) setJustFinished(false);
+  }, [hovered, justFinished]);
+
+  useEffect(() => {
     if (!selection) return;
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== "Enter") return;
@@ -364,6 +392,18 @@ function CustomNodeImpl(props: NodeProps) {
       <Handle isConnectable={false} type="target" position={Position.Right} id="target-right" className="!opacity-0 !pointer-events-none" />
       <Handle isConnectable={false} type="target" position={Position.Bottom} id="target-bottom" className="!opacity-0 !pointer-events-none" />
       <Handle isConnectable={false} type="target" position={Position.Left} id="target-left" className="!opacity-0 !pointer-events-none" />
+
+      <div
+        aria-hidden
+        className={clsx(
+          "pointer-events-none absolute inset-0 rounded-[10px] transition-opacity",
+          justFinished && !hovered && !selected ? "opacity-100 duration-700" : "opacity-0 duration-300"
+        )}
+        style={{
+          boxShadow:
+            "0 0 22px 0 color-mix(in oklab, var(--accent-brand) 28%, transparent)",
+        }}
+      />
 
       <div
         className={clsx(

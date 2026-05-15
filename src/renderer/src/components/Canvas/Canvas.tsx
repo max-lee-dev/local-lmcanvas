@@ -49,6 +49,7 @@ const edgeStyle = {
 function CanvasInner() {
   const nodesById = useCanvasStore((s) => s.nodes);
   const edgesState = useCanvasStore((s) => s.edges);
+  const canvasId = useCanvasStore((s) => s.canvasId);
   const addNode = useCanvasStore((s) => s.addNode);
   const connectEdge = useCanvasStore((s) => s.connectEdge);
   const movePosition = useCanvasStore((s) => s.movePosition);
@@ -293,6 +294,7 @@ function CanvasInner() {
       onDoubleClick={onPaneDoubleClick}
     >
       <ReactFlow
+        id={canvasId ?? undefined}
         className="canvas-cursor-select"
         style={{ width: "100%", height: "100%" }}
         nodes={rfNodes}
@@ -332,6 +334,7 @@ function CanvasInner() {
         connectionLineStyle={edgeStyle}
       >
         <Background
+          id={canvasId ?? undefined}
           variant={BackgroundVariant.Lines}
           gap={32}
           size={1}

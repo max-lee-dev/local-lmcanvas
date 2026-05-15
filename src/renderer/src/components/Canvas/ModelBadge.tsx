@@ -9,7 +9,8 @@ import { PROVIDER_INFO } from "@/components/Onboarding/providerInfo";
 import { ProviderLogo } from "./ProviderLogo";
 
 export function ModelBadge() {
-  const { provider, label, labelsByProvider } = useProviderInfo();
+  const canvasProvider = useCanvasStore((s) => s.provider);
+  const { provider, label, labelsByProvider } = useProviderInfo(canvasProvider);
   const setProvider = useCanvasStore((s) => s.setProvider);
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);

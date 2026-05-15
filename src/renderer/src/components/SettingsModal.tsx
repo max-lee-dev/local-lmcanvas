@@ -8,7 +8,12 @@ import {
   PanSpeedSetting,
   ThemeSetting,
   ProviderRow,
+  KeybindingsSetting,
+  KeybindingsPage,
+  FinishSoundSetting,
 } from "./settings";
+
+type View = "main" | "keybindings";
 
 type Props = {
   open: boolean;
@@ -19,6 +24,7 @@ export function SettingsModal({ open, onClose }: Props) {
   const [settings, setSettings] = useState<AppSettings>({});
   const [saving, setSaving] = useState(false);
   const [showLegacy, setShowLegacy] = useState(false);
+  const [view, setView] = useState<View>("main");
 
   useEffect(() => {
     if (!open) return;
@@ -27,12 +33,22 @@ export function SettingsModal({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    setView("main");
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      if (view !== "main") {
+        setView("main");
+        return;
+      }
+      onClose();
     };
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [open, onClose]);
+  }, [open, onClose, view]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -81,6 +97,29 @@ export function SettingsModal({ open, onClose }: Props) {
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
+            {view === "keybindings" ? (
+              <>
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex-1" />
+                  <button
+                    onClick={onClose}
+                    className="rounded p-1 hover:bg-secondary cursor-pointer"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <KeybindingsPage onBack={() => setView("main")} />
+                <div className="mt-5 flex justify-end">
+                  <button
+                    onClick={() => setView("main")}
+                    className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary cursor-pointer"
+                  >
+                    done
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-sm font-semibold">settings</h2>
               <button
@@ -121,6 +160,8 @@ export function SettingsModal({ open, onClose }: Props) {
                   <ThemeSetting />
                   <MinimapSetting />
                   <PanSpeedSetting />
+                  <FinishSoundSetting />
+                  <KeybindingsSetting onOpen={() => setView("keybindings")} />
                   <div className="flex items-center justify-between gap-2 rounded-md px-1 py-1">
                     <div className="min-w-0">
                       <div className="text-xs font-medium text-foreground">
@@ -237,6 +278,8 @@ export function SettingsModal({ open, onClose }: Props) {
                 {saving ? "saving…" : "save"}
               </button>
             </div>
+              </>
+            )}
           </motion.div>
         </motion.div>
       )}

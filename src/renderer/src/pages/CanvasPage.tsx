@@ -4,8 +4,11 @@ import { CanvasPane } from "@/components/Canvas/CanvasPane";
 import { SplitDivider } from "@/components/Canvas/SplitDivider";
 import { SettingsModal } from "@/components/SettingsModal";
 import { CanvasManager } from "@/components/CanvasManager/CanvasManager";
+import { SplitPanePicker } from "@/components/CanvasManager/SplitPanePicker";
 import { useActivePaneStore } from "@/hooks/useActivePane";
+import { usePreferencesStore } from "@/hooks/usePreferencesStore";
 import { onOpenSettings } from "@/lib/openSettings";
+import { matchesShortcut } from "@/lib/shortcut";
 
 type CanvasPageProps = {
   ids: [string] | [string, string];
@@ -17,12 +20,29 @@ type CanvasPageProps = {
  */
 export function CanvasPage({ ids }: CanvasPageProps) {
   const [showSettings, setShowSettings] = useState(false);
+  const [showSplitPicker, setShowSplitPicker] = useState(false);
   const [splitFraction, setSplitFraction] = useState(0.5);
   const splitContainerRef = useRef<HTMLDivElement>(null);
   const activePaneId = useActivePaneStore((s) => s.activePaneId);
+  const splitPickerShortcut = usePreferencesStore(
+    (s) => s.keybindings.splitPanePicker,
+  );
   const isSplit = ids.length === 2;
 
   useEffect(() => onOpenSettings(() => setShowSettings(true)), []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Skip if a recorder/dialog already swallowed this (e.g. keybinding capture).
+      if (e.defaultPrevented) return;
+      if (matchesShortcut(e, splitPickerShortcut)) {
+        e.preventDefault();
+        setShowSplitPicker((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [splitPickerShortcut]);
 
   // Sidebar tracks whichever pane is active so highlight + sidebar actions
   // follow the user's focus.
@@ -61,7 +81,12 @@ export function CanvasPage({ ids }: CanvasPageProps) {
               containerRef={splitContainerRef}
             />
             <div className="h-full flex-1">
-              <CanvasPane key={`b-${ids[1]}`} id={ids[1]} splitMode />
+              <CanvasPane
+                key={`b-${ids[1]}`}
+                id={ids[1]}
+                splitMode
+                controlsSide="left"
+              />
             </div>
           </>
         ) : (
@@ -72,6 +97,11 @@ export function CanvasPage({ ids }: CanvasPageProps) {
       </div>
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
+      <SplitPanePicker
+        open={showSplitPicker}
+        onClose={() => setShowSplitPicker(false)}
+        excludeIds={ids}
+      />
     </div>
   );
 }

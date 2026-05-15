@@ -82,7 +82,8 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
   const consumePrefill = useCanvasStore((s) => s.consumePrefill);
   const pending = useCanvasStore((s) => s.pendingPrefills[nodeId]);
   const cwd = useCanvasStore((s) => s.cwd);
-  const { provider } = useProviderInfo();
+  const canvasProvider = useCanvasStore((s) => s.provider);
+  const { provider } = useProviderInfo(canvasProvider);
   const slashEnabled = provider === "claude";
   const editorRef = useRef<MentionEditorHandle | null>(null);
 

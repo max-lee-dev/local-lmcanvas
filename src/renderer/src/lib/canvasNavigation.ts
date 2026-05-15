@@ -37,7 +37,8 @@ export function navigateToCanvas(canvasId: string): void {
 
 /**
  * Open `canvasId` alongside the currently-open canvas as a split pane. If
- * already split, replaces the inactive pane so the focused pane stays put.
+ * already split, loads it into the focused pane — that's the one the user is
+ * targeting when they invoke the picker.
  */
 export function openInSplit(canvasId: string): void {
   const ids = getCurrentPaneIds();
@@ -45,8 +46,7 @@ export function openInSplit(canvasId: string): void {
   if (ids.length === 1) return navigate(`/canvas/${ids[0]}/${canvasId}`);
   const idx = activeIndex();
   const [a, b] = ids;
-  // Replace the OTHER pane so the focused pane stays put.
-  if (idx === 0) return navigate(`/canvas/${a}/${canvasId}`);
+  if (idx === 1) return navigate(`/canvas/${a}/${canvasId}`);
   return navigate(`/canvas/${canvasId}/${b}`);
 }
 

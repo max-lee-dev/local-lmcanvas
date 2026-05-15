@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { PROVIDERS, type AppSettings, type Provider } from "@shared/types";
-import { useCanvasStore } from "./useCanvasStore";
 
 export type ProviderInfoState = {
   provider: Provider;
@@ -15,13 +14,11 @@ const DEFAULT_MODEL_BY_PROVIDER: Record<Provider, string> = {
 };
 
 /**
- * Resolves the current provider for the open canvas, and a pretty label for
- * its configured model. Falls back to AppSettings.defaultProvider, then
- * "claude". Re-reads settings whenever the canvas's provider changes so the
- * model label tracks the active provider.
+ * Resolves the current provider and a pretty label for its configured model.
+ * Pass `canvasProvider` from inside a pane to track that canvas's provider;
+ * omit it from sidebar/global contexts to fall back to AppSettings.defaultProvider.
  */
-export function useProviderInfo(): ProviderInfoState {
-  const canvasProvider = useCanvasStore((s) => s.provider);
+export function useProviderInfo(canvasProvider?: Provider): ProviderInfoState {
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   useEffect(() => {
