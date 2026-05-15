@@ -354,6 +354,9 @@ function CustomNodeImpl(props: NodeProps) {
             ? "border-accent bg-accent/10"
             : "border-border"
         )}
+        onDragOver={handleNodeDragOver}
+        onDragLeave={handleNodeDragLeave}
+        onDrop={handleNodeDrop}
       >
         {askUserRequest && (
           <motion.div
