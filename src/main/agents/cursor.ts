@@ -59,9 +59,11 @@ export async function runCursor(prompt: string, opts: RunAgentOpts): Promise<voi
     opts.onEvent(ev);
   };
 
+  const env = await shellEnv();
   const proc = spawn(bin, args, {
     cwd: opts.cwd,
     stdio: ["ignore", "pipe", "pipe"],
+    env,
   });
 
   if (opts.signal) {
