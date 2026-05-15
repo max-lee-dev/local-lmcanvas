@@ -149,34 +149,34 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
     }
   };
 
-  const removeMention = (m: ParsedMention): void => {
-    // Drop the `@mention` plus a single trailing space if present, so we don't
-    // leave a double-space gap behind.
-    const before = value.slice(0, m.start);
-    const afterRaw = value.slice(m.end);
-    const after = afterRaw.startsWith(" ") ? afterRaw.slice(1) : afterRaw;
-    const next = before + after;
-    setValue(next);
-    if (mentionOpen) closeMention();
+  const removeMentionAt = (index: number): void => {
+    setMentions((prev) => prev.filter((_, i) => i !== index));
   };
 
   const selectMention = (entry: FileEntry): void => {
     if (mentionStart === null) return;
     const el = textareaRef.current;
     const caret = el?.selectionStart ?? value.length;
+    // Strip the `@query` from the textarea — the chip is now the sole
+    // representation. Collapse the surrounding whitespace so we don't leave
+    // double spaces behind.
     const before = value.slice(0, mentionStart);
     const after = value.slice(caret);
-    // Trailing slash on folders gives both a visual cue and a hint to the
-    // model that the mention refers to the whole directory.
-    const suffix = entry.type === "dir" ? "/" : "";
-    const insert = `@${entry.path}${suffix} `;
-    const nextValue = before + insert + after;
+    const trimmedBefore = before.replace(/\s+$/, "");
+    const trimmedAfter = after.replace(/^\s+/, "");
+    const sep = trimmedBefore && trimmedAfter ? " " : "";
+    const nextValue = trimmedBefore + sep + trimmedAfter;
     setValue(nextValue);
+    setMentions((prev) =>
+      prev.some((m) => m.path === entry.path && m.type === entry.type)
+        ? prev
+        : [...prev, entry]
+    );
     closeMention();
     requestAnimationFrame(() => {
       const node = textareaRef.current;
       if (!node) return;
-      const newCaret = (before + insert).length;
+      const newCaret = trimmedBefore.length + sep.length;
       node.focus();
       node.setSelectionRange(newCaret, newCaret);
     });
