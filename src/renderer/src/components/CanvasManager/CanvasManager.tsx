@@ -361,6 +361,13 @@ export function CanvasManager({
       </AnimatePresence>
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
+
+      <DeleteCanvasModal
+        isOpen={pendingDelete !== null}
+        canvasName={pendingDelete?.name ?? ""}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </>
   );
 }
