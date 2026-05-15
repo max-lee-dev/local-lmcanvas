@@ -137,6 +137,17 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
     }
   };
 
+  const removeMention = (m: ParsedMention): void => {
+    // Drop the `@mention` plus a single trailing space if present, so we don't
+    // leave a double-space gap behind.
+    const before = value.slice(0, m.start);
+    const afterRaw = value.slice(m.end);
+    const after = afterRaw.startsWith(" ") ? afterRaw.slice(1) : afterRaw;
+    const next = before + after;
+    setValue(next);
+    if (mentionOpen) closeMention();
+  };
+
   const selectMention = (entry: FileEntry): void => {
     if (mentionStart === null) return;
     const el = textareaRef.current;
