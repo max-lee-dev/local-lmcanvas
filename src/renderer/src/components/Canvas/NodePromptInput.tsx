@@ -352,14 +352,9 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
         )}
       </div>
 
-      {dragOver && (
-        <div className="pointer-events-none absolute inset-0 -m-2 rounded-md border border-dashed border-foreground/40 bg-foreground/[0.04] flex items-center justify-center text-[10px] text-muted-foreground">
-          Drop image to attach
-        </div>
-      )}
     </form>
   );
-}
+});
 
 function ThumbChip({
   attachment,
