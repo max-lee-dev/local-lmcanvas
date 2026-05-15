@@ -125,6 +125,7 @@ export const useCanvasStore = create<CanvasStoreState>()(
     name: "",
     cwd: "",
     createdAt: 0,
+    provider: undefined,
     nodes: {},
     edges: [],
     loaded: false,

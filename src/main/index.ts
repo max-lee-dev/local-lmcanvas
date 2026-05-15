@@ -190,18 +190,31 @@ function registerIpc(): void {
               });
               return;
             case "error":
-              send({ chatId, type: "error", message: ev.message });
+              send({
+                chatId,
+                type: "error",
+                message: ev.message,
+                code: ev.code,
+                provider,
+              });
               return;
             case "done":
-              send({ chatId, type: "done", isError: ev.isError, result: ev.result });
+              send({
+                chatId,
+                type: "done",
+                isError: ev.isError,
+                result: ev.result,
+                code: ev.code,
+                provider: ev.isError ? provider : undefined,
+              });
               return;
           }
         },
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      send({ chatId, type: "error", message });
-      send({ chatId, type: "done", isError: true });
+      send({ chatId, type: "error", message, provider });
+      send({ chatId, type: "done", isError: true, provider });
     } finally {
       activeChats.delete(chatId);
     }
