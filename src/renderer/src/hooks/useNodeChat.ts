@@ -103,14 +103,20 @@ export function useNodeChat(nodeId: NodeId) {
             return;
           case "done":
             if (ev.isError) {
-              s.errorMessage(nodeId, asstMsgId, ev.result ?? "error");
+              s.errorMessage(nodeId, asstMsgId, ev.result ?? "error", {
+                code: ev.code,
+                provider: ev.provider,
+              });
             } else {
               s.finalizeMessage(nodeId, asstMsgId);
             }
             cleanup();
             return;
           case "error":
-            s.errorMessage(nodeId, asstMsgId, ev.message);
+            s.errorMessage(nodeId, asstMsgId, ev.message, {
+              code: ev.code,
+              provider: ev.provider,
+            });
             cleanup();
             return;
         }
