@@ -8,7 +8,6 @@ import {
   PanSpeedSetting,
   ThemeSetting,
   ProviderRow,
-  TelemetrySetting,
 } from "./settings";
 
 type Props = {
@@ -122,12 +121,6 @@ export function SettingsModal({ open, onClose }: Props) {
                   <ThemeSetting />
                   <MinimapSetting />
                   <PanSpeedSetting />
-                  <TelemetrySetting
-                    enabled={settings.telemetryEnabled !== false}
-                    onChange={(next) =>
-                      setSettings({ ...settings, telemetryEnabled: next })
-                    }
-                  />
                   <div className="flex items-center justify-between gap-2 rounded-md px-1 py-1">
                     <div className="min-w-0">
                       <div className="text-xs font-medium text-foreground">

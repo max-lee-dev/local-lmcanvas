@@ -18,7 +18,6 @@ import {
   cancelAllForWebContents,
   completeRequest as completeAskUser,
 } from "./claude/askUserBridge";
-import { sendLaunchPing } from "./telemetry";
 import { getShellPath } from "./shellPath";
 import type {
   AskUserResponsePayload,
@@ -280,7 +279,6 @@ app.whenReady().then(async () => {
 
   registerIpc();
   createWindow();
-  void sendLaunchPing();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

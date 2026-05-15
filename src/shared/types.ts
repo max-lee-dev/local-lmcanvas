@@ -116,8 +116,4 @@ export type AppSettings = {
   defaultProvider?: Provider;
   providers?: Partial<Record<Provider, ProviderConfig>>;
   onboardingCompleted?: boolean;
-  /** Anonymous install identifier for telemetry. Generated on first launch. */
-  telemetryUuid?: string;
-  /** User-controlled opt-out. Undefined / true = enabled, false = disabled. */
-  telemetryEnabled?: boolean;
 };
