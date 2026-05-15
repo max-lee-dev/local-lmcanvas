@@ -216,6 +216,22 @@ function registerIpc(): void {
     completeAskUser(payload);
   });
 
+  ipcMain.handle("providers:authStatus", async (_e, provider: Provider) => {
+    const settings = await readSettings();
+    const binPath =
+      settings.providers?.[provider]?.binPath ??
+      (provider === "claude" ? settings.claudeBinPath : undefined);
+    return getProviderAuthStatus(provider, binPath);
+  });
+
+  ipcMain.handle("providers:openLogin", async (_e, provider: Provider) => {
+    const settings = await readSettings();
+    const binPath =
+      settings.providers?.[provider]?.binPath ??
+      (provider === "claude" ? settings.claudeBinPath : undefined);
+    await openLoginTerminal(provider, binPath);
+  });
+
   ipcMain.handle("window:openCanvas", async (_e, canvasId?: string) => {
     const hash = canvasId ? `/canvas/${canvasId}` : "/";
     createWindow(hash);
