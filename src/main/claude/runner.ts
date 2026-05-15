@@ -8,39 +8,69 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import { createRequire } from "node:module";
 import { dirname, join, sep } from "node:path";
+import { existsSync } from "node:fs";
 
 const nodeRequire = createRequire(import.meta.url);
 
 function resolveClaudeBin(): string | undefined {
   const binName = process.platform === "win32" ? "claude.exe" : "claude";
-  const platformPkg = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
+  const platformPkgShort = `claude-agent-sdk-${process.platform}-${process.arch}`;
+  const platformPkg = `@anthropic-ai/${platformPkgShort}`;
   const candidates: string[] = [];
-  // 1. Try direct resolution (works in dev when bun/npm hoists the platform pkg flat).
+
+  // 1. Packaged Electron: binary is unpacked next to app.asar.
+  if (process.resourcesPath) {
+    candidates.push(
+      join(
+        process.resourcesPath,
+        "app.asar.unpacked",
+        "node_modules",
+        "@anthropic-ai",
+        "claude-agent-sdk",
+        "node_modules",
+        "@anthropic-ai",
+        platformPkgShort,
+        binName,
+      ),
+      // Fallback: if it ever lands flat at top-level unpacked.
+      join(
+        process.resourcesPath,
+        "app.asar.unpacked",
+        "node_modules",
+        "@anthropic-ai",
+        platformPkgShort,
+        binName,
+      ),
+    );
+  }
+
+  // 2. Dev / hoisted install: resolve the SDK entry, then jump to the nested platform pkg.
+  try {
+    const sdkEntry = nodeRequire.resolve("@anthropic-ai/claude-agent-sdk");
+    const sdkDir = dirname(sdkEntry);
+    candidates.push(
+      join(sdkDir, "node_modules", "@anthropic-ai", platformPkgShort, binName),
+    );
+  } catch {
+    /* SDK unresolvable — shouldn't happen */
+  }
+
+  // 3. Top-level hoist (npm/yarn).
   try {
     const direct = nodeRequire.resolve(`${platformPkg}/package.json`);
     candidates.push(join(dirname(direct), binName));
   } catch {
     /* not hoisted */
   }
-  // 2. Try via the SDK package (works when the platform binary is nested inside
-  //    the SDK's own node_modules — this is what bun does, and what ends up in
-  //    the asar after electron-builder).
-  try {
-    const sdkPkgJson = nodeRequire.resolve("@anthropic-ai/claude-agent-sdk/package.json");
-    candidates.push(
-      join(dirname(sdkPkgJson), "node_modules", "@anthropic-ai", platformPkg, binName),
-    );
-  } catch {
-    /* sdk not resolvable, shouldn't happen */
-  }
+
   for (let candidate of candidates) {
-    // Packaged Electron resolves into app.asar (a file, not a dir) — spawn needs the unpacked copy.
     const asarSeg = `${sep}app.asar${sep}`;
     if (candidate.includes(asarSeg)) {
       candidate = candidate.replace(asarSeg, `${sep}app.asar.unpacked${sep}`);
     }
-    return candidate;
+    if (existsSync(candidate)) return candidate;
   }
+  console.error("[lmcanvas] No claude binary found. Candidates tried:", candidates);
   return undefined;
 }
 
