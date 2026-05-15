@@ -13,7 +13,6 @@ const DEFAULTS: AppSettings = {
     cursor: { binPath: "cursor-agent" },
   },
   onboardingCompleted: false,
-  telemetryEnabled: true,
 };
 
 function mergeWithDefaults(s: Partial<AppSettings>): AppSettings {

@@ -4,4 +4,3 @@ export { MinimapSetting } from "./MinimapSetting";
 export { PanSpeedSetting } from "./PanSpeedSetting";
 export { ThemeSetting } from "./ThemeSetting";
 export { ProviderRow } from "./ProviderRow";
-export { TelemetrySetting } from "./TelemetrySetting";
