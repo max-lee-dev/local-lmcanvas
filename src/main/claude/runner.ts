@@ -101,6 +101,7 @@ export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<vo
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         model: opts.model,
+        pathToClaudeCodeExecutable: CLAUDE_BIN_PATH,
         // append vs raw: we always extend claude_code preset so the agent
         // keeps its built-in tooling instructions
         systemPrompt: {
