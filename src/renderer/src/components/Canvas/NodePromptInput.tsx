@@ -58,7 +58,6 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
   const [attachments, setAttachments] = useState<Attachment[]>(
     initialAttachments ?? []
   );
-  const [dragOver, setDragOver] = useState(false);
   const consumePrefill = useCanvasStore((s) => s.consumePrefill);
   const pending = useCanvasStore((s) => s.pendingPrefills[nodeId]);
   const cwd = useCanvasStore((s) => s.cwd);
