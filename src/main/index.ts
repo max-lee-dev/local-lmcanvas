@@ -81,7 +81,7 @@ function createWindow(hash?: string): BrowserWindow {
 const activeChats = new Map<string, AbortController>();
 
 const FILES_CACHE_TTL_MS = 10_000;
-const filesCache = new Map<string, { at: number; files: string[] }>();
+const filesCache = new Map<string, { at: number; files: FileEntry[] }>();
 
 function registerIpc(): void {
   ipcMain.handle("canvases:list", async () => listCanvases());
