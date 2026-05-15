@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
 import { HomePage } from "./pages/HomePage";
 import { CanvasPage } from "./pages/CanvasPage";
+import { OnboardingPage } from "./pages/OnboardingPage";
 import { subscribeAskUserRequests } from "./hooks/useAskUserStore";
 import { useApplyTheme } from "./hooks/useApplyTheme";
 import { SearchModalProvider } from "./providers/SearchModalProvider";
 
 type Route =
   | { name: "home" }
+  | { name: "onboarding" }
   | { name: "canvas"; id: string };
 
 function parseHash(hash: string): Route {
   const h = hash.replace(/^#/, "");
   if (h.startsWith("/canvas/")) return { name: "canvas", id: h.slice("/canvas/".length) };
+  if (h === "/onboarding") return { name: "onboarding" };
   return { name: "home" };
 }
 
@@ -30,11 +33,30 @@ export function App() {
 
   useEffect(() => subscribeAskUserRequests(), []);
 
+  // On first launch, redirect home → onboarding. Don't trap users elsewhere.
+  useEffect(() => {
+    if (route.name !== "home") return;
+    let cancelled = false;
+    void window.api.settings.read().then((s) => {
+      if (cancelled) return;
+      if (!s.onboardingCompleted) navigate("/onboarding");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [route.name]);
+
   useApplyTheme();
 
   return (
     <SearchModalProvider>
-      {route.name === "canvas" ? <CanvasPage id={route.id} /> : <HomePage />}
+      {route.name === "canvas" ? (
+        <CanvasPage id={route.id} />
+      ) : route.name === "onboarding" ? (
+        <OnboardingPage />
+      ) : (
+        <HomePage />
+      )}
     </SearchModalProvider>
   );
 }
