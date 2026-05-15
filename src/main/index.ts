@@ -138,15 +138,25 @@ function registerIpc(): void {
     const combinedPrompt = buildPromptWithHistory(history, prompt);
     const systemPrompt = systemPromptOverride ?? settings.systemPrompt ?? undefined;
 
+    const provider: Provider = canvas.provider ?? settings.defaultProvider ?? "claude";
+    const providerCfg = settings.providers?.[provider];
+    const binPath =
+      providerCfg?.binPath ??
+      (provider === "claude" ? settings.claudeBinPath : undefined);
+    const model =
+      providerCfg?.model ??
+      (provider === "claude" ? settings.claudeModel : undefined);
+
     const controller = new AbortController();
     activeChats.set(chatId, controller);
 
     send({ chatId, type: "start" });
 
     try {
-      await runClaude(combinedPrompt, {
+      await runAgent(provider, combinedPrompt, {
         cwd: canvas.cwd,
-        model: settings.claudeModel,
+        model,
+        binPath,
         systemPrompt,
         attachments,
         signal: controller.signal,
