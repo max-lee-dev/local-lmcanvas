@@ -77,11 +77,30 @@ function prettyModelLabel(provider: Provider, modelId?: string): string {
     return modelId;
   }
   if (provider === "codex") {
+    if (!modelId || modelId.length === 0) return "GPT-5 Codex";
+    const lower = normalizeModelId(modelId);
+    if (
+      lower === "codex" ||
+      lower === "openai" ||
+      lower === "default" ||
+      lower === "openai/default"
+    ) {
+      return "GPT-5 Codex";
+    }
     return prettyOpenAIModelName(modelId);
   }
   if (provider === "cursor") {
     if (!modelId || modelId.length === 0) return "Auto";
-    if (modelId.toLowerCase() === "auto") return "Auto";
+    const lower = normalizeModelId(modelId);
+    if (
+      lower === "auto" ||
+      lower === "default" ||
+      lower === "cursor" ||
+      lower === "cursor-agent" ||
+      lower === "cursor/default"
+    ) {
+      return "Auto";
+    }
     return prettyOpenAIModelName(modelId);
   }
   return modelId ?? "Default";
@@ -89,16 +108,25 @@ function prettyModelLabel(provider: Provider, modelId?: string): string {
 
 function prettyOpenAIModelName(modelId?: string): string {
   if (!modelId || modelId.length === 0) return "GPT-5 Codex";
-  const lower = modelId.toLowerCase();
+  const lower = normalizeModelId(modelId);
   if (lower === "auto") return "Auto";
-  const pretty = modelId
+  if (lower === "codex") return "GPT-5 Codex";
+  if (lower === "cursor" || lower === "cursor-agent") return "Auto";
+
+  const sanitized = modelId.replace(/[\\/_]+/g, "-").replace(/\s+/g, "-");
+  const pretty = sanitized
     .split("-")
     .map((part) => {
-      if (part === "gpt") return "GPT";
-      if (part === "codex") return "Codex";
+      const token = part.toLowerCase();
+      if (token === "gpt") return "GPT";
+      if (token === "codex") return "Codex";
       if (/^\d+(\.\d+)*$/.test(part)) return part;
-      return part.charAt(0).toUpperCase() + part.slice(1);
+      return token.charAt(0).toUpperCase() + token.slice(1);
     })
     .join("-");
-  return pretty.replace("-Codex", " Codex");
+  return pretty.replace("-Codex", " Codex").replace("-Turbo", " Turbo");
+}
+
+function normalizeModelId(modelId: string): string {
+  return modelId.trim().toLowerCase();
 }

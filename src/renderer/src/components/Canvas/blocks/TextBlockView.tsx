@@ -13,6 +13,40 @@ type Props = {
 };
 
 type CodeProps = ComponentPropsWithoutRef<"code"> & { inline?: boolean };
+type AnchorProps = ComponentPropsWithoutRef<"a">;
+
+function isExternalHref(href: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(href) || /^mailto:/i.test(href);
+}
+
+function stripEditorLineSuffix(path: string): string {
+  return path
+    .replace(/#L\d+(C\d+)?$/i, "")
+    .replace(/:\d+:\d+$/, "")
+    .replace(/:\d+$/, "");
+}
+
+function toOpenablePath(rawHref: string, cwd: string): string | null {
+  const trimmed = rawHref.trim();
+  if (!trimmed || trimmed.startsWith("#")) return null;
+  if (isExternalHref(trimmed)) return null;
+
+  let path = trimmed.split("?")[0]?.split("#")[0] ?? trimmed;
+  if (path.startsWith("file://")) {
+    try {
+      path = decodeURIComponent(new URL(path).pathname);
+    } catch {
+      path = path.slice("file://".length);
+    }
+  }
+  path = stripEditorLineSuffix(path);
+  if (!path) return null;
+
+  const isAbsolute = path.startsWith("/") || /^[a-z]:[\\/]/i.test(path);
+  if (isAbsolute) return path;
+  if (!cwd) return path;
+  return `${cwd.replace(/\/+$/, "")}/${path.replace(/^\.?\//, "")}`;
+}
 
 function highlightTextInString(
   text: string,
@@ -105,6 +139,7 @@ function processChildren(
 }
 
 function TextBlockViewImpl({ text, isUser, nodeId }: Props) {
+  const cwd = useCanvasStore((state) => state.cwd);
   const highlightedTexts = useCanvasStore(
     useCallback(
       (state) => {
@@ -114,6 +149,22 @@ function TextBlockViewImpl({ text, isUser, nodeId }: Props) {
       },
       [nodeId],
     ),
+  );
+
+  const onLinkClick = useCallback(
+    (e: React.MouseEvent<HTMLAnchorElement>, href?: string) => {
+      if (!href) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (isExternalHref(href)) {
+        window.open(href, "_blank", "noopener,noreferrer");
+        return;
+      }
+      const path = toOpenablePath(href, cwd);
+      if (!path) return;
+      void window.api.shell.openPath(path);
+    },
+    [cwd],
   );
 
   const components = useMemo((): Components => {
@@ -147,8 +198,22 @@ function TextBlockViewImpl({ text, isUser, nodeId }: Props) {
             href={typeof src === "string" ? src : undefined}
             target="_blank"
             rel="noreferrer"
+            onClick={(e) => onLinkClick(e, typeof src === "string" ? src : undefined)}
           >
             {alt || src || "image"}
+          </a>
+        );
+      },
+      a(props) {
+        const { href, children, ...rest } = props as AnchorProps;
+        return (
+          <a
+            href={href}
+            rel="noreferrer"
+            {...rest}
+            onClick={(e) => onLinkClick(e, href)}
+          >
+            {children}
           </a>
         );
       },
@@ -180,7 +245,7 @@ function TextBlockViewImpl({ text, isUser, nodeId }: Props) {
       ),
     };
     /* eslint-enable @typescript-eslint/no-explicit-any */
-  }, [highlightedTexts]);
+  }, [highlightedTexts, onLinkClick]);
 
   if (isUser) {
     return (

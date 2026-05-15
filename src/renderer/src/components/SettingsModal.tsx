@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AppSettings, Provider } from "@shared/types";
 import { PROVIDERS } from "@shared/types";
@@ -42,9 +42,15 @@ export function SettingsModal({ open, onClose }: Props) {
     onClose();
   };
 
+  const handleReplayOnboarding = async () => {
+    await window.api.settings.write({ ...settings, onboardingCompleted: false });
+    onClose();
+    window.location.hash = "/onboarding";
+  };
+
   const updateProviderConfig = (
     provider: Provider,
-    patch: { binPath?: string; model?: string }
+    patch: { binPath?: string }
   ) => {
     setSettings((s) => ({
       ...s,
@@ -69,6 +75,7 @@ export function SettingsModal({ open, onClose }: Props) {
         >
           <motion.div
             className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-lg border border-border bg-card text-foreground p-5 shadow-xl"
+            style={{ fontFamily: "var(--font-geist-sans)" }}
             onClick={(e) => e.stopPropagation()}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -121,6 +128,26 @@ export function SettingsModal({ open, onClose }: Props) {
                       setSettings({ ...settings, telemetryEnabled: next })
                     }
                   />
+                  <div className="flex items-center justify-between gap-2 rounded-md px-1 py-1">
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-foreground">
+                        welcome flow
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Walk through provider setup again.
+                      </div>
+                    </div>
+                    <motion.button
+                      type="button"
+                      onClick={() => void handleReplayOnboarding()}
+                      className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] text-foreground hover:bg-secondary cursor-pointer"
+                      whileTap={{ scale: 0.96 }}
+                      whileHover={{ scale: 1.02 }}
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      Replay
+                    </motion.button>
+                  </div>
                 </div>
               </div>
 
@@ -171,21 +198,6 @@ export function SettingsModal({ open, onClose }: Props) {
                                     placeholder={provider}
                                   />
                                 </div>
-                                <div>
-                                  <label className="text-xs font-medium text-muted-foreground">
-                                    model override (optional)
-                                  </label>
-                                  <input
-                                    value={settings.providers?.[provider]?.model ?? ""}
-                                    onChange={(e) =>
-                                      updateProviderConfig(provider, {
-                                        model: e.target.value,
-                                      })
-                                    }
-                                    className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                                    placeholder="provider default"
-                                  />
-                                </div>
                               </div>
                             </div>
                           ))}
@@ -209,22 +221,6 @@ export function SettingsModal({ open, onClose }: Props) {
                             Prefer the per-provider binary path above. Kept for
                             back-compat.
                           </p>
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-muted-foreground">
-                            claude model (legacy)
-                          </label>
-                          <input
-                            value={settings.claudeModel ?? ""}
-                            onChange={(e) =>
-                              setSettings({
-                                ...settings,
-                                claudeModel: e.target.value,
-                              })
-                            }
-                            className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                            placeholder="e.g. claude-opus-4-7"
-                          />
                         </div>
                       </div>
                     </motion.div>

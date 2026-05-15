@@ -1,5 +1,6 @@
 import { PROVIDERS, type Provider } from "@shared/types";
 import { PROVIDER_INFO } from "@/components/Onboarding/providerInfo";
+import { useProviderInfo } from "@/hooks/useProviderInfo";
 
 type Props = {
   value: Provider;
@@ -7,6 +8,8 @@ type Props = {
 };
 
 export function ProviderPicker({ value, onChange }: Props) {
+  const { labelsByProvider } = useProviderInfo();
+
   return (
     <div className="inline-flex w-full items-center rounded-md border border-border bg-card p-0.5">
       {PROVIDERS.map((p) => {
@@ -24,7 +27,7 @@ export function ProviderPicker({ value, onChange }: Props) {
             }`}
             title={PROVIDER_INFO[p].tagline}
           >
-            {PROVIDER_INFO[p].name}
+            {labelsByProvider[p]}
           </button>
         );
       })}
