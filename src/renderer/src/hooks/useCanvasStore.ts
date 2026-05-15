@@ -27,6 +27,7 @@ export type CanvasStoreState = {
   name: string;
   cwd: string;
   createdAt: number;
+  provider: Provider | undefined;
   nodes: Record<NodeId, CanvasNode>;
   edges: CanvasEdge[];
   loaded: boolean;
@@ -40,6 +41,7 @@ export type CanvasStoreState = {
 
   loadCanvas: (id: string) => Promise<void>;
   setName: (name: string) => void;
+  setProvider: (provider: Provider) => void;
   addNode: (node: CanvasNode) => void;
   patchNode: (id: NodeId, patch: Partial<CanvasNode["data"]>) => void;
   movePosition: (id: NodeId, pos: { x: number; y: number }) => void;
