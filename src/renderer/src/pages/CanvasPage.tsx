@@ -7,6 +7,7 @@ import { SearchButton } from "@/components/Canvas/SearchModal";
 import { CanvasManager } from "@/components/CanvasManager/CanvasManager";
 import { DeleteNodeModal } from "@/components/Canvas/DeleteNodeModal";
 import { prettyPath } from "@/lib/prettyPath";
+import { onOpenSettings } from "@/lib/openSettings";
 
 export function CanvasPage({ id }: { id: string }) {
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
