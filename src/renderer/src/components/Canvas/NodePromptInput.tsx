@@ -16,6 +16,7 @@ import {
   getFilesForCwd,
 } from "./MentionPicker";
 import { MentionHighlight } from "./MentionHighlight";
+import { ImagePreviewModal } from "./ImagePreviewModal";
 import type { Attachment, FileEntry } from "@shared/ipc";
 import type { ImageMediaType } from "@shared/types";
 
