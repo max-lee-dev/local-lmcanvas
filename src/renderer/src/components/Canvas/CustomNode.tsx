@@ -16,7 +16,7 @@ import { useNodeChat } from "@/hooks/useNodeChat";
 import type { CanvasNode, ImageBlock } from "@shared/types";
 import type { Attachment } from "@shared/ipc";
 import { NodeResponse } from "./NodeResponse";
-import { NodePromptInput } from "./NodePromptInput";
+import { NodePromptInput, type NodePromptInputHandle } from "./NodePromptInput";
 import { AskUserPrompt } from "./AskUserPrompt";
 import { SelectionActionButton } from "./SelectionActionButton";
 import { CustomNodeContextBanner } from "./CustomNodeContextBanner";
