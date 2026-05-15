@@ -59,7 +59,15 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
   },
   ref,
 ) {
-  const [value, setValue] = useState(initialValue ?? "");
+  // Mentions live separately from the textarea text. If the prompt was
+  // restored from disk it may still contain `@path` tokens — pull those out
+  // into chips so the user sees a single representation.
+  const initialExtract = useMemo(
+    () => extractMentions(initialValue ?? ""),
+    [initialValue]
+  );
+  const [value, setValue] = useState(initialExtract.text);
+  const [mentions, setMentions] = useState<FileEntry[]>(initialExtract.mentions);
   const [attachments, setAttachments] = useState<Attachment[]>(
     initialAttachments ?? []
   );
