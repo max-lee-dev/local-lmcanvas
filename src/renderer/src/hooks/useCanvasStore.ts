@@ -83,6 +83,7 @@ function canvasFromState(s: CanvasStoreState): Canvas | null {
     updatedAt: Date.now(),
     nodes: Object.values(s.nodes),
     edges: s.edges,
+    provider: s.provider,
   };
 }
 
