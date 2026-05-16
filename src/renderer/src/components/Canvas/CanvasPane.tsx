@@ -127,12 +127,12 @@ function CanvasPaneInner({ id, splitMode, controlsSide = "right" }: CanvasPanePr
       )}
 
       {/* Per-pane controls (search + close-pane in split). Anchored to whichever
-          side keeps it away from the global settings gear in the viewport's
-          top-right corner. In single-pane mode the gear sits at right-3, so we
-          shift right-anchored controls to right-12 so they sit beside it
-          instead of underneath. */}
+          side keeps it away from the globe + settings cluster in the viewport's
+          top-right corner. In single-pane mode that cluster sits at right-3
+          and is ~72px wide (two 28px buttons + gap), so we shift right-anchored
+          controls past it. */}
       <div
-        className={`absolute top-3 ${controlsSide === "left" ? "left-3" : splitMode ? "right-3" : "right-12"} z-30 no-drag flex items-center gap-1.5`}
+        className={`absolute top-3 ${controlsSide === "left" ? "left-3" : splitMode ? "right-3" : "right-20"} z-30 no-drag flex items-center gap-1.5`}
       >
         <InProgressNodesIndicator />
         <SearchButton />
