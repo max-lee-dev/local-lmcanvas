@@ -1,7 +1,9 @@
+import { motion } from "framer-motion";
+import { Check } from "lucide-react";
+import clsx from "clsx";
 import { PROVIDERS, type Provider } from "@shared/types";
 import { PROVIDER_INFO } from "@/components/Onboarding/providerInfo";
 import { ProviderLogo } from "@/components/Canvas/ProviderLogo";
-import { useProviderInfo } from "@/hooks/useProviderInfo";
 
 type Props = {
   value: Provider;
@@ -9,51 +11,39 @@ type Props = {
 };
 
 export function ProviderPicker({ value, onChange }: Props) {
-  const { labelsByProvider } = useProviderInfo();
-
   return (
     <div className="grid grid-cols-3 gap-1.5">
       {PROVIDERS.map((p) => {
         const isActive = value === p;
+        const info = PROVIDER_INFO[p];
         return (
           <button
             key={p}
             type="button"
             onClick={() => onChange(p)}
             aria-pressed={isActive}
-            className={`flex flex-col items-center gap-1.5 rounded-md border px-2 py-2.5 transition-colors cursor-pointer ${
+            title={info.tagline}
+            className={clsx(
+              "flex items-center gap-1.5 rounded-md border px-2 py-1.5 transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-foreground/30",
               isActive
-                ? "border-foreground bg-foreground text-background"
-                : "border-border bg-card text-foreground hover:bg-muted"
-            }`}
-            title={PROVIDER_INFO[p].tagline}
+                ? "border-foreground/40 bg-foreground/[0.06]"
+                : "border-border bg-background hover:bg-muted/40"
+            )}
           >
-            <div
-              className={`flex h-7 w-7 items-center justify-center border ${
-                isActive
-                  ? "border-background/20 bg-background/10"
-                  : "border-border bg-background"
-              }`}
-            >
-              <ProviderLogo provider={p} size={16} className="opacity-90" />
-            </div>
-            <span
-              className="text-[11px] leading-none tracking-tight"
-              style={{
-                fontFamily: "var(--font-geist-pixel-square)",
-                fontWeight: 700,
-              }}
-            >
-              {PROVIDER_INFO[p].name}
+            <ProviderLogo provider={p} size={14} className="shrink-0" />
+            <span className="min-w-0 truncate text-xs font-medium text-foreground">
+              {info.name}
             </span>
-            <span
-              className={`max-w-full truncate text-[9px] leading-none ${
-                isActive ? "text-background/70" : "text-muted-foreground"
-              }`}
-              style={{ fontFamily: "var(--font-geist-mono)" }}
-            >
-              {labelsByProvider[p]}
-            </span>
+            {isActive && (
+              <motion.span
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 320, damping: 20 }}
+                className="ml-auto inline-flex shrink-0"
+              >
+                <Check className="h-3 w-3 text-foreground/70" />
+              </motion.span>
+            )}
           </button>
         );
       })}

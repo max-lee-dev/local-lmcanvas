@@ -19,6 +19,7 @@ import {
   completeRequest as completeAskUser,
 } from "./claude/askUserBridge";
 import { getShellPath } from "./shellPath";
+import { initAutoUpdate } from "./autoUpdate";
 import type {
   AskUserResponsePayload,
   ChatEvent,
@@ -279,6 +280,7 @@ app.whenReady().then(async () => {
 
   registerIpc();
   createWindow();
+  initAutoUpdate();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -92,8 +92,10 @@ export function CanvasManager({
   const isSearching = searchQuery.trim().length > 0;
   const noResults = isSearching && filteredCanvases.length === 0;
 
-  const beginCreate = () => {
-    setDraft({ name: "", cwd: "", provider: defaultProvider });
+  const beginCreate = async () => {
+    const folder = await window.api.dialog.pickFolder();
+    if (!folder) return;
+    setDraft({ name: "", cwd: folder, provider: defaultProvider });
   };
 
   const cancelCreate = () => {
@@ -201,7 +203,7 @@ export function CanvasManager({
               <div className="p-2">
                 <div className="relative my-2 flex h-11 w-full px-1">
                   <motion.button
-                    onClick={beginCreate}
+                    onClick={() => void beginCreate()}
                     disabled={!!draft}
                     className="flex-1 cursor-pointer h-11 px-3 hover:opacity-90 rounded-md disabled:opacity-50 transition-colors bg-primary text-primary-foreground border-0"
                     title="Create new canvas"

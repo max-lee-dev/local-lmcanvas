@@ -1,6 +1,6 @@
 {
   "name": "local-lmcanvas",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Branching AI conversations via Claude Code CLI — fully local.",
   "license": "MIT",
   "author": "Max Lee",
@@ -22,7 +22,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "bun run typecheck:node && bun run typecheck:web",
     "pack": "electron-vite build && electron-builder --dir",
-    "dist": "electron-vite build && electron-builder"
+    "dist": "electron-vite build && electron-builder --publish never"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.141",
@@ -30,6 +30,7 @@
     "@fontsource-variable/geist-mono": "^5.2.7",
     "@xyflow/react": "^12.10.2",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.3",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.8.0",
     "nanoid": "^5.1.9",
@@ -74,22 +75,28 @@
       "category": "public.app-category.productivity",
       "target": {
         "target": "dmg",
-        "arch": ["arm64", "x64"]
+        "arch": [
+          "arm64",
+          "x64"
+        ]
       },
       "icon": "build/icon.png",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "notarize": {
-        "teamId": "4QY9LPWB45"
-      }
+      "notarize": true
     },
     "win": {
       "icon": "build/icon.png"
     },
     "linux": {
       "icon": "build/icon.png"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "max-lee-dev",
+      "repo": "local-lmcanvas"
     }
   }
 }
