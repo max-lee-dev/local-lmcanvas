@@ -5,7 +5,6 @@ import {
   ConnectionLineType,
   MiniMap,
   ReactFlow,
-  ReactFlowProvider,
   SelectionMode,
   applyNodeChanges,
   useReactFlow,
@@ -370,9 +369,5 @@ function CanvasInner() {
 }
 
 export function Canvas() {
-  return (
-    <ReactFlowProvider>
-      <CanvasInner />
-    </ReactFlowProvider>
-  );
+  return <CanvasInner />;
 }

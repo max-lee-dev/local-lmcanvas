@@ -282,6 +282,31 @@ header.app-drag {
     sans-serif;
 }
 
+/* Settings modal: pin Geist everywhere except explicit mono spans. */
+.settings-modal,
+.settings-modal input,
+.settings-modal textarea,
+.settings-modal button,
+.settings-modal select {
+  font-family:
+    var(--font-geist-sans),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+.settings-modal .font-mono {
+  font-family:
+    var(--font-geist-mono),
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+}
+
 /* Canvas interaction-mode cursors (avera) */
 .canvas-cursor-select .react-flow__pane {
   cursor: default !important;

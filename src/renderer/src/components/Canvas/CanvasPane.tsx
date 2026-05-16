@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Plus, X } from "lucide-react";
+import { ReactFlowProvider } from "@xyflow/react";
 import { Canvas } from "@/components/Canvas/Canvas";
 import {
   CanvasStoreProvider,
@@ -8,6 +9,7 @@ import {
 } from "@/hooks/useCanvasStore";
 import { PaneProvider, useActivePaneStore } from "@/hooks/useActivePane";
 import { SearchButton } from "@/components/Canvas/SearchModal";
+import { InProgressNodesIndicator } from "@/components/Canvas/InProgressNodesIndicator";
 import { CanvasBreadcrumb } from "@/components/CanvasManager/CanvasBreadcrumb";
 import { DeleteNodeModal } from "@/components/Canvas/DeleteNodeModal";
 import { SearchModalProvider } from "@/providers/SearchModalProvider";
@@ -39,11 +41,13 @@ export function CanvasPane({ id, splitMode, controlsSide = "right" }: CanvasPane
       <CanvasStoreProvider>
         <SearchModalProvider>
           <CommandPaletteProvider>
-            <CanvasPaneInner
-              id={id}
-              splitMode={splitMode}
-              controlsSide={controlsSide}
-            />
+            <ReactFlowProvider>
+              <CanvasPaneInner
+                id={id}
+                splitMode={splitMode}
+                controlsSide={controlsSide}
+              />
+            </ReactFlowProvider>
           </CommandPaletteProvider>
         </SearchModalProvider>
       </CanvasStoreProvider>
@@ -105,8 +109,9 @@ function CanvasPaneInner({ id, splitMode, controlsSide = "right" }: CanvasPanePr
           side keeps it away from the global settings gear in the viewport's
           top-right corner. */}
       <div
-        className={`absolute top-3 ${controlsSide === "left" ? "left-3" : "right-3"} z-30 no-drag flex items-center gap-1`}
+        className={`absolute top-3 ${controlsSide === "left" ? "left-3" : "right-3"} z-30 no-drag flex items-center gap-1.5`}
       >
+        <InProgressNodesIndicator />
         <SearchButton />
         {splitMode && (
           <button
