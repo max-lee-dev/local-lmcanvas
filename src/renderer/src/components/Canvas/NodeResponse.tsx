@@ -74,9 +74,12 @@ type Props = {
   message: Message;
   onStop?: () => void;
   nodeId?: string;
+  /** Click handler for a `<next-steps>` suggestion button — receives the
+   *  full prompt the button represents. */
+  onSuggestionClick?: (prompt: string) => void;
 };
 
-export function NodeResponse({ message, onStop, nodeId }: Props) {
+export function NodeResponse({ message, onStop, nodeId, onSuggestionClick }: Props) {
   const isUser = message.role === "user";
   const isError = message.status === "error";
   const isStreaming = message.status === "streaming";
@@ -151,6 +154,42 @@ export function NodeResponse({ message, onStop, nodeId }: Props) {
       )}
 
       {isError && message.error && <ErrorBlock message={message} />}
+
+      {message.suggestions && message.suggestions.length > 0 && onSuggestionClick && (
+        <SuggestionButtons
+          suggestions={message.suggestions}
+          onClick={onSuggestionClick}
+        />
+      )}
+    </div>
+  );
+}
+
+function SuggestionButtons({
+  suggestions,
+  onClick,
+}: {
+  suggestions: { label: string; prompt: string }[];
+  onClick: (prompt: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1 pt-1 nodrag">
+      {suggestions.map((s, i) => (
+        <button
+          key={i}
+          type="button"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onClick(s.prompt);
+          }}
+          title={s.prompt}
+          className="cursor-pointer rounded-md border border-border bg-background/60 px-1.5 py-0.5 text-[10px] text-foreground/80 transition-colors hover:bg-accent hover:text-foreground focus:outline-none"
+        >
+          {s.label}
+        </button>
+      ))}
     </div>
   );
 }

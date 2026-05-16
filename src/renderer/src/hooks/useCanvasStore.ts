@@ -13,6 +13,7 @@ import type {
   NodeId,
   NodeSettings,
   Provider,
+  Suggestion,
   TextBlock,
   ToolUseBlock,
 } from "@shared/types";
@@ -41,7 +42,7 @@ export type CanvasStoreState = {
   dirty: Dirty;
   saving: boolean;
   error: string | null;
-  pendingPrefills: Record<NodeId, string>;
+  pendingPrefills: Record<NodeId, PendingPrefill>;
   searchHighlights: Map<NodeId, Set<string>>;
   setSearchHighlights: (nodeId: NodeId, textMatches: string[]) => void;
   clearSearchHighlights: () => void;
@@ -97,9 +98,15 @@ export type CanvasStoreState = {
   serialize: () => Canvas | null;
   markDirty: () => void;
   save: () => Promise<void>;
-  setPrefill: (nodeId: NodeId, text: string) => void;
-  consumePrefill: (nodeId: NodeId) => string | undefined;
+  setPrefill: (nodeId: NodeId, text: string, opts?: { autoSubmit?: boolean }) => void;
+  consumePrefill: (nodeId: NodeId) => PendingPrefill | undefined;
+  /** Replace a message's parsed `<next-steps>` suggestions. */
+  setSuggestions: (nodeId: NodeId, messageId: string, suggestions: Suggestion[]) => void;
 };
+
+/** Initial prompt to render into a freshly-created node's input. `autoSubmit` skips
+ *  the editor population and fires the prompt directly — used by next-step buttons. */
+export type PendingPrefill = { text: string; autoSubmit?: boolean };
 
 export type CanvasStoreApi = Mutate<
   StoreApi<CanvasStoreState>,
@@ -665,8 +672,11 @@ export function createCanvasStoreApi(): CanvasStoreApi {
         }));
       },
 
-      setPrefill: (nodeId, text) => {
-        set((s) => ({ pendingPrefills: { ...s.pendingPrefills, [nodeId]: text } }));
+      setPrefill: (nodeId, text, opts) => {
+        const entry: PendingPrefill = opts?.autoSubmit
+          ? { text, autoSubmit: true }
+          : { text };
+        set((s) => ({ pendingPrefills: { ...s.pendingPrefills, [nodeId]: entry } }));
       },
 
       consumePrefill: (nodeId) => {
@@ -678,6 +688,16 @@ export function createCanvasStoreApi(): CanvasStoreApi {
           return { pendingPrefills: next };
         });
         return current;
+      },
+
+      setSuggestions: (nodeId, messageId, suggestions) => {
+        set((s) => {
+          const nodes = updateMessages(s.nodes, nodeId, (messages) =>
+            mapMessage(messages, messageId, (m) => ({ ...m, suggestions })),
+          );
+          return nodes ? { nodes } : s;
+        });
+        get().markDirty();
       },
 
       save: async () => {

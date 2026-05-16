@@ -20,6 +20,9 @@ import { useCenterOnNode } from "@/hooks/useCenterOnNode";
 
 export type BranchOptions = {
   prefill?: string;
+  /** If true, the prefill is submitted immediately instead of populating the
+   *  child's textarea — used by next-step suggestion buttons. */
+  autoSubmit?: boolean;
   addedContext?: string;
   selectionViewportY?: number;
 };
@@ -39,7 +42,7 @@ export function useBranchFromNode(parentId: string): BranchFn {
 
   return useCallback(
     (opts) => {
-      const { prefill, addedContext, selectionViewportY } = opts ?? {};
+      const { prefill, autoSubmit, addedContext, selectionViewportY } = opts ?? {};
       const parentPos = parentNode?.position ?? { x: 0, y: 0 };
       const isRightLane = Boolean(prefill) || Boolean(addedContext);
       let position: { x: number; y: number };
@@ -68,7 +71,7 @@ export function useBranchFromNode(parentId: string): BranchFn {
         };
       }
       const child = makeBlankNode(position, parentId, addedContext);
-      if (prefill) setPrefill(child.id, prefill);
+      if (prefill) setPrefill(child.id, prefill, { autoSubmit });
       addNode(child);
       connectEdge(parentId, child.id, sourceYOffset != null ? { sourceYOffset } : undefined);
 

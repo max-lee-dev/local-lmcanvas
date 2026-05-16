@@ -12,6 +12,7 @@ import type {
 } from "@shared/types";
 import type { Attachment, ChatEvent } from "@shared/ipc";
 import { buildMergeContext } from "@shared/history";
+import { createNextStepsStreamer } from "@/lib/nextStepsParser";
 
 export function useNodeChat(nodeId: NodeId) {
   const storeApi = useCanvasStoreApi();
@@ -78,8 +79,22 @@ export function useNodeChat(nodeId: NodeId) {
       const chatId = nanoid();
       activeChatIdRef.current = chatId;
 
+      // Per-stream parser that strips any trailing `<next-steps>` block from
+      // the visible text and persists the parsed items on the assistant
+      // message. State lives inside this closure so concurrent chats can't
+      // bleed into each other.
+      const nextStepsStreamer = createNextStepsStreamer({
+        onText: (text) =>
+          storeApi.getState().appendTextDelta(nodeId, asstMsgId, text),
+        onSuggestions: (suggestions) =>
+          storeApi.getState().setSuggestions(nodeId, asstMsgId, suggestions),
+      });
+
       let off: (() => void) | null = null;
       const cleanup = () => {
+        // Flush any remaining buffered text (e.g. an unterminated <next-steps>
+        // block) so we don't silently swallow it.
+        nextStepsStreamer.flush();
         if (off) {
           off();
           off = null;
@@ -96,14 +111,18 @@ export function useNodeChat(nodeId: NodeId) {
           case "start":
             return;
           case "text_delta":
-            s.appendTextDelta(nodeId, asstMsgId, ev.text);
+            nextStepsStreamer.ingest(ev.text);
             return;
           case "thinking_delta": {
+            // Flush held-back text first so any pending characters land
+            // before the new non-text block.
+            nextStepsStreamer.flush();
             const block: ThinkingBlock = { type: "thinking", text: ev.text };
             s.appendBlock(nodeId, asstMsgId, block);
             return;
           }
           case "tool_use": {
+            nextStepsStreamer.flush();
             const block: ToolUseBlock = {
               type: "tool_use",
               id: ev.toolUseId,

@@ -26,6 +26,10 @@ export type ContentBlock = TextBlock | ToolUseBlock | ThinkingBlock | ImageBlock
 
 export type ErrorCode = "auth_required";
 
+/** A model-proposed follow-up action. Rendered as a button under the assistant message;
+ *  clicking creates a child node prefilled with `prompt` and auto-submits it. */
+export type Suggestion = { label: string; prompt: string };
+
 export type Message = {
   id: string;
   role: "user" | "assistant";
@@ -37,6 +41,8 @@ export type Message = {
   errorCode?: ErrorCode;
   /** Which provider produced the error (so the UI can guide re-auth). */
   errorProvider?: Provider;
+  /** Parsed from a trailing `<next-steps>` block in the model's response. */
+  suggestions?: Suggestion[];
 };
 
 export type ChatData = {

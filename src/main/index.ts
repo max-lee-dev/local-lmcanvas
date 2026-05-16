@@ -91,6 +91,24 @@ const activeChats = new Map<string, ActiveChat>();
 const TERSE_NARRATION_INSTRUCTION =
   "RESPONSE STYLE: Be extremely terse with prose between tool calls. Do NOT narrate what you are about to do before calling a tool, and do NOT describe each result after a tool returns. After a batch of related tool calls completes, write ONE short sentence (max two) summarizing what those tools accomplished, then move on. Save longer prose for your final answer to the user.";
 
+// Asks the model to optionally end with a `<next-steps>` block listing 1–3
+// follow-up prompts. The renderer strips this block from the visible text and
+// renders each item as a clickable button that branches into a new child node.
+const NEXT_STEPS_INSTRUCTION = `SUGGESTED NEXT STEPS: When — and only when — there are 1–3 obvious follow-up actions the user is likely to want next, end your response with a block in this exact format:
+
+<next-steps>
+- Short label :: Full prompt the user could send as the next message
+- Short label :: Full prompt the user could send as the next message
+</next-steps>
+
+Rules:
+- Place the block at the very end of your response, after all other content. Nothing follows it.
+- Each item is on its own line, starts with "- ", and uses " :: " (space-colon-colon-space) as the separator.
+- Label is ≤6 words, sentence case, no trailing punctuation.
+- Prompt is a complete, standalone instruction the user could send verbatim.
+- 0–3 items. If nothing obvious comes to mind, omit the block entirely — do NOT force suggestions.
+- Never wrap the block in code fences or markdown. Never reference it in the prose above.`;
+
 const FILES_CACHE_TTL_MS = 10_000;
 const filesCache = new Map<string, { at: number; files: FileEntry[] }>();
 
@@ -168,11 +186,14 @@ function registerIpc(): void {
     const settings = await readSettings();
     const combinedPrompt = buildPromptWithHistory(history, prompt);
     const basePrompt = systemPromptOverride ?? settings.systemPrompt ?? "";
-    const systemPrompt = settings.terseToolNarration
+    const withTerse = settings.terseToolNarration
       ? basePrompt
         ? `${basePrompt}\n\n${TERSE_NARRATION_INSTRUCTION}`
         : TERSE_NARRATION_INSTRUCTION
-      : basePrompt || undefined;
+      : basePrompt;
+    const systemPrompt = withTerse
+      ? `${withTerse}\n\n${NEXT_STEPS_INSTRUCTION}`
+      : NEXT_STEPS_INSTRUCTION;
 
     const provider: Provider =
       nodeSettings?.provider ?? canvas.provider ?? settings.defaultProvider ?? "claude";

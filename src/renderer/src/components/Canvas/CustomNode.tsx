@@ -279,7 +279,12 @@ function CustomNodeImpl(props: NodeProps) {
             </div>
           )}
           {assistantMessage && (
-            <NodeResponse message={assistantMessage} onStop={stop} nodeId={id} />
+            <NodeResponse
+              message={assistantMessage}
+              onStop={stop}
+              nodeId={id}
+              onSuggestionClick={(prompt) => branch({ prefill: prompt, autoSubmit: true })}
+            />
           )}
           {askUserRequest && <AskUserPrompt request={askUserRequest} />}
         </div>

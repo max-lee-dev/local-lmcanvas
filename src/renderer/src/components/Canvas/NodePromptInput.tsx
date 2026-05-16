@@ -162,11 +162,22 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
 
   useEffect(() => {
     if (pending !== undefined) {
-      const text = consumePrefill(nodeId) ?? "";
+      const prefill = consumePrefill(nodeId);
+      if (!prefill) return;
+      const { text, autoSubmit } = prefill;
       if (segmentsAreEmpty(segments) && text) {
-        const next = textToSegments(text);
-        editorRef.current?.setSegments(next);
-        editorRef.current?.focus(true);
+        if (autoSubmit) {
+          // Skip populating the editor — fire the prompt directly. The parent
+          // chat hook handles message append + streaming exactly as if the
+          // user had typed and hit enter.
+          onSubmit(text);
+          editorRef.current?.clear();
+          setSegments([]);
+        } else {
+          const next = textToSegments(text);
+          editorRef.current?.setSegments(next);
+          editorRef.current?.focus(true);
+        }
       }
     }
     // segments intentionally excluded — only react to a new pending prefill
