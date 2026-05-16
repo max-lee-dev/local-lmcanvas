@@ -24,6 +24,7 @@ const api: LmcApi = {
   chat: {
     start: (args: ChatStartArgs) => ipcRenderer.invoke("chat:start", args),
     cancel: (chatId) => ipcRenderer.invoke("chat:cancel", chatId),
+    cancelForNode: (nodeId) => ipcRenderer.invoke("chat:cancelForNode", nodeId),
     onEvent: (handler: (ev: ChatEvent) => void) => {
       const listener = (_: Electron.IpcRendererEvent, ev: ChatEvent) => handler(ev);
       ipcRenderer.on("chat:event", listener);

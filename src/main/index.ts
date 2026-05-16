@@ -83,7 +83,8 @@ function createWindow(hash?: string): BrowserWindow {
   return win;
 }
 
-const activeChats = new Map<string, AbortController>();
+type ActiveChat = { controller: AbortController; nodeId: string };
+const activeChats = new Map<string, ActiveChat>();
 
 const FILES_CACHE_TTL_MS = 10_000;
 const filesCache = new Map<string, { at: number; files: FileEntry[] }>();
@@ -164,7 +165,7 @@ function registerIpc(): void {
       (provider === "claude" ? settings.claudeModel : undefined);
 
     const controller = new AbortController();
-    activeChats.set(chatId, controller);
+    activeChats.set(chatId, { controller, nodeId });
 
     send({ chatId, type: "start" });
 
@@ -236,9 +237,17 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("chat:cancel", async (e, chatId: string) => {
-    activeChats.get(chatId)?.abort();
+    activeChats.get(chatId)?.controller.abort();
     activeChats.delete(chatId);
     cancelAllForWebContents(e.sender);
+  });
+
+  ipcMain.handle("chat:cancelForNode", async (_e, nodeId: string) => {
+    for (const [chatId, entry] of activeChats) {
+      if (entry.nodeId !== nodeId) continue;
+      entry.controller.abort();
+      activeChats.delete(chatId);
+    }
   });
 
   ipcMain.handle("askUser:respond", async (_e, payload: AskUserResponsePayload) => {

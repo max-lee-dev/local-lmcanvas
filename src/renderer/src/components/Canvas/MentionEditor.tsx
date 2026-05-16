@@ -167,6 +167,22 @@ function buildSlashChipElement(item: SlashItem): HTMLSpanElement {
   return span;
 }
 
+// `<div><br></div>` is Chromium's blank-line placeholder inside a
+// contenteditable — the inner <br> only exists so the empty block has a
+// rendered height. The block boundary already accounts for the newline.
+function isEmptyBlockPlaceholder(el: HTMLElement): boolean {
+  let sawBr = false;
+  for (const child of Array.from(el.childNodes)) {
+    if (child.nodeType === Node.TEXT_NODE) {
+      if ((child.textContent ?? "") !== "") return false;
+    } else if (child.nodeType === Node.ELEMENT_NODE) {
+      if ((child as HTMLElement).tagName === "BR" && !sawBr) sawBr = true;
+      else return false;
+    }
+  }
+  return sawBr;
+}
+
 function parseDom(root: HTMLElement): Segment[] {
   const segs: Segment[] = [];
 
@@ -206,7 +222,7 @@ function parseDom(root: HTMLElement): Segment[] {
         // Browsers wrap new lines in block elements when the user presses
         // Enter inside contenteditable. Treat the boundary as a newline.
         if (segs.length > 0) pushText("\n");
-        walk(el, true);
+        if (!isEmptyBlockPlaceholder(el)) walk(el, true);
       } else {
         walk(el, isBlockBoundary);
       }
@@ -344,6 +360,39 @@ function placeCaretAtEnd(root: HTMLElement): void {
   sel.addRange(range);
 }
 
+// Scroll the editor's scroll container so the current caret line is visible.
+// Used after Shift+Enter — the browser doesn't auto-scroll contentEditable
+// when a newline is inserted at the bottom of an overflowing editor.
+function scrollCaretIntoView(root: HTMLElement): void {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+  const range = sel.getRangeAt(0);
+  if (!root.contains(range.startContainer)) return;
+
+  let rect = range.getBoundingClientRect();
+  // An empty line has no width/height for the range, so insert a zero-width
+  // marker to get an accurate caret rect, then remove it.
+  if (rect.top === 0 && rect.bottom === 0 && rect.left === 0) {
+    const marker = document.createElement("span");
+    marker.textContent = "​";
+    const measureRange = range.cloneRange();
+    measureRange.insertNode(marker);
+    rect = marker.getBoundingClientRect();
+    marker.remove();
+    // Re-collapse the live selection at the caret's logical position.
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  const editorRect = root.getBoundingClientRect();
+  if (rect.bottom > editorRect.bottom) {
+    root.scrollTop += rect.bottom - editorRect.bottom;
+  } else if (rect.top < editorRect.top) {
+    root.scrollTop -= editorRect.top - rect.top;
+  }
+}
+
 export const MentionEditor = forwardRef<MentionEditorHandle, Props>(
   function MentionEditor(
     {
@@ -458,6 +507,8 @@ export const MentionEditor = forwardRef<MentionEditorHandle, Props>(
       if (e.key === "Enter" && e.shiftKey) {
         e.preventDefault();
         document.execCommand("insertText", false, "\n");
+        const el = editorRef.current;
+        if (el) scrollCaretIntoView(el);
         return;
       }
       if (e.key === "Escape") {

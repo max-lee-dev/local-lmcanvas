@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { useCanvasStoreApi } from "./useCanvasStore";
 import type {
@@ -167,6 +167,13 @@ export function useNodeChat(nodeId: NodeId) {
   const stop = useCallback(() => {
     const id = activeChatIdRef.current;
     if (id) void window.api.chat.cancel(id);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      const id = activeChatIdRef.current;
+      if (id) void window.api.chat.cancel(id);
+    };
   }, []);
 
   return { submit, stop, streaming };

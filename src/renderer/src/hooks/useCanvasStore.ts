@@ -368,6 +368,7 @@ export function createCanvasStoreApi(): CanvasStoreApi {
       },
 
       removeNode: (id) => {
+        void window.api.chat.cancelForNode(id);
         set((s) => {
           const nodes = { ...s.nodes };
           delete nodes[id];

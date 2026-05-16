@@ -134,6 +134,8 @@ export type LmcApi = {
   chat: {
     start(args: ChatStartArgs): Promise<void>;
     cancel(chatId: string): Promise<void>;
+    /** Cancel any in-progress chats associated with the given node. */
+    cancelForNode(nodeId: string): Promise<void>;
     onEvent(handler: (ev: ChatEvent) => void): () => void;
   };
   dialog: {
