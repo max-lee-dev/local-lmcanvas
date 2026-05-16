@@ -1,5 +1,4 @@
 import { readdir, readFile, unlink } from "node:fs/promises";
-import { homedir } from "node:os";
 import { nanoid } from "nanoid";
 import type { Canvas, CanvasNode, CanvasSummary, Message, Provider } from "@shared/types";
 import { PROVIDERS } from "@shared/types";
@@ -20,7 +19,7 @@ export async function listCanvases(): Promise<CanvasSummary[]> {
       summaries.push({
         id: parsed.id,
         name: parsed.name,
-        cwd: parsed.cwd ?? homedir(),
+        cwd: typeof parsed.cwd === "string" && parsed.cwd.length > 0 ? parsed.cwd : undefined,
         createdAt: parsed.createdAt ?? 0,
         updatedAt: parsed.updatedAt ?? 0,
         nodeCount: parsed.nodes?.length ?? 0,
@@ -60,22 +59,23 @@ export async function writeCanvas(canvas: Canvas): Promise<void> {
 }
 
 export async function createCanvas(args: {
-  name: string;
-  cwd: string;
+  name?: string;
+  cwd?: string;
   provider?: Provider;
 }): Promise<Canvas> {
   await ensureDirs();
   const id = nanoid(10);
   const now = Date.now();
+  const cwd = args.cwd && args.cwd.length > 0 ? args.cwd : undefined;
   const canvas: Canvas = {
     id,
-    name: args.name || "Untitled canvas",
-    cwd: args.cwd || homedir(),
+    name: args.name && args.name.length > 0 ? args.name : "Untitled canvas",
     createdAt: now,
     updatedAt: now,
     nodes: [],
     edges: [],
     provider: args.provider,
+    ...(cwd ? { cwd } : {}),
   };
   await writeCanvas(canvas);
   return canvas;
@@ -106,15 +106,16 @@ function migrateCanvas(raw: Partial<Canvas> & Record<string, unknown>): Canvas |
   const nodes: CanvasNode[] = Array.isArray(raw.nodes)
     ? (raw.nodes as CanvasNode[]).map(migrateNode)
     : [];
+  const cwd = typeof raw.cwd === "string" && raw.cwd.length > 0 ? raw.cwd : undefined;
   return {
     id: raw.id,
     name: raw.name,
-    cwd: typeof raw.cwd === "string" && raw.cwd.length > 0 ? raw.cwd : homedir(),
     createdAt: typeof raw.createdAt === "number" ? raw.createdAt : Date.now(),
     updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : Date.now(),
     nodes,
     edges: Array.isArray(raw.edges) ? raw.edges : [],
     provider: isProvider(raw.provider) ? raw.provider : undefined,
+    ...(cwd ? { cwd } : {}),
   };
 }
 

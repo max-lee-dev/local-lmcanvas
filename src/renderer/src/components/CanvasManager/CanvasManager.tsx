@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Folder, Loader2, PanelLeft, Plus, Settings, X } from "lucide-react";
-import type { Canvas, CanvasSummary, Provider } from "@shared/types";
+import { PanelLeft, Plus, Settings } from "lucide-react";
+import type { Canvas, CanvasSummary } from "@shared/types";
 import { navigateToCanvas } from "@/lib/canvasNavigation";
-import { prettyPath } from "@/lib/prettyPath";
 import { SettingsModal } from "@/components/SettingsModal";
+import { useFocusRequestStore } from "@/hooks/useFocusRequestStore";
 import { CanvasItem } from "./CanvasItem";
 import { CanvasSearch, type CanvasSearchRef } from "./CanvasSearch";
 import { DeleteCanvasModal } from "./DeleteCanvasModal";
-import { ProviderPicker } from "./ProviderPicker";
 import { onOpenSettings } from "@/lib/openSettings";
 
 type CanvasManagerProps = {
@@ -19,8 +18,6 @@ type CanvasManagerProps = {
   /** Notified whenever the panel opens or closes. */
   onOpenChange?: (isOpen: boolean) => void;
 };
-
-type DraftCanvas = { name: string; cwd: string; provider: Provider };
 
 export function CanvasManager({
   currentCanvasId = null,
@@ -40,10 +37,9 @@ export function CanvasManager({
   const [showSettings, setShowSettings] = useState(false);
   const [deletingCanvasId, setDeletingCanvasId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
-  const [draft, setDraft] = useState<DraftCanvas | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [defaultProvider, setDefaultProvider] = useState<Provider>("claude");
   const searchRef = useRef<CanvasSearchRef>(null);
+  const requestFocus = useFocusRequestStore((s) => s.requestFocus);
 
   const refresh = async () => {
     setIsLoading(true);
@@ -54,18 +50,6 @@ export function CanvasManager({
 
   useEffect(() => {
     void refresh();
-  }, []);
-
-  // Pull the default provider preference so the new-canvas form pre-selects it.
-  useEffect(() => {
-    let cancelled = false;
-    void window.api.settings.read().then((s) => {
-      if (cancelled) return;
-      if (s.defaultProvider) setDefaultProvider(s.defaultProvider);
-    });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   useEffect(() => {
@@ -92,37 +76,12 @@ export function CanvasManager({
   const isSearching = searchQuery.trim().length > 0;
   const noResults = isSearching && filteredCanvases.length === 0;
 
-  const beginCreate = async () => {
-    const folder = await window.api.dialog.pickFolder();
-    if (!folder) return;
-    setDraft({ name: "", cwd: folder, provider: defaultProvider });
-  };
-
-  const cancelCreate = () => {
-    setDraft(null);
-  };
-
-  const pickFolder = async () => {
-    const folder = await window.api.dialog.pickFolder();
-    if (!folder) return;
-    setDraft((d) =>
-      d
-        ? { ...d, cwd: folder }
-        : { name: "", cwd: folder, provider: defaultProvider },
-    );
-  };
-
-  const submitCreate = async () => {
-    if (!draft || !draft.cwd) return;
-    const name = draft.name.trim() || "untitled canvas";
+  const handleCreate = async () => {
+    if (isCreating) return;
     setIsCreating(true);
     try {
-      const c = await window.api.canvases.create({
-        name,
-        cwd: draft.cwd,
-        provider: draft.provider,
-      });
-      setDraft(null);
+      const c = await window.api.canvases.create({});
+      await refresh();
       navigateToCanvas(c.id);
     } finally {
       setIsCreating(false);
@@ -132,6 +91,13 @@ export function CanvasManager({
   const handleSelect = (canvas: CanvasSummary) => {
     searchRef.current?.close();
     navigateToCanvas(canvas.id);
+  };
+
+  const handleThreadSelect = (canvasId: string, startNodeId: string) => {
+    if (canvasId !== currentCanvasId) {
+      navigateToCanvas(canvasId);
+    }
+    requestFocus(canvasId, startNodeId);
   };
 
   const handleRename = async (id: string, newName: string) => {
@@ -203,12 +169,12 @@ export function CanvasManager({
               <div className="p-2">
                 <div className="relative my-2 flex h-11 w-full px-1">
                   <motion.button
-                    onClick={() => void beginCreate()}
-                    disabled={!!draft}
+                    onClick={() => void handleCreate()}
+                    disabled={isCreating}
                     className="flex-1 cursor-pointer h-11 px-3 hover:opacity-90 rounded-md disabled:opacity-50 transition-colors bg-primary text-primary-foreground border-0"
                     title="Create new canvas"
-                    whileHover={draft ? {} : { scale: 1.01 }}
-                    whileTap={draft ? {} : { scale: 0.99 }}
+                    whileHover={isCreating ? {} : { scale: 1.01 }}
+                    whileTap={isCreating ? {} : { scale: 0.99 }}
                   >
                     <div className="flex justify-center items-center gap-1.5">
                       <div className="rounded-full">
@@ -220,94 +186,6 @@ export function CanvasManager({
                     </div>
                   </motion.button>
                 </div>
-
-                {/* Inline draft creation */}
-                <AnimatePresence>
-                  {draft && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="mx-1 mb-2 rounded-md border border-border bg-background p-3">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-xs font-medium text-foreground">
-                            new canvas
-                          </span>
-                          <button
-                            onClick={cancelCreate}
-                            className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
-                            title="cancel"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <input
-                            autoFocus
-                            value={draft.name}
-                            onChange={(e) =>
-                              setDraft({ ...draft, name: e.target.value })
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && draft.cwd)
-                                void submitCreate();
-                              if (e.key === "Escape") cancelCreate();
-                            }}
-                            placeholder="canvas name"
-                            className="rounded-md border border-border bg-card px-2 py-1.5 text-sm text-foreground outline-none focus:border-ring"
-                          />
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => void pickFolder()}
-                              className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground hover:bg-muted cursor-pointer"
-                            >
-                              <Folder size={12} />
-                              {draft.cwd ? "change folder" : "pick folder"}
-                            </button>
-                            <div
-                              className="flex-1 truncate text-xs text-muted-foreground"
-                              title={draft.cwd}
-                            >
-                              {draft.cwd
-                                ? prettyPath(draft.cwd)
-                                : "no folder selected"}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="mb-1 text-[11px] font-medium text-muted-foreground">
-                              provider
-                            </div>
-                            <ProviderPicker
-                              value={draft.provider}
-                              onChange={(p) =>
-                                setDraft({ ...draft, provider: p })
-                              }
-                            />
-                          </div>
-                          <div className="flex items-center justify-end">
-                            <button
-                              onClick={() => void submitCreate()}
-                              disabled={!draft.cwd || isCreating}
-                              className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
-                            >
-                              {isCreating ? (
-                                <>
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                  Creating…
-                                </>
-                              ) : (
-                                "Create"
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
 
               {/* Canvas list */}
@@ -341,6 +219,7 @@ export function CanvasManager({
                         onSelect={() => handleSelect(c)}
                         onRename={(newName) => handleRename(c.id, newName)}
                         onDelete={() => handleDelete(c.id, c.name)}
+                        onThreadSelect={handleThreadSelect}
                       />
                     ))}
                   </div>

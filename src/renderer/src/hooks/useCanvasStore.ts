@@ -11,6 +11,7 @@ import type {
   ErrorCode,
   Message,
   NodeId,
+  NodeSettings,
   Provider,
   TextBlock,
   ToolUseBlock,
@@ -22,15 +23,18 @@ import {
 } from "@shared/history";
 import { getEdgeHandles } from "@/lib/edgeHandles";
 import { FALLBACK_NODE_HEIGHT, VERTICAL_CHILD_OFFSET } from "@/lib/canvasConstants";
+import { useRecentsStore } from "@/hooks/useRecentsStore";
 
 type Dirty = { count: number; lastChangeAt: number };
 
 export type CanvasStoreState = {
   canvasId: string | null;
   name: string;
-  cwd: string;
+  cwd: string | undefined;
   createdAt: number;
   provider: Provider | undefined;
+  /** Mirror of AppSettings.defaultProvider — populated on canvas load so effective-provider lookups don't have to hit IPC. */
+  defaultProvider: Provider | undefined;
   nodes: Record<NodeId, CanvasNode>;
   edges: CanvasEdge[];
   loaded: boolean;
@@ -55,6 +59,16 @@ export type CanvasStoreState = {
   loadCanvas: (id: string) => Promise<void>;
   setName: (name: string) => void;
   setProvider: (provider: Provider) => void;
+  /** Merge a patch into `node.data.nodeSettings`. Per-node override of provider/cwd/branch. */
+  setNodeSettings: (nodeId: NodeId, patch: Partial<NodeSettings>) => void;
+  /** Unset a single nodeSettings field so the node falls back to canvas defaults. */
+  clearNodeSettingsField: (nodeId: NodeId, field: keyof NodeSettings) => void;
+  /** Effective provider: node override → canvas → AppSettings.defaultProvider → "claude". */
+  getEffectiveProvider: (nodeId: NodeId) => Provider;
+  /** Effective cwd: node override → canvas → undefined. */
+  getEffectiveCwd: (nodeId: NodeId) => string | undefined;
+  /** Effective branch label: node override only — there is no canvas-level branch. */
+  getEffectiveBranch: (nodeId: NodeId) => string | undefined;
   addNode: (node: CanvasNode) => void;
   patchNode: (id: NodeId, patch: Partial<CanvasNode["data"]>) => void;
   movePosition: (id: NodeId, pos: { x: number; y: number }) => void;
@@ -101,12 +115,12 @@ function canvasFromState(s: CanvasStoreState): Canvas | null {
   return {
     id: s.canvasId,
     name: s.name,
-    cwd: s.cwd,
     createdAt: s.createdAt,
     updatedAt: Date.now(),
     nodes: Object.values(s.nodes),
     edges: s.edges,
     provider: s.provider,
+    ...(s.cwd ? { cwd: s.cwd } : {}),
   };
 }
 
@@ -147,9 +161,10 @@ export function createCanvasStoreApi(): CanvasStoreApi {
     subscribeWithSelector((set, get) => ({
       canvasId: null,
       name: "",
-      cwd: "",
+      cwd: undefined,
       createdAt: 0,
       provider: undefined,
+      defaultProvider: undefined,
       nodes: {},
       edges: [],
       loaded: false,
@@ -238,7 +253,10 @@ export function createCanvasStoreApi(): CanvasStoreApi {
 
       loadCanvas: async (id: string) => {
         set({ loaded: false, error: null });
-        const canvas = await window.api.canvases.read(id);
+        const [canvas, settings] = await Promise.all([
+          window.api.canvases.read(id),
+          window.api.settings.read(),
+        ]);
         if (!canvas) {
           set({ error: `Failed to load canvas ${id}`, loaded: true });
           return;
@@ -269,6 +287,7 @@ export function createCanvasStoreApi(): CanvasStoreApi {
           cwd: canvas.cwd,
           createdAt: canvas.createdAt,
           provider: canvas.provider,
+          defaultProvider: settings.defaultProvider,
           nodes,
           edges: canvas.edges,
           loaded: true,
@@ -286,8 +305,94 @@ export function createCanvasStoreApi(): CanvasStoreApi {
         get().markDirty();
       },
 
+      setNodeSettings: (nodeId, patch) => {
+        let snapshot: NodeSettings | undefined;
+        set((s) => {
+          const existing = s.nodes[nodeId];
+          if (!existing) return s;
+          const current = existing.data.nodeSettings ?? {};
+          const merged: NodeSettings = { ...current };
+          for (const key of Object.keys(patch) as (keyof NodeSettings)[]) {
+            const value = patch[key];
+            if (value === undefined) delete merged[key];
+            else if (key === "provider") merged.provider = value as Provider;
+            else if (key === "cwd") merged.cwd = value as string;
+            else if (key === "branch") merged.branch = value as string;
+          }
+          const hasAny =
+            merged.provider !== undefined ||
+            merged.cwd !== undefined ||
+            merged.branch !== undefined;
+          const nextData = { ...existing.data };
+          if (hasAny) nextData.nodeSettings = merged;
+          else delete nextData.nodeSettings;
+          snapshot = hasAny ? { ...merged } : undefined;
+          return {
+            nodes: { ...s.nodes, [nodeId]: { ...existing, data: nextData } },
+          };
+        });
+        if (snapshot) useRecentsStore.getState().setLastNodeSettings(snapshot);
+        get().markDirty();
+      },
+
+      clearNodeSettingsField: (nodeId, field) => {
+        set((s) => {
+          const existing = s.nodes[nodeId];
+          if (!existing) return s;
+          const current = existing.data.nodeSettings;
+          if (!current || current[field] === undefined) return s;
+          const next: NodeSettings = { ...current };
+          delete next[field];
+          const hasAny =
+            next.provider !== undefined ||
+            next.cwd !== undefined ||
+            next.branch !== undefined;
+          const nextData = { ...existing.data };
+          if (hasAny) nextData.nodeSettings = next;
+          else delete nextData.nodeSettings;
+          return {
+            nodes: { ...s.nodes, [nodeId]: { ...existing, data: nextData } },
+          };
+        });
+        get().markDirty();
+      },
+
+      getEffectiveProvider: (nodeId) => {
+        const s = get();
+        const nodeProvider = s.nodes[nodeId]?.data.nodeSettings?.provider;
+        return nodeProvider ?? s.provider ?? s.defaultProvider ?? "claude";
+      },
+
+      getEffectiveCwd: (nodeId) => {
+        const s = get();
+        const nodeCwd = s.nodes[nodeId]?.data.nodeSettings?.cwd;
+        return nodeCwd ?? s.cwd;
+      },
+
+      getEffectiveBranch: (nodeId) => {
+        const s = get();
+        return s.nodes[nodeId]?.data.nodeSettings?.branch;
+      },
+
       addNode: (node) => {
-        set((s) => ({ nodes: { ...s.nodes, [node.id]: node } }));
+        set((s) => {
+          let nextNode = node;
+          if (!node.data.nodeSettings) {
+            const parentId = node.data.chat.parentIds[0];
+            const parentSettings = parentId
+              ? s.nodes[parentId]?.data.nodeSettings
+              : undefined;
+            const inherited =
+              parentSettings ?? useRecentsStore.getState().lastNodeSettings;
+            if (inherited && (inherited.provider || inherited.cwd || inherited.branch)) {
+              nextNode = {
+                ...node,
+                data: { ...node.data, nodeSettings: { ...inherited } },
+              };
+            }
+          }
+          return { nodes: { ...s.nodes, [node.id]: nextNode } };
+        });
         get().markDirty();
       },
 

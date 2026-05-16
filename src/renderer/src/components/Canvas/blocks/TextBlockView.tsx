@@ -27,7 +27,7 @@ function stripEditorLineSuffix(path: string): string {
     .replace(/:\d+$/, "");
 }
 
-function toOpenablePath(rawHref: string, cwd: string): string | null {
+function toOpenablePath(rawHref: string, cwd: string | undefined): string | null {
   const trimmed = rawHref.trim();
   if (!trimmed || trimmed.startsWith("#")) return null;
   if (isExternalHref(trimmed)) return null;
@@ -140,7 +140,9 @@ function processChildren(
 }
 
 function TextBlockViewImpl({ text, isUser, nodeId }: Props) {
-  const cwd = useCanvasStore((state) => state.cwd);
+  const cwd = useCanvasStore((state) =>
+    nodeId ? state.getEffectiveCwd(nodeId) : state.cwd,
+  );
   const highlightedTexts = useCanvasStore(
     useCallback(
       (state) => {

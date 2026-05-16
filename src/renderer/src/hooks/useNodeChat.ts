@@ -146,6 +146,8 @@ export function useNodeChat(nodeId: NodeId) {
         promptForModel = `${mergeContext}\n\n---\n\n${promptForModel}`;
       }
 
+      const nodeSettings = storeApi.getState().nodes[nodeId]?.data.nodeSettings;
+
       try {
         await window.api.chat.start({
           chatId,
@@ -154,6 +156,7 @@ export function useNodeChat(nodeId: NodeId) {
           history,
           prompt: promptForModel,
           attachments: attachments.length > 0 ? attachments : undefined,
+          nodeSettings,
         });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);

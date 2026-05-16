@@ -5,6 +5,7 @@ import type {
   ErrorCode,
   ImageMediaType,
   Message,
+  NodeSettings,
   Provider,
 } from "./types";
 
@@ -68,6 +69,8 @@ export type ChatStartArgs = {
   prompt: string;
   attachments?: Attachment[];
   systemPromptOverride?: string;
+  /** Per-node overrides for provider / cwd. Resolved against canvas defaults in main. */
+  nodeSettings?: NodeSettings;
 };
 
 export type ChatEvent =
@@ -105,8 +108,8 @@ export type ChatEvent =
     };
 
 export type CanvasCreateArgs = {
-  name: string;
-  cwd: string;
+  name?: string;
+  cwd?: string;
   provider?: Provider;
 };
 

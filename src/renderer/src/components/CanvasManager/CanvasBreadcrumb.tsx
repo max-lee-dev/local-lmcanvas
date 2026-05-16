@@ -6,7 +6,7 @@ import { prettyPath } from "@/lib/prettyPath";
 import { navigateToCanvas, openInSplit } from "@/lib/canvasNavigation";
 
 type CanvasBreadcrumbProps = {
-  cwd: string;
+  cwd?: string;
   currentCanvasId: string;
   saving: boolean;
   /** True when this pane is one of two in a split. Hides "open in split" for slot "b". */

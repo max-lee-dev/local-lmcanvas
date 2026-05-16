@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Settings } from "lucide-react";
+import { Globe, Settings } from "lucide-react";
 import { CanvasPane } from "@/components/Canvas/CanvasPane";
 import { SplitDivider } from "@/components/Canvas/SplitDivider";
 import { SettingsModal } from "@/components/SettingsModal";
+import { BrowserPanel } from "@/components/BrowserPanel/BrowserPanel";
 import { CanvasManager } from "@/components/CanvasManager/CanvasManager";
 import { SplitPanePicker } from "@/components/CanvasManager/SplitPanePicker";
 import { useActivePaneStore } from "@/hooks/useActivePane";
+import { useBrowserPanelStore } from "@/hooks/useBrowserPanelStore";
 import { usePreferencesStore } from "@/hooks/usePreferencesStore";
 import { onOpenSettings } from "@/lib/openSettings";
 import { matchesShortcut } from "@/lib/shortcut";
@@ -24,6 +26,8 @@ export function CanvasPage({ ids }: CanvasPageProps) {
   const [splitFraction, setSplitFraction] = useState(0.5);
   const splitContainerRef = useRef<HTMLDivElement>(null);
   const activePaneId = useActivePaneStore((s) => s.activePaneId);
+  const browserOpen = useBrowserPanelStore((s) => s.open);
+  const toggleBrowser = useBrowserPanelStore((s) => s.toggle);
   const splitPickerShortcut = usePreferencesStore(
     (s) => s.keybindings.splitPanePicker,
   );
@@ -57,12 +61,30 @@ export function CanvasPage({ ids }: CanvasPageProps) {
       {/* Sidebar (handles its own toggle button) */}
       <CanvasManager currentCanvasId={sidebarCanvasId} />
 
-      {/* Top-right: global settings. Shifted left in split mode so it never
-          crowds the left pane's right-anchored search button when the divider
-          is dragged close to the right edge. */}
+      {/* Top-right: browser toggle + global settings. Shifted left in split
+          mode so it never crowds the left pane's right-anchored search button
+          when the divider is dragged close to the right edge. Shifted further
+          left when the browser panel is open so the buttons stay accessible. */}
       <div
-        className={`absolute top-3 ${isSplit ? "right-12" : "right-3"} z-50 no-drag flex items-center gap-1`}
+        className={`absolute top-3 ${
+          browserOpen
+            ? "right-[calc(33.333%+12px)]"
+            : isSplit
+              ? "right-12"
+              : "right-3"
+        } z-50 no-drag flex items-center gap-1`}
       >
+        <button
+          onClick={toggleBrowser}
+          className={`flex h-7 w-7 items-center justify-center rounded-md cursor-pointer ${
+            browserOpen
+              ? "bg-muted text-foreground"
+              : "text-foreground/70 hover:text-foreground hover:bg-muted"
+          }`}
+          title={browserOpen ? "hide browser" : "show browser"}
+        >
+          <Globe size={14} />
+        </button>
         <button
           onClick={() => setShowSettings(true)}
           className="flex h-7 w-7 items-center justify-center rounded-md text-foreground/70 hover:text-foreground hover:bg-muted cursor-pointer"
@@ -99,6 +121,8 @@ export function CanvasPage({ ids }: CanvasPageProps) {
           </div>
         )}
       </div>
+
+      <BrowserPanel />
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
       <SplitPanePicker

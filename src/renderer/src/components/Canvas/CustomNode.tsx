@@ -1,11 +1,14 @@
 import { memo, useMemo, useRef, useState } from "react";
 import { NodeResizer, type NodeProps } from "@xyflow/react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { GitMerge, Plus } from "lucide-react";
 import clsx from "clsx";
 import { MergeButton } from "./MergeButton";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { ModelBadge } from "./ModelBadge";
+import { FolderBadge } from "./FolderBadge";
+import { BranchBadge } from "./BranchBadge";
+import { OnboardingTitle } from "./OnboardingTitle";
 import { useNodeChat } from "@/hooks/useNodeChat";
 import type { CanvasNode, ImageBlock } from "@shared/types";
 import type { Attachment } from "@shared/ipc";
@@ -38,6 +41,7 @@ function CustomNodeImpl(props: NodeProps) {
   const startMerge = useCanvasStore((s) => s.startMerge);
   const toggleMergeNode = useCanvasStore((s) => s.toggleMergeNode);
   const askUserRequest = useAskUserStore((s) => s.byNode[id]);
+  const totalNodeCount = useCanvasStore((s) => Object.keys(s.nodes).length);
 
   const [hovered, setHovered] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -101,6 +105,7 @@ function CustomNodeImpl(props: NodeProps) {
     : "";
 
   const showFollowUp = (hovered || selected) && hasSubmitted;
+  const showOnboarding = totalNodeCount === 1 && messages.length === 0 && !streaming;
   const isMergeSource = merging && mergeIds[0] === id;
   const isMergeSelected = merging && mergeIds.includes(id);
   const isMergeNode = nodeData.chat.parentIds.length > 1;
@@ -126,6 +131,8 @@ function CustomNodeImpl(props: NodeProps) {
         lineClassName="!border-transparent"
         handleClassName="!h-3 !w-3 !border-0 !bg-transparent !shadow-none"
       />
+
+      <AnimatePresence>{showOnboarding && <OnboardingTitle />}</AnimatePresence>
 
       <NodeTargetHandles />
 
@@ -184,8 +191,10 @@ function CustomNodeImpl(props: NodeProps) {
 
         <CustomNodeContextBanner addedContext={nodeData.chat.addedContext} />
 
-        <div className="absolute left-4 top-3 flex items-center gap-2">
-          <ModelBadge />
+        <div className="absolute left-4 right-4 top-3 flex items-center gap-2 min-w-0">
+          <ModelBadge nodeId={id} />
+          <FolderBadge nodeId={id} />
+          <BranchBadge nodeId={id} />
           {isMergeNode && (
             <span
               className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"

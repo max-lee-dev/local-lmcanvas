@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { Canvas } from "@/components/Canvas/Canvas";
 import {
@@ -15,6 +15,9 @@ import { DeleteNodeModal } from "@/components/Canvas/DeleteNodeModal";
 import { SearchModalProvider } from "@/providers/SearchModalProvider";
 import { CommandPaletteProvider } from "@/providers/CommandPaletteProvider";
 import { closePane } from "@/lib/canvasNavigation";
+import { useFocusRequestStore } from "@/hooks/useFocusRequestStore";
+import { useCenterOnNode } from "@/hooks/useCenterOnNode";
+import { FALLBACK_NODE_HEIGHT, NODE_WIDTH } from "@/lib/canvasConstants";
 
 type CanvasPaneProps = {
   /** The canvas to load into this pane. Also serves as the pane's identity. */
@@ -62,26 +65,44 @@ function CanvasPaneInner({ id, splitMode, controlsSide = "right" }: CanvasPanePr
   const cwd = useCanvasStore((s) => s.cwd);
   const error = useCanvasStore((s) => s.error);
   const saving = useCanvasStore((s) => s.saving);
-  const nodeCount = useCanvasStore((s) => Object.keys(s.nodes).length);
+  const nodes = useCanvasStore((s) => s.nodes);
+  const nodeCount = Object.keys(nodes).length;
   const addNode = useCanvasStore((s) => s.addNode);
   const setActive = useActivePaneStore((s) => s.setActive);
   const activePaneId = useActivePaneStore((s) => s.activePaneId);
+  const focusRequest = useFocusRequestStore((s) => s.request);
+  const consumeFocus = useFocusRequestStore((s) => s.consume);
+  const centerOnNode = useCenterOnNode();
 
   const isActive = activePaneId === id;
-
-  const createFirstNode = () => {
-    addNode(makeBlankNode({ x: 0, y: 0 }));
-  };
 
   useEffect(() => {
     if (id && canvasId !== id) void loadCanvas(id);
   }, [id, canvasId, loadCanvas]);
+
+  // Empty canvas → drop a single starter node automatically so users land
+  // directly in the prompt input instead of an empty-state screen.
+  useEffect(() => {
+    if (!loaded || error || canvasId !== id) return;
+    if (nodeCount !== 0) return;
+    addNode(makeBlankNode({ x: 0, y: 0 }));
+  }, [loaded, error, canvasId, id, nodeCount, addNode]);
 
   // Auto-claim active in single-pane mode so keyboard shortcuts have a target
   // before any user interaction.
   useEffect(() => {
     if (!splitMode) setActive(id);
   }, [id, splitMode, setActive]);
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    if (!loaded || canvasId !== id) return;
+    if (focusRequest.canvasId !== id) return;
+    const node = nodes[focusRequest.nodeId];
+    if (!node) return;
+    centerOnNode(node.position.x, node.position.y, NODE_WIDTH, FALLBACK_NODE_HEIGHT);
+    consumeFocus(focusRequest.canvasId, focusRequest.nodeId, focusRequest.requestedAt);
+  }, [focusRequest, loaded, canvasId, id, nodes, centerOnNode, consumeFocus]);
 
   return (
     <div
@@ -107,9 +128,11 @@ function CanvasPaneInner({ id, splitMode, controlsSide = "right" }: CanvasPanePr
 
       {/* Per-pane controls (search + close-pane in split). Anchored to whichever
           side keeps it away from the global settings gear in the viewport's
-          top-right corner. */}
+          top-right corner. In single-pane mode the gear sits at right-3, so we
+          shift right-anchored controls to right-12 so they sit beside it
+          instead of underneath. */}
       <div
-        className={`absolute top-3 ${controlsSide === "left" ? "left-3" : "right-3"} z-30 no-drag flex items-center gap-1.5`}
+        className={`absolute top-3 ${controlsSide === "left" ? "left-3" : splitMode ? "right-3" : "right-12"} z-30 no-drag flex items-center gap-1.5`}
       >
         <InProgressNodesIndicator />
         <SearchButton />
@@ -136,25 +159,7 @@ function CanvasPaneInner({ id, splitMode, controlsSide = "right" }: CanvasPanePr
             {error}
           </div>
         )}
-        {loaded && !error && (
-          <>
-            {nodeCount === 0 && (
-              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3">
-                <button
-                  onClick={createFirstNode}
-                  className="pointer-events-auto flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground shadow-md hover:opacity-90 cursor-pointer"
-                >
-                  <Plus size={14} />
-                  new node
-                </button>
-                <div className="pointer-events-none text-xs text-muted-foreground">
-                  or double-click anywhere on the canvas
-                </div>
-              </div>
-            )}
-            <Canvas />
-          </>
-        )}
+        {loaded && !error && <Canvas />}
       </div>
 
       <DeleteNodeModal />

@@ -4,6 +4,7 @@ import { CanvasPage } from "./pages/CanvasPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { subscribeAskUserRequests } from "./hooks/useAskUserStore";
 import { useApplyTheme } from "./hooks/useApplyTheme";
+import { useRecentsStore } from "./hooks/useRecentsStore";
 
 type Route =
   | { name: "home" }
@@ -36,6 +37,10 @@ export function App() {
   }, []);
 
   useEffect(() => subscribeAskUserRequests(), []);
+
+  useEffect(() => {
+    void useRecentsStore.getState().hydrate();
+  }, []);
 
   // On first launch, redirect home → onboarding. Don't trap users elsewhere.
   useEffect(() => {

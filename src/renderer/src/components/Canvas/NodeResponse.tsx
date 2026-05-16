@@ -8,23 +8,50 @@ import { ThinkingView } from "./blocks/ThinkingView";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import { ErrorBlock } from "./ErrorBlock";
 
+const MAX_TOOLS_PER_CHUNK = 5;
+
 type RenderItem =
   | { kind: "text"; text: string; key: string }
   | { kind: "thinking"; text: string; key: string }
-  | { kind: "toolGroup"; blocks: ToolUseBlock[]; key: string };
+  | {
+      kind: "toolGroup";
+      blocks: ToolUseBlock[];
+      key: string;
+      summary?: string;
+      chunkIndex: number;
+      totalChunks: number;
+    };
 
 function groupBlocks(blocks: ContentBlock[]): RenderItem[] {
   const items: RenderItem[] = [];
   let pendingTools: ToolUseBlock[] = [];
   const flush = () => {
-    if (pendingTools.length > 0) {
+    if (pendingTools.length === 0) return;
+    const last = items[items.length - 1];
+    let precedingText: string | undefined;
+    if (last && last.kind === "text") {
+      precedingText = last.text;
+      // Consume the text block so it doesn't also render above the group —
+      // it becomes the group's label instead.
+      items.pop();
+    }
+    const totalChunks = Math.ceil(pendingTools.length / MAX_TOOLS_PER_CHUNK);
+    for (let c = 0; c < totalChunks; c++) {
+      const slice = pendingTools.slice(
+        c * MAX_TOOLS_PER_CHUNK,
+        (c + 1) * MAX_TOOLS_PER_CHUNK
+      );
       items.push({
         kind: "toolGroup",
-        blocks: pendingTools,
-        key: `tg-${pendingTools[0].id ?? items.length}`,
+        blocks: slice,
+        key: `tg-${slice[0].id ?? `${items.length}-${c}`}`,
+        // first sub-chunk inherits preceding text; later chunks get generic label
+        summary: c === 0 ? precedingText : undefined,
+        chunkIndex: c,
+        totalChunks,
       });
-      pendingTools = [];
     }
+    pendingTools = [];
   };
   blocks.forEach((b, i) => {
     if (b.type === "tool_use") {
@@ -109,6 +136,9 @@ export function NodeResponse({ message, onStop, nodeId }: Props) {
               key={item.key}
               blocks={item.blocks}
               awaitingText={awaitingText}
+              summary={item.summary}
+              chunkIndex={item.chunkIndex}
+              totalChunks={item.totalChunks}
             />
           );
         });

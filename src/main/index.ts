@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, nativeImage, shell, dialog } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { homedir } from "node:os";
 import {
   listCanvases,
   createCanvas,
@@ -55,6 +56,7 @@ function createWindow(hash?: string): BrowserWindow {
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
+      webviewTag: true,
     },
   });
 
@@ -85,6 +87,9 @@ function createWindow(hash?: string): BrowserWindow {
 
 type ActiveChat = { controller: AbortController; nodeId: string };
 const activeChats = new Map<string, ActiveChat>();
+
+const TERSE_NARRATION_INSTRUCTION =
+  "RESPONSE STYLE: Be extremely terse with prose between tool calls. Do NOT narrate what you are about to do before calling a tool, and do NOT describe each result after a tool returns. After a batch of related tool calls completes, write ONE short sentence (max two) summarizing what those tools accomplished, then move on. Save longer prose for your final answer to the user.";
 
 const FILES_CACHE_TTL_MS = 10_000;
 const filesCache = new Map<string, { at: number; files: FileEntry[] }>();
@@ -136,7 +141,16 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("chat:start", async (e, args: ChatStartArgs) => {
-    const { chatId, nodeId, canvasId, history, prompt, attachments, systemPromptOverride } = args;
+    const {
+      chatId,
+      nodeId,
+      canvasId,
+      history,
+      prompt,
+      attachments,
+      systemPromptOverride,
+      nodeSettings,
+    } = args;
     const sender = e.sender;
 
     const send = (ev: ChatEvent) => {
@@ -153,9 +167,15 @@ function registerIpc(): void {
 
     const settings = await readSettings();
     const combinedPrompt = buildPromptWithHistory(history, prompt);
-    const systemPrompt = systemPromptOverride ?? settings.systemPrompt ?? undefined;
+    const basePrompt = systemPromptOverride ?? settings.systemPrompt ?? "";
+    const systemPrompt = settings.terseToolNarration
+      ? basePrompt
+        ? `${basePrompt}\n\n${TERSE_NARRATION_INSTRUCTION}`
+        : TERSE_NARRATION_INSTRUCTION
+      : basePrompt || undefined;
 
-    const provider: Provider = canvas.provider ?? settings.defaultProvider ?? "claude";
+    const provider: Provider =
+      nodeSettings?.provider ?? canvas.provider ?? settings.defaultProvider ?? "claude";
     const providerCfg = settings.providers?.[provider];
     const binPath =
       providerCfg?.binPath ??
@@ -164,6 +184,10 @@ function registerIpc(): void {
       providerCfg?.model ??
       (provider === "claude" ? settings.claudeModel : undefined);
 
+    // Effective cwd: node override → canvas → user home (least-invasive fallback so
+    // every provider runner — which require a string cwd — always has one).
+    const effectiveCwd = nodeSettings?.cwd ?? canvas.cwd ?? homedir();
+
     const controller = new AbortController();
     activeChats.set(chatId, { controller, nodeId });
 
@@ -171,7 +195,7 @@ function registerIpc(): void {
 
     try {
       await runAgent(provider, combinedPrompt, {
-        cwd: canvas.cwd,
+        cwd: effectiveCwd,
         model,
         binPath,
         systemPrompt,

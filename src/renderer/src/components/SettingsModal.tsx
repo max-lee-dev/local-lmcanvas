@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, Sparkles, X } from "lucide-react";
+import { ChevronDown, MessageSquareDashed, Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AppSettings, Provider } from "@shared/types";
 import { PROVIDERS } from "@shared/types";
@@ -11,6 +11,7 @@ import {
   KeybindingsSetting,
   KeybindingsPage,
   FinishSoundSetting,
+  Toggle,
 } from "./settings";
 
 type View = "main" | "keybindings";
@@ -160,6 +161,18 @@ export function SettingsModal({ open, onClose }: Props) {
                   <MinimapSetting />
                   <PanSpeedSetting />
                   <FinishSoundSetting />
+                  <Toggle
+                    enabled={settings.terseToolNarration ?? false}
+                    onToggle={() =>
+                      setSettings((s) => ({
+                        ...s,
+                        terseToolNarration: !(s.terseToolNarration ?? false),
+                      }))
+                    }
+                    label="Terse tool narration"
+                    description="Replace verbose play-by-play between tool calls with a single 1-2 sentence summary per batch."
+                    icon={<MessageSquareDashed className="w-4 h-4" />}
+                  />
                   <KeybindingsSetting onOpen={() => setView("keybindings")} />
                   <div className="flex items-center justify-between gap-2 rounded-md px-1 py-1">
                     <div className="min-w-0">

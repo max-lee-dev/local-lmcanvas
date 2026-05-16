@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, CircleHelp, X } from "lucide-react";
+import { Check } from "lucide-react";
 import clsx from "clsx";
 import type {
   AskUserAnswers,
@@ -57,26 +57,6 @@ export function AskUserPrompt({ request }: Props) {
       exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.12, ease: "easeOut" }}
     >
-      <div className="flex items-center justify-between gap-1.5 px-2 py-1 border-b border-border bg-muted/40">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <CircleHelp className="h-2.5 w-2.5 text-muted-foreground flex-shrink-0" />
-          <span className="text-[9px] font-medium text-muted-foreground truncate">
-            {request.questions.length > 1
-              ? `Claude is asking ${request.questions.length} questions`
-              : "Claude is asking a question"}
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={() => cancel(request.id)}
-          className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
-          title="Cancel"
-          aria-label="Cancel"
-        >
-          <X className="h-2.5 w-2.5" />
-        </button>
-      </div>
-
       <div className="flex flex-col gap-2 p-2">
         {request.questions.map((q, idx) => (
           <QuestionBlock

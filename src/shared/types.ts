@@ -48,6 +48,13 @@ export type ChatData = {
 
 export type CanvasNodeType = "custom" | "stickyNote";
 
+export type NodeSettings = {
+  provider?: Provider;
+  cwd?: string;
+  /** Free-text branch label set by the user. No git detection. */
+  branch?: string;
+};
+
 export type CanvasNode = {
   id: NodeId;
   type: CanvasNodeType;
@@ -56,6 +63,8 @@ export type CanvasNode = {
     title?: string;
     chat: ChatData;
     stickyText?: string;
+    /** Per-node overrides for provider / cwd / branch. Falls back to canvas defaults. */
+    nodeSettings?: NodeSettings;
   };
 };
 
@@ -88,7 +97,8 @@ export type ProviderConfig = {
 export type Canvas = {
   id: string;
   name: string;
-  cwd: string;
+  /** Default working directory inherited by nodes that don't override it. */
+  cwd?: string;
   createdAt: number;
   updatedAt: number;
   nodes: CanvasNode[];
@@ -100,7 +110,7 @@ export type Canvas = {
 export type CanvasSummary = {
   id: string;
   name: string;
-  cwd: string;
+  cwd?: string;
   createdAt: number;
   updatedAt: number;
   nodeCount: number;
@@ -116,4 +126,11 @@ export type AppSettings = {
   defaultProvider?: Provider;
   providers?: Partial<Record<Provider, ProviderConfig>>;
   onboardingCompleted?: boolean;
+  terseToolNarration?: boolean;
+  /** MRU folder paths picked anywhere in the app, newest first. Capped. */
+  recentFolders?: string[];
+  /** MRU branch labels typed anywhere in the app, newest first. Capped. */
+  recentBranches?: string[];
+  /** Last node-level overrides applied anywhere; used to seed new orphan nodes. */
+  lastNodeSettings?: NodeSettings;
 };

@@ -8,12 +8,23 @@ import { getToolIcon } from "./toolMeta";
 type Props = {
   blocks: ToolUseBlock[];
   awaitingText?: boolean;
+  summary?: string;
+  chunkIndex?: number;
+  totalChunks?: number;
 };
 
-export function ToolGroupView({ blocks, awaitingText = false }: Props) {
+export function ToolGroupView({
+  blocks,
+  awaitingText = false,
+  summary,
+  chunkIndex = 0,
+  totalChunks = 1,
+}: Props) {
   const [expanded, setExpanded] = useState(false);
+  const isContinuation = chunkIndex > 0;
+  const summaryText = summary?.trim() || null;
 
-  if (blocks.length === 1) {
+  if (blocks.length === 1 && totalChunks === 1 && !summaryText) {
     return <ToolUseView block={blocks[0]} awaitingText={awaitingText} />;
   }
 
@@ -31,11 +42,13 @@ export function ToolGroupView({ blocks, awaitingText = false }: Props) {
     <CheckCircle2 size={12} className="text-muted-foreground" />
   );
 
-  const summaryLabel = isRunning
-    ? `Running ${blocks.length} tools…`
-    : hasErrors
-      ? `Ran ${blocks.length} tools · ${errorCount} failed`
-      : `Ran ${blocks.length} tools`;
+  const fallbackLabel = isContinuation
+    ? `Continued · ${blocks.length} more tools`
+    : isRunning
+      ? `Running ${blocks.length} ${blocks.length === 1 ? "tool" : "tools"}…`
+      : `Ran ${blocks.length} ${blocks.length === 1 ? "tool" : "tools"}`;
+  const mainLabel = summaryText ?? fallbackLabel;
+  const errorSuffix = hasErrors ? ` · ${errorCount} failed` : "";
 
   return (
     <div
@@ -53,11 +66,11 @@ export function ToolGroupView({ blocks, awaitingText = false }: Props) {
         <ChevronRight
           size={11}
           className={clsx(
-            "text-muted-foreground transition-transform",
+            "text-muted-foreground shrink-0 transition-transform",
             expanded && "rotate-90"
           )}
         />
-        <div className="flex -space-x-0.5">
+        <div className="flex -space-x-0.5 shrink-0">
           {blocks.slice(0, 3).map((b, i) => {
             const Icon = getToolIcon(b.name);
             return (
@@ -73,8 +86,11 @@ export function ToolGroupView({ blocks, awaitingText = false }: Props) {
             );
           })}
         </div>
-        <span className="flex-1 text-left font-medium text-foreground">
-          {summaryLabel}
+        <span className="flex-1 min-w-0 text-left font-medium text-foreground truncate">
+          {mainLabel}
+          {errorSuffix && (
+            <span className="text-destructive">{errorSuffix}</span>
+          )}
         </span>
         {statusIcon}
       </button>
