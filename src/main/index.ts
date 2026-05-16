@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeImage, shell, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, MenuItem, nativeImage, shell, dialog } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
@@ -20,7 +20,7 @@ import {
   completeRequest as completeAskUser,
 } from "./claude/askUserBridge";
 import { getShellPath } from "./shellPath";
-import { initAutoUpdate } from "./autoUpdate";
+import { initAutoUpdate, checkForUpdatesNow } from "./autoUpdate";
 import type {
   AskUserResponsePayload,
   ChatEvent,
@@ -300,6 +300,26 @@ function registerIpc(): void {
   });
 }
 
+function installUpdateMenuItem(): void {
+  const menu = Menu.getApplicationMenu();
+  if (!menu) return;
+  // On macOS the app menu is index 0 ("LMCanvas" / Electron's default). Insert
+  // "Check for Updates…" right after "About" so it sits where users expect.
+  const appMenu = menu.items[0];
+  const submenu = appMenu?.submenu;
+  if (!submenu) return;
+  const aboutIdx = submenu.items.findIndex((i) => i.role === "about");
+  const insertAt = aboutIdx >= 0 ? aboutIdx + 1 : 0;
+  submenu.insert(
+    insertAt,
+    new MenuItem({
+      label: "Check for Updates…",
+      click: () => checkForUpdatesNow(),
+    }),
+  );
+  Menu.setApplicationMenu(menu);
+}
+
 app.whenReady().then(async () => {
   // macOS GUI apps inherit a minimal PATH that lacks /opt/homebrew/bin,
   // ~/.nvm/.../bin, ~/.local/bin etc. — resolve the user's shell PATH so
@@ -314,6 +334,7 @@ app.whenReady().then(async () => {
   registerIpc();
   createWindow();
   initAutoUpdate();
+  installUpdateMenuItem();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
