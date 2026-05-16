@@ -109,21 +109,36 @@ green "✓ Built ${ARM64_DMG##*/} and ${INTEL_DMG##*/} (+ blockmaps, latest-mac.
 # container. Without the DMG staple, Gatekeeper blocks downloads with a
 # warning even though the .app is fine.
 
-notarize_and_staple() {
+notarize_submit() {
   local dmg="$1"
-  section "Notarize + staple $(basename "$dmg")"
+  local log="$2"
   xcrun notarytool submit "$dmg" \
     --apple-id    "$APPLE_ID" \
     --password    "$APPLE_APP_SPECIFIC_PASSWORD" \
     --team-id     "$APPLE_TEAM_ID" \
-    --wait
+    --wait > "$log" 2>&1
+}
+
+section "Notarize ARM64 + Intel DMGs in parallel"
+ARM64_LOG="$REPO_ROOT/dist/.notarize-arm64.log"
+INTEL_LOG="$REPO_ROOT/dist/.notarize-intel.log"
+
+notarize_submit "$ARM64_DMG" "$ARM64_LOG" &
+ARM64_PID=$!
+notarize_submit "$INTEL_DMG" "$INTEL_LOG" &
+INTEL_PID=$!
+
+wait "$ARM64_PID" || { red "ARM64 notarize failed"; cat "$ARM64_LOG" >&2; exit 1; }
+green "✓ ARM64 notarized"
+wait "$INTEL_PID" || { red "Intel notarize failed";  cat "$INTEL_LOG"  >&2; exit 1; }
+green "✓ Intel notarized"
+
+section "Staple + validate DMGs"
+for dmg in "$ARM64_DMG" "$INTEL_DMG"; do
   xcrun stapler staple "$dmg"
   xcrun stapler validate "$dmg"
   green "✓ Stapled $(basename "$dmg")"
-}
-
-notarize_and_staple "$ARM64_DMG"
-notarize_and_staple "$INTEL_DMG"
+done
 
 # -------- git tag + push --------
 

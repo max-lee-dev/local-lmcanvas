@@ -1,6 +1,6 @@
 {
   "name": "local-lmcanvas",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Branching AI conversations via Claude Code CLI — fully local.",
   "license": "MIT",
   "author": "Max Lee",
