@@ -6,6 +6,17 @@ import type { SlashItem, SlashItemSource } from "@shared/ipc";
 const COMMANDS_DIR = ".claude/commands";
 const SKILLS_DIR = ".claude/skills";
 
+/** Slash commands the app handles itself instead of forwarding to the SDK. */
+const BUILTIN_ITEMS: SlashItem[] = [
+  {
+    kind: "command",
+    name: "plan",
+    description:
+      "Run this turn in plan mode — Claude proposes a plan but can't use mutating tools.",
+    source: "builtin",
+  },
+];
+
 export async function listSlashItems(cwd: string): Promise<SlashItem[]> {
   const home = homedir();
   const tasks: Array<Promise<SlashItem[]>> = [
@@ -19,7 +30,7 @@ export async function listSlashItems(cwd: string): Promise<SlashItem[]> {
   }
 
   const buckets = await Promise.all(tasks);
-  const flat = buckets.flat();
+  const flat = [...BUILTIN_ITEMS, ...buckets.flat()];
 
   // Project overrides user overrides plugin when names collide.
   const seen = new Map<string, SlashItem>();
@@ -34,7 +45,10 @@ export async function listSlashItems(cwd: string): Promise<SlashItem[]> {
 }
 
 function sourceRank(s: SlashItemSource): number {
-  return s === "project" ? 2 : s === "user" ? 1 : 0;
+  if (s === "project") return 3;
+  if (s === "user") return 2;
+  if (s === "plugin") return 1;
+  return 0; // builtin — user/project/plugin all override
 }
 
 async function collectCommands(

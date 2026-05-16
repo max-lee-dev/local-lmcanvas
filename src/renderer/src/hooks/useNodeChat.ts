@@ -156,11 +156,21 @@ export function useNodeChat(nodeId: NodeId) {
         }
       });
 
+      // One-shot plan mode: a leading `/plan` (followed by space or end) flips
+      // the SDK into plan mode for this run only. The prefix is stripped from
+      // what the model sees but kept verbatim in the user message bubble for
+      // provenance.
+      const inlinePlanMatch = trimmed.match(/^\/plan(?:\s+|$)/);
+      const inlinePlanMode = Boolean(inlinePlanMatch);
+      const promptAfterPlanStrip = inlinePlanMatch
+        ? trimmed.slice(inlinePlanMatch[0].length)
+        : trimmed;
+
       const addedContext =
         storeApi.getState().nodes[nodeId]?.data.chat.addedContext;
       let promptForModel = addedContext
-        ? `> ${addedContext.replace(/\n/g, "\n> ")}\n\n${trimmed}`
-        : trimmed;
+        ? `> ${addedContext.replace(/\n/g, "\n> ")}\n\n${promptAfterPlanStrip}`
+        : promptAfterPlanStrip;
       if (mergeContext) {
         promptForModel = `${mergeContext}\n\n---\n\n${promptForModel}`;
       }
@@ -176,6 +186,7 @@ export function useNodeChat(nodeId: NodeId) {
           prompt: promptForModel,
           attachments: attachments.length > 0 ? attachments : undefined,
           nodeSettings,
+          planMode: inlinePlanMode || undefined,
         });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);

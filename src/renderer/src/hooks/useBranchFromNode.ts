@@ -23,6 +23,9 @@ export type BranchOptions = {
   /** If true, the prefill is submitted immediately instead of populating the
    *  child's textarea — used by next-step suggestion buttons. */
   autoSubmit?: boolean;
+  /** Force the child to be placed directly under the parent (same x) instead
+   *  of in the right lane. Otherwise a prefill/context triggers right-lane. */
+  placeBelow?: boolean;
   addedContext?: string;
   selectionViewportY?: number;
 };
@@ -42,9 +45,9 @@ export function useBranchFromNode(parentId: string): BranchFn {
 
   return useCallback(
     (opts) => {
-      const { prefill, autoSubmit, addedContext, selectionViewportY } = opts ?? {};
+      const { prefill, autoSubmit, placeBelow, addedContext, selectionViewportY } = opts ?? {};
       const parentPos = parentNode?.position ?? { x: 0, y: 0 };
-      const isRightLane = Boolean(prefill) || Boolean(addedContext);
+      const isRightLane = !placeBelow && (Boolean(prefill) || Boolean(addedContext));
       let position: { x: number; y: number };
       let sourceYOffset: number | undefined;
       if (isRightLane) {

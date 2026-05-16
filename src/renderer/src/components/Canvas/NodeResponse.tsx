@@ -1,4 +1,5 @@
 import { CircleStop, Loader2 } from "lucide-react";
+import { motion } from "framer-motion";
 import clsx from "clsx";
 import { useState } from "react";
 import type { ContentBlock, ImageBlock, Message, ToolUseBlock } from "@shared/types";
@@ -7,6 +8,8 @@ import { ToolGroupView } from "./blocks/ToolGroupView";
 import { ThinkingView } from "./blocks/ThinkingView";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import { ErrorBlock } from "./ErrorBlock";
+import { toActionLabel } from "./blocks/toolSummary";
+import { iconForSuggestion } from "@/lib/suggestionIcon";
 
 const MAX_TOOLS_PER_CHUNK = 5;
 
@@ -45,8 +48,9 @@ function groupBlocks(blocks: ContentBlock[]): RenderItem[] {
         kind: "toolGroup",
         blocks: slice,
         key: `tg-${slice[0].id ?? `${items.length}-${c}`}`,
-        // first sub-chunk inherits preceding text; later chunks get generic label
-        summary: c === 0 ? precedingText : undefined,
+        // first sub-chunk inherits the preceding prose (cleaned to action-form);
+        // later chunks let ToolGroupView derive a label from their tool calls
+        summary: c === 0 && precedingText ? toActionLabel(precedingText) : undefined,
         chunkIndex: c,
         totalChunks,
       });
@@ -173,23 +177,38 @@ function SuggestionButtons({
   onClick: (prompt: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1 pt-1 nodrag">
-      {suggestions.map((s, i) => (
-        <button
-          key={i}
-          type="button"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onClick(s.prompt);
-          }}
-          title={s.prompt}
-          className="cursor-pointer rounded-md border border-border bg-background/60 px-1.5 py-0.5 text-[10px] text-foreground/80 transition-colors hover:bg-accent hover:text-foreground focus:outline-none"
-        >
-          {s.label}
-        </button>
-      ))}
+    <div className="nodrag mt-3 flex flex-col items-start gap-1.5 border-t border-border/60 pt-3">
+      <span
+        className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70"
+        style={{ fontFamily: "var(--font-geist-mono)" }}
+      >
+        next steps
+      </span>
+      <div className="flex flex-wrap gap-1.5">
+        {suggestions.map((s, i) => {
+          const Icon = iconForSuggestion(s.label);
+          return (
+            <motion.button
+              key={i}
+              type="button"
+              whileTap={{ scale: 0.97 }}
+              whileHover={{ y: -1 }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClick(s.prompt);
+              }}
+              title={s.prompt}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-foreground/80 transition-colors hover:border-foreground/40 hover:text-foreground focus:outline-none"
+              style={{ fontFamily: "var(--font-geist-mono)" }}
+            >
+              <Icon size={11} className="opacity-70" strokeWidth={2} />
+              {s.label}
+            </motion.button>
+          );
+        })}
+      </div>
     </div>
   );
 }

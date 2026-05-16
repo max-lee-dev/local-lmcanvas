@@ -59,6 +59,8 @@ export type NodeSettings = {
   cwd?: string;
   /** Free-text branch label set by the user. No git detection. */
   branch?: string;
+  /** When true, the SDK runs in plan mode — model proposes a plan, cannot use mutating tools. Claude-only. */
+  planMode?: boolean;
 };
 
 export type CanvasNode = {

@@ -89,7 +89,7 @@ type ActiveChat = { controller: AbortController; nodeId: string };
 const activeChats = new Map<string, ActiveChat>();
 
 const TERSE_NARRATION_INSTRUCTION =
-  "RESPONSE STYLE: Be extremely terse with prose between tool calls. Do NOT narrate what you are about to do before calling a tool, and do NOT describe each result after a tool returns. After a batch of related tool calls completes, write ONE short sentence (max two) summarizing what those tools accomplished, then move on. Save longer prose for your final answer to the user.";
+  "RESPONSE STYLE: Before each batch of tool calls (typically 1–5 parallel calls), write ONE very short action-form label as a single line of text — 3 to 8 words, gerund form. Examples: 'Reading the canvas store', 'Searching for tool handlers', 'Editing the badge component', 'Digging into group summaries'. Do NOT use first-person prefixes like 'I'll', 'Let me', 'I'm going to', 'Now I will'. Do NOT describe each result after a tool returns. When you fire a long sequence of tool calls without natural pauses, insert a fresh action-form label every ~5 calls so the user can see what each phase is doing. Save longer prose for your final answer to the user.";
 
 // Asks the model to optionally end with a `<next-steps>` block listing 1–3
 // follow-up prompts. The renderer strips this block from the visible text and
@@ -168,6 +168,7 @@ function registerIpc(): void {
       attachments,
       systemPromptOverride,
       nodeSettings,
+      planMode: inlinePlanMode,
     } = args;
     const sender = e.sender;
 
@@ -209,6 +210,10 @@ function registerIpc(): void {
     // every provider runner — which require a string cwd — always has one).
     const effectiveCwd = nodeSettings?.cwd ?? canvas.cwd ?? homedir();
 
+    // Plan mode resolves as: one-shot inline /plan OR persistent node setting.
+    // Claude-only — codex/cursor runners ignore the flag.
+    const planMode = Boolean(inlinePlanMode) || Boolean(nodeSettings?.planMode);
+
     const controller = new AbortController();
     activeChats.set(chatId, { controller, nodeId });
 
@@ -222,6 +227,7 @@ function registerIpc(): void {
         systemPrompt,
         attachments,
         signal: controller.signal,
+        planMode,
         webContents: sender,
         nodeId,
         onEvent: (ev) => {

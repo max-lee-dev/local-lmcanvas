@@ -106,6 +106,8 @@ export type RunClaudeOpts = {
   systemPrompt?: string;
   attachments?: Attachment[];
   signal?: AbortSignal;
+  /** When true, the SDK runs in plan mode (read-only: model proposes a plan but can't use mutating tools). */
+  planMode?: boolean;
   webContents: WebContents;
   nodeId: string;
   onEvent: (ev: RunnerEvent) => void;
@@ -149,8 +151,10 @@ export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<vo
       prompt: promptInput,
       options: {
         cwd: opts.cwd,
-        permissionMode: "bypassPermissions",
-        allowDangerouslySkipPermissions: true,
+        // Plan mode: SDK disallows mutating tools and the model returns a plan.
+        // Default: full bypass so user-approved local actions run without prompts.
+        permissionMode: opts.planMode ? "plan" : "bypassPermissions",
+        allowDangerouslySkipPermissions: !opts.planMode,
         model: opts.model,
         pathToClaudeCodeExecutable: CLAUDE_BIN_PATH,
         // append vs raw: we always extend claude_code preset so the agent

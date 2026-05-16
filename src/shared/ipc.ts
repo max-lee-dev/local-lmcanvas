@@ -49,7 +49,7 @@ export type FileEntry = {
 };
 
 export type SlashItemKind = "command" | "skill";
-export type SlashItemSource = "user" | "project" | "plugin";
+export type SlashItemSource = "user" | "project" | "plugin" | "builtin";
 
 export type SlashItem = {
   kind: SlashItemKind;
@@ -71,6 +71,8 @@ export type ChatStartArgs = {
   systemPromptOverride?: string;
   /** Per-node overrides for provider / cwd. Resolved against canvas defaults in main. */
   nodeSettings?: NodeSettings;
+  /** One-shot plan-mode flag (from inline `/plan`). ORed with nodeSettings.planMode. */
+  planMode?: boolean;
 };
 
 export type ChatEvent =

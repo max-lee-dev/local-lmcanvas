@@ -33,6 +33,8 @@ export type RunAgentOpts = {
   attachments?: Attachment[];
   signal?: AbortSignal;
   binPath?: string;
+  /** Claude-only; ignored by codex/cursor runners. */
+  planMode?: boolean;
   // webContents/nodeId are claude-specific (askUser MCP), but kept required so
   // the IPC handler can pass a single opts object to any provider runner.
   webContents: WebContents;

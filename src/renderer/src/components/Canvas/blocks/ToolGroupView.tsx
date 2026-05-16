@@ -4,6 +4,7 @@ import clsx from "clsx";
 import type { ToolUseBlock } from "@shared/types";
 import { ToolUseView } from "./ToolUseView";
 import { getToolIcon } from "./toolMeta";
+import { deriveToolActionLabel } from "./toolSummary";
 
 type Props = {
   blocks: ToolUseBlock[];
@@ -17,11 +18,9 @@ export function ToolGroupView({
   blocks,
   awaitingText = false,
   summary,
-  chunkIndex = 0,
   totalChunks = 1,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const isContinuation = chunkIndex > 0;
   const summaryText = summary?.trim() || null;
 
   if (blocks.length === 1 && totalChunks === 1 && !summaryText) {
@@ -42,13 +41,17 @@ export function ToolGroupView({
     <CheckCircle2 size={12} className="text-muted-foreground" />
   );
 
-  const fallbackLabel = isContinuation
-    ? `Continued · ${blocks.length} more tools`
-    : isRunning
+  // Derive an action-form label from the tool calls when the model didn't
+  // emit prose for this chunk (mid-run continuations, or batches without
+  // an intro sentence).
+  const derivedLabel = deriveToolActionLabel(blocks);
+  const mainLabel =
+    summaryText ||
+    derivedLabel ||
+    (isRunning
       ? `Running ${blocks.length} ${blocks.length === 1 ? "tool" : "tools"}…`
-      : `Ran ${blocks.length} ${blocks.length === 1 ? "tool" : "tools"}`;
-  const mainLabel = summaryText ?? fallbackLabel;
-  const errorSuffix = hasErrors ? ` · ${errorCount} failed` : "";
+      : `Ran ${blocks.length} ${blocks.length === 1 ? "tool" : "tools"}`);
+  const errorSuffix = hasErrors ? `${mainLabel ? " · " : ""}${errorCount} failed` : "";
 
   return (
     <div

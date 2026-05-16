@@ -8,6 +8,7 @@ import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { ModelBadge } from "./ModelBadge";
 import { FolderBadge } from "./FolderBadge";
 import { BranchBadge } from "./BranchBadge";
+import { PlanBadge } from "./PlanBadge";
 import { OnboardingTitle } from "./OnboardingTitle";
 import { useNodeChat } from "@/hooks/useNodeChat";
 import type { CanvasNode, ImageBlock } from "@shared/types";
@@ -195,6 +196,7 @@ function CustomNodeImpl(props: NodeProps) {
           <ModelBadge nodeId={id} />
           <FolderBadge nodeId={id} />
           <BranchBadge nodeId={id} />
+          <PlanBadge nodeId={id} />
           {isMergeNode && (
             <span
               className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
@@ -283,7 +285,9 @@ function CustomNodeImpl(props: NodeProps) {
               message={assistantMessage}
               onStop={stop}
               nodeId={id}
-              onSuggestionClick={(prompt) => branch({ prefill: prompt, autoSubmit: true })}
+              onSuggestionClick={(prompt) =>
+                branch({ prefill: prompt, autoSubmit: true, placeBelow: true })
+              }
             />
           )}
           {askUserRequest && <AskUserPrompt request={askUserRequest} />}
