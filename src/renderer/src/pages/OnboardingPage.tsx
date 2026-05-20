@@ -24,7 +24,8 @@ export function OnboardingPage() {
         defaultProvider: authedProviders[0] ?? current.defaultProvider,
       };
       await window.api.settings.write(next);
-      navigate("/");
+      const canvas = await window.api.canvases.create({});
+      navigate(`/canvas/${canvas.id}`);
     } finally {
       setIsFinishing(false);
     }

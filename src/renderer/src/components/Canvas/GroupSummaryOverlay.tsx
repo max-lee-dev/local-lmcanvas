@@ -396,11 +396,11 @@ export function GroupSummaryOverlay({
                 <motion.div
                   key={`node-summary-${label.nodeId}`}
                   className="group absolute pointer-events-none"
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 2 }}
+                  initial={{ opacity: 0, y: 4, scale: 0.94 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 2, scale: 0.98 }}
                   transition={{
-                    duration: 0.12,
+                    duration: 0.22,
                     ease: [0.22, 1, 0.36, 1],
                     delay: Math.min(index * 0.01, 0.04),
                   }}
@@ -409,6 +409,7 @@ export function GroupSummaryOverlay({
                     top: `calc(${label.y}px - var(--label-font-size, 11px) * 1.5${label.hasContext ? " - 32px" : ""})`,
                     fontSize: "var(--label-font-size, 11px)",
                     lineHeight: 1.05,
+                    transformOrigin: "left bottom",
                   }}
                 >
                   <span

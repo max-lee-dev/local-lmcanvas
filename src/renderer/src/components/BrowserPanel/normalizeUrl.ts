@@ -1,7 +1,7 @@
 export function normalizeUrl(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return "about:blank";
-  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
+  if (trimmed === "about:blank") return trimmed;
   const isLocal =
     trimmed === "localhost" ||
     trimmed.startsWith("localhost:") ||
@@ -10,5 +10,6 @@ export function normalizeUrl(input: string): string {
     /^192\.168\.\d+\.\d+(:\d+)?(\/|$)/.test(trimmed) ||
     /^0\.0\.0\.0(:\d+)?(\/|$)/.test(trimmed);
   if (isLocal) return `http://${trimmed}`;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
 }

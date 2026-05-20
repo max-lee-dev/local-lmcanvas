@@ -53,11 +53,43 @@ const VERB_TO_GERUND: Record<string, string> = {
   write: "Writing",
 };
 
+const MAX_LABEL_WORDS = 10;
+
+// Leading reaction / filler words to strip outright.
+const REACTION_PREFIX_RE =
+  /^(?:Good|Great|Perfect|Nice|Cool|Awesome|Excellent|Got it|Done|OK|Okay|Alright|Sure|Right|Yep|Yes|Hmm+|Well|So|Interesting|Looks good|Looks like)\b[\s,.\-—–:!]*/i;
+
+function stripReactionPrefix(s: string): string {
+  let prev: string;
+  let cur = s;
+  do {
+    prev = cur;
+    cur = cur.replace(REACTION_PREFIX_RE, "").trimStart();
+  } while (cur !== prev);
+  return cur;
+}
+
+function clampWords(s: string, max: number): string {
+  const words = s.split(/\s+/);
+  if (words.length <= max) return s;
+  return words.slice(0, max).join(" ");
+}
+
+function splitIntoSentences(s: string): string[] {
+  return s
+    .split(/(?<=[.!?])\s+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+const ACTION_PREFIX_RE =
+  /^(?:Now,?\s+|First,?\s+|Next,?\s+|Then,?\s+|Also,?\s+|Okay,?\s+|Alright,?\s+)*(?:I['’]ll|I will|I'm going to|I am going to|Let me|I need to|I should|I want to)\s+(\w+)\s*(.*)$/i;
+
 /**
- * Trim model prose into a short action-form label.
+ * Trim model prose into a short action-form label (≤10 words).
  * "I'll dig into the canvas store first," → "Digging into the canvas store"
- * "Let me check the badge component" → "Checking the badge component"
- * Falls back to a capitalized version of the original if nothing matches.
+ * "Good — `'use client'` works. Let me check the layout" → "Checking the layout"
+ * "Project created. Now I'll build the calculator UI" → "Building the calculator UI"
  */
 export function toActionLabel(text: string): string {
   let s = text.trim();
@@ -68,21 +100,30 @@ export function toActionLabel(text: string): string {
   s = s.replace(/[,:;]\s*$/g, "");
   s = s.replace(/\s*\.\s*$/g, "");
 
-  const prefixMatch = s.match(
-    /^(?:Now,?\s+|First,?\s+|Next,?\s+|Then,?\s+|Also,?\s+|Okay,?\s+|Alright,?\s+)*(?:I['’]ll|I will|I'm going to|I am going to|Let me|I need to|I should|I want to)\s+(\w+)\s*(.*)$/i,
-  );
+  // If the model wrote multiple sentences, prefer the one with a clear
+  // action-form prefix ("Now I'll …", "Let me …"). Otherwise keep the last
+  // sentence — earlier ones tend to be reactions or result narration.
+  const sentences = splitIntoSentences(s);
+  if (sentences.length > 1) {
+    const actionSentence = sentences.find((p) => ACTION_PREFIX_RE.test(p));
+    s = actionSentence ?? sentences[sentences.length - 1];
+  }
+
+  // Strip any leading reaction words ("Good — ", "Perfect.", "OK,").
+  s = stripReactionPrefix(s);
+  if (!s) return "";
+
+  const prefixMatch = s.match(ACTION_PREFIX_RE);
   if (prefixMatch) {
     const verb = prefixMatch[1].toLowerCase();
     const rest = prefixMatch[2];
     const gerund = VERB_TO_GERUND[verb];
-    if (gerund) return rest ? `${gerund} ${rest}` : gerund;
-    // Unknown verb — keep it but capitalize.
-    const capVerb = verb.charAt(0).toUpperCase() + verb.slice(1);
-    return rest ? `${capVerb} ${rest}` : capVerb;
+    const head = gerund ?? verb.charAt(0).toUpperCase() + verb.slice(1);
+    return clampWords(rest ? `${head} ${rest}` : head, MAX_LABEL_WORDS);
   }
 
-  // No first-person prefix — just capitalize the first letter.
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  // No first-person prefix — just capitalize and clamp.
+  return clampWords(s.charAt(0).toUpperCase() + s.slice(1), MAX_LABEL_WORDS);
 }
 
 type Action = { verb: string; nounSingular: string; nounPlural: string };

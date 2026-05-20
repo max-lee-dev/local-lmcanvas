@@ -315,7 +315,7 @@ function CanvasInner() {
   const mockNodeSummaries = useMemo<GeneratedNodeSummary[]>(() => {
     return candidates.map((c) => ({
       nodeId: c.nodeId,
-      summary: c.prompt.split(/\s+/).filter(Boolean).slice(0, 6).join(" "),
+      summary: c.prompt.split(/\s+/).filter(Boolean).slice(0, 10).join(" "),
     }));
   }, [candidates]);
 

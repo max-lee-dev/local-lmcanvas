@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import clsx from "clsx";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
+import { forwardWheelAtBoundary } from "@/lib/scrollPan";
 import { CodeBlock } from "./CodeBlock";
 import { UserMessageBody } from "./UserMessageBody";
 
@@ -252,7 +253,10 @@ function TextBlockViewImpl({ text, isUser, nodeId }: Props) {
 
   if (isUser) {
     return (
-      <div className="whitespace-pre-wrap break-words text-[10px] leading-[1.4] text-foreground select-text cursor-text">
+      <div
+        className="whitespace-pre-wrap break-words text-[10px] leading-[1.4] text-foreground select-text cursor-text max-h-[112px] overflow-y-auto"
+        onWheel={forwardWheelAtBoundary}
+      >
         {highlightedTexts ? (
           highlightTextInString(text, highlightedTexts)
         ) : (

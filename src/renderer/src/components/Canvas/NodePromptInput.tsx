@@ -285,8 +285,8 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
         </div>
       )}
 
-      <div className="flex items-center relative group">
-        <div className="relative w-full">
+      <div className="flex items-stretch relative group">
+        <div className="relative w-full flex">
           <MentionEditor
             ref={editorRef}
             initialSegments={initialSegments}
@@ -294,7 +294,7 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
             autoFocus={autoFocus}
             className="relative w-full text-[10px] p-0 nodrag bg-transparent font-normal cursor-text"
             style={{
-              minHeight: "12px",
+              minHeight: "47px",
               maxHeight: "112px",
               overflowY: "auto",
               lineHeight: 1.4,

@@ -28,6 +28,14 @@ export function initAutoUpdate(): void {
     }
   });
 
+  autoUpdater.on("update-available", (info) => {
+    if (manualCheckInFlight) {
+      manualCheckInFlight = false;
+      const version = info?.version ? `v${info.version}` : "A new version";
+      notify(`${version} available`, "Downloading in the background…");
+    }
+  });
+
   autoUpdater.on("update-downloaded", (info) => {
     manualCheckInFlight = false;
     const version = info?.version ? `v${info.version}` : "A new version";
