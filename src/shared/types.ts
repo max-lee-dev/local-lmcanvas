@@ -71,6 +71,8 @@ export type CanvasNode = {
     title?: string;
     chat: ChatData;
     stickyText?: string;
+    /** User-resized node width in flow units. Falls back to NODE_WIDTH. */
+    width?: number;
     /** Per-node overrides for provider / cwd / branch. Falls back to canvas defaults. */
     nodeSettings?: NodeSettings;
   };

@@ -32,6 +32,15 @@ import { OffsetEdge } from "./OffsetEdge";
 import { SearchModalWrapper } from "./SearchModal";
 import { MergeToolbar } from "./MergeToolbar";
 import { CommandPaletteWrapper } from "./CommandPalette";
+import { GroupSummaryOverlay } from "./GroupSummaryOverlay";
+import {
+  buildGroupSummaryInput,
+  type DraftNode,
+  type GeneratedNodeSummary,
+  type GroupSummary,
+} from "@/lib/groupSummary";
+import { buildFallbackGroupSummaries } from "@/lib/groupClustering";
+import type { ChatData } from "@shared/types";
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { offset: OffsetEdge };
@@ -287,6 +296,38 @@ function CanvasInner() {
 
   const nodeCount = rfNodes.length;
 
+  // TODO(group-summary): the candidates → groups pipeline runs entirely on
+  // the client right now, using avera's deterministic Jaccard clustering +
+  // fallback titler. When an LLM-backed summarizer lands, the candidates
+  // stay the same shape and the LLM-produced groups replace the fallback.
+  const candidates = useMemo(() => {
+    const drafts: DraftNode[] = [];
+    for (const n of rfNodes) {
+      const chat = (n.data as { chat?: ChatData }).chat;
+      if (!chat) continue;
+      const draft: DraftNode = { id: n.id, messages: chat.messages };
+      if (chat.addedContext) draft.addedContext = chat.addedContext;
+      drafts.push(draft);
+    }
+    return buildGroupSummaryInput(drafts);
+  }, [rfNodes]);
+
+  const mockNodeSummaries = useMemo<GeneratedNodeSummary[]>(() => {
+    return candidates.map((c) => ({
+      nodeId: c.nodeId,
+      summary: c.prompt.split(/\s+/).filter(Boolean).slice(0, 6).join(" "),
+    }));
+  }, [candidates]);
+
+  const mockSummaries = useMemo<GroupSummary[]>(() => {
+    if (candidates.length < 2) return [];
+    return buildFallbackGroupSummaries(candidates).map((g, i) => ({
+      id: `fallback-group-${i}`,
+      title: g.title,
+      nodeIds: g.nodeIds,
+    }));
+  }, [candidates]);
+
   return (
     <div
       ref={wrapperRef}
@@ -339,6 +380,11 @@ function CanvasInner() {
           gap={32}
           size={1}
           color="var(--grid-line)"
+        />
+        <GroupSummaryOverlay
+          summaries={mockSummaries}
+          nodeSummaries={mockNodeSummaries}
+          nodes={rfNodes}
         />
         {showMinimap && (
           <MiniMap

@@ -3,6 +3,7 @@
 // child placement all agree on geometry.
 
 export const NODE_WIDTH = 450;
+export const NODE_MAX_WIDTH = 1100;
 export const NODE_MIN_HEIGHT = 96;
 
 // Avera-style padding multiplier: the right-lane child sits NODE_WIDTH +

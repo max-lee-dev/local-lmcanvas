@@ -9,7 +9,7 @@ import { ThinkingView } from "./blocks/ThinkingView";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import { ErrorBlock } from "./ErrorBlock";
 import { toActionLabel } from "./blocks/toolSummary";
-import { iconForSuggestion } from "@/lib/suggestionIcon";
+import { pickSuggestionIcons } from "@/lib/suggestionIcon";
 
 const MAX_TOOLS_PER_CHUNK = 5;
 
@@ -185,9 +185,11 @@ function SuggestionButtons({
         next steps
       </span>
       <div className="flex flex-wrap gap-1.5">
-        {suggestions.map((s, i) => {
-          const Icon = iconForSuggestion(s.label);
-          return (
+        {(() => {
+          const icons = pickSuggestionIcons(suggestions.map((s) => s.label));
+          return suggestions.map((s, i) => {
+            const Icon = icons[i];
+            return (
             <motion.button
               key={i}
               type="button"
@@ -207,7 +209,8 @@ function SuggestionButtons({
               {s.label}
             </motion.button>
           );
-        })}
+          });
+        })()}
       </div>
     </div>
   );

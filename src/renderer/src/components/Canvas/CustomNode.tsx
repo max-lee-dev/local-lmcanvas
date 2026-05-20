@@ -1,5 +1,5 @@
 import { memo, useMemo, useRef, useState } from "react";
-import { NodeResizer, type NodeProps } from "@xyflow/react";
+import { type NodeProps } from "@xyflow/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { GitMerge, Plus } from "lucide-react";
 import clsx from "clsx";
@@ -20,9 +20,10 @@ import { SelectionActionButton } from "./SelectionActionButton";
 import { CustomNodeContextBanner } from "./CustomNodeContextBanner";
 import { NodeCopyButton } from "./NodeCopyButton";
 import { NodeSourceHandles, NodeTargetHandles } from "./NodeHandles";
+import { ResizeHandle } from "./ResizeHandle";
 import { useAskUserStore } from "@/hooks/useAskUserStore";
 import { useSelection } from "@/hooks/useSelection";
-import { NODE_MIN_HEIGHT, NODE_WIDTH } from "@/lib/canvasConstants";
+import { NODE_WIDTH } from "@/lib/canvasConstants";
 import { useBranchFromNode } from "@/hooks/useBranchFromNode";
 import { useDeleteConfirm } from "@/hooks/useDeleteConfirm";
 import { useNodeFileDrop } from "@/hooks/useNodeFileDrop";
@@ -111,12 +112,13 @@ function CustomNodeImpl(props: NodeProps) {
   const isMergeSelected = merging && mergeIds.includes(id);
   const isMergeNode = nodeData.chat.parentIds.length > 1;
   const mergedConversationCount = nodeData.chat.parentIds.length;
+  const nodeWidth = nodeData.width ?? NODE_WIDTH;
 
   return (
     <motion.div
       ref={rootRef}
       className="relative"
-      style={{ width: NODE_WIDTH }}
+      style={{ width: nodeWidth }}
       data-node-id={id}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -124,15 +126,6 @@ function CustomNodeImpl(props: NodeProps) {
       animate={{ scale: 1, opacity: 1 }}
       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
     >
-      <NodeResizer
-        isVisible={selected || hovered}
-        minWidth={NODE_WIDTH}
-        maxWidth={1100}
-        minHeight={NODE_MIN_HEIGHT}
-        lineClassName="!border-transparent"
-        handleClassName="!h-3 !w-3 !border-0 !bg-transparent !shadow-none"
-      />
-
       <AnimatePresence>{showOnboarding && <OnboardingTitle />}</AnimatePresence>
 
       <NodeTargetHandles />
@@ -189,6 +182,8 @@ function CustomNodeImpl(props: NodeProps) {
             transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
           />
         )}
+
+        <ResizeHandle nodeId={id} width={nodeWidth} isVisible={hovered || selected} />
 
         <CustomNodeContextBanner addedContext={nodeData.chat.addedContext} />
 

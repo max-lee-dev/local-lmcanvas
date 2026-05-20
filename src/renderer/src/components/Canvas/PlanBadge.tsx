@@ -28,10 +28,11 @@ export function PlanBadge({ nodeId }: Props) {
         }}
         onMouseDown={(e) => e.stopPropagation()}
         className={clsx(
-          "flex items-center gap-1 rounded-sm border px-1.5 py-[5px] text-xs font-medium cursor-pointer transition-colors",
+          "flex items-center gap-1 rounded-sm border bg-card text-foreground px-1.5 py-[5px] text-xs font-medium cursor-pointer transition-colors",
+          "hover:bg-muted",
           planMode
-            ? "border-accent/60 bg-accent/15 text-foreground ring-1 ring-accent/30 hover:bg-accent/25"
-            : "border-border bg-card text-muted-foreground hover:bg-muted",
+            ? "border-accent/60 bg-accent/15 ring-1 ring-accent/30 hover:bg-accent/25"
+            : "border-border",
         )}
         style={{ fontFamily: "var(--font-geist-pixel-square)" }}
         title={
