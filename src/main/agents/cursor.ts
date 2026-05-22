@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { consumeJsonl } from "./jsonlReader";
 import { shellEnv } from "../shellPath";
+import { normalizeUsage } from "./usage";
 import {
   composePromptWithSystem,
   errorMessage,
@@ -30,6 +31,8 @@ type CursorEvent =
       is_error?: boolean;
       result?: string;
       error?: string;
+      usage?: unknown;
+      token_usage?: unknown;
     }
   | { type: string; [k: string]: unknown };
 
@@ -148,12 +151,15 @@ function handleEvent(ev: CursorEvent, emit: (e: RunnerEvent) => void): void {
         is_error?: boolean;
         result?: string;
         error?: string;
+        usage?: unknown;
+        token_usage?: unknown;
       };
+      const usage = normalizeUsage(r.usage ?? r.token_usage);
       if (r.is_error === true || r.subtype === "error") {
         emit({ kind: "error", message: r.error ?? r.result ?? "cursor-agent error" });
-        emit({ kind: "done", isError: true });
+        emit({ kind: "done", isError: true, usage });
       } else {
-        emit({ kind: "done", isError: false, result: r.result });
+        emit({ kind: "done", isError: false, result: r.result, usage });
       }
       return;
     }

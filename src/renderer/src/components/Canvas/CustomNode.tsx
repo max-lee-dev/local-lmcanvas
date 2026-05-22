@@ -281,7 +281,12 @@ function CustomNodeImpl(props: NodeProps) {
               onStop={stop}
               nodeId={id}
               onSuggestionClick={(prompt) =>
-                branch({ prefill: prompt, autoSubmit: true, placeBelow: true })
+                branch({
+                  prefill: prompt,
+                  autoSubmit: true,
+                  placeBelow: true,
+                  focusViewport: false,
+                })
               }
             />
           )}

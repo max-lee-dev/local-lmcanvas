@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { useCanvasStoreApi } from "./useCanvasStore";
 import type {
   CanvasNode,
   ImageBlock,
   NodeId,
+  Provider,
   TextBlock,
   ThinkingBlock,
   ToolUseBlock,
@@ -12,6 +13,7 @@ import type {
 } from "@shared/types";
 import type { Attachment, ChatEvent } from "@shared/ipc";
 import { buildMergeContext } from "@shared/history";
+import { isUnnamedCanvasName, promptToCanvasName } from "@shared/canvasName";
 import { createNextStepsStreamer } from "@/lib/nextStepsParser";
 
 export function useNodeChat(nodeId: NodeId) {
@@ -33,6 +35,11 @@ export function useNodeChat(nodeId: NodeId) {
 
       const store = storeApi.getState();
       const nodeBeforeSubmit = store.nodes[nodeId];
+      const shouldNameCanvas =
+        isUnnamedCanvasName(store.name) &&
+        !!trimmed &&
+        !!nodeBeforeSubmit &&
+        !nodeBeforeSubmit.data.chat.messages.some((m) => m.role === "user");
       const isFirstMergePrompt =
         !!nodeBeforeSubmit &&
         nodeBeforeSubmit.data.chat.parentIds.length > 1 &&
@@ -64,10 +71,48 @@ export function useNodeChat(nodeId: NodeId) {
         status: "complete",
       });
 
+      if (shouldNameCanvas) {
+        const fallbackName = promptToCanvasName(trimmed);
+        if (fallbackName) {
+          storeApi.getState().setName(fallbackName);
+          const notifyCanvasList = () =>
+            window.dispatchEvent(new Event("lmc:canvases-changed"));
+          void storeApi
+            .getState()
+            .save()
+            .then(notifyCanvasList)
+            .catch((err) =>
+              console.error("Failed to save prompt-derived canvas name:", err),
+            );
+          void window.api.canvasName
+            .generate({ prompt: trimmed })
+            .then((generatedName) => {
+              if (!generatedName) return;
+              const currentName = storeApi.getState().name;
+              if (currentName !== fallbackName && !isUnnamedCanvasName(currentName)) {
+                return;
+              }
+              storeApi.getState().setName(generatedName);
+              void storeApi
+                .getState()
+                .save()
+                .then(notifyCanvasList)
+                .catch((err) =>
+                  console.error("Failed to save generated canvas name:", err),
+                );
+            })
+            .catch((err) =>
+              console.error("Failed to generate canvas name:", err),
+            );
+        }
+      }
+
       const asstMsgId = nanoid();
+      const messageProvider: Provider = store.getEffectiveProvider(nodeId);
       store.appendMessage(nodeId, {
         id: asstMsgId,
         role: "assistant",
+        provider: messageProvider,
         blocks: [],
         createdAt: Date.now(),
         status: "streaming",
@@ -136,6 +181,9 @@ export function useNodeChat(nodeId: NodeId) {
             s.setToolResult(nodeId, asstMsgId, ev.toolUseId, ev.content, ev.isError);
             return;
           case "done":
+            if (ev.usage) {
+              s.setMessageUsage(nodeId, asstMsgId, ev.usage);
+            }
             if (ev.isError) {
               s.errorMessage(nodeId, asstMsgId, ev.result ?? "error", {
                 code: ev.code,
@@ -200,13 +248,6 @@ export function useNodeChat(nodeId: NodeId) {
   const stop = useCallback(() => {
     const id = activeChatIdRef.current;
     if (id) void window.api.chat.cancel(id);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      const id = activeChatIdRef.current;
-      if (id) void window.api.chat.cancel(id);
-    };
   }, []);
 
   return { submit, stop, streaming };

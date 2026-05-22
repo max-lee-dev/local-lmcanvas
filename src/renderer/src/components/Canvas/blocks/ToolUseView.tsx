@@ -1,32 +1,51 @@
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   AlertCircle,
   CheckCircle2,
   ChevronDown,
   Circle,
+  FileText,
   Loader2,
+  PlayCircle,
+  Square,
 } from "lucide-react";
 import clsx from "clsx";
 import type { ToolUseBlock } from "@shared/types";
 import { getToolIcon, getToolSummary } from "./toolMeta";
+import { useCanvasStore } from "@/hooks/useCanvasStore";
 
 type Props = {
   block: ToolUseBlock;
+  nodeId?: string;
   awaitingText?: boolean;
 };
 
-export function ToolUseView({ block, awaitingText = false }: Props) {
+export function ToolUseView({ block, nodeId, awaitingText = false }: Props) {
+  const cwd = useCanvasStore((s) =>
+    nodeId ? s.getEffectiveCwd(nodeId) : undefined
+  );
   if (block.name === "TodoWrite") {
     return <TodoWriteView block={block} />;
   }
-  return <GenericToolView block={block} awaitingText={awaitingText} />;
+  return (
+    <GenericToolView
+      block={block}
+      cwd={cwd}
+      nodeId={nodeId}
+      awaitingText={awaitingText}
+    />
+  );
 }
 
 function GenericToolView({
   block,
+  cwd,
+  nodeId,
   awaitingText,
 }: {
   block: ToolUseBlock;
+  cwd?: string;
+  nodeId?: string;
   awaitingText: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -35,6 +54,7 @@ function GenericToolView({
   const running = !block.result;
   const isError = block.result?.isError === true;
   const showLoader = running || awaitingText;
+  const persistentCommand = extractPersistentCommand(block);
 
   return (
     <div
@@ -75,6 +95,14 @@ function GenericToolView({
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
+          {persistentCommand && (
+            <PersistentProcessButton
+              command={persistentCommand}
+              cwd={cwd}
+              nodeId={nodeId}
+              toolRunning={running}
+            />
+          )}
           {showLoader ? (
             <Loader2 size={11} className="animate-spin text-muted-foreground" />
           ) : isError ? (
@@ -118,6 +146,155 @@ function GenericToolView({
         </div>
       )}
     </div>
+  );
+}
+
+type PersistentProcessState =
+  | { status: "idle" }
+  | { status: "starting" }
+  | { status: "running"; id: string; pid: number; logPath: string }
+  | { status: "error"; message: string };
+
+const IDLE_PERSISTENT_PROCESS_STATE: PersistentProcessState = { status: "idle" };
+const PERSISTENT_PROCESS_RESTART_DELAY_MS = 800;
+const persistentProcessStates = new Map<string, PersistentProcessState>();
+const persistentProcessListeners = new Set<() => void>();
+
+function getPersistentProcessKey(command: string, cwd?: string): string {
+  return `${cwd ?? ""}\n${command}`;
+}
+
+function subscribePersistentProcesses(listener: () => void): () => void {
+  persistentProcessListeners.add(listener);
+  return () => {
+    persistentProcessListeners.delete(listener);
+  };
+}
+
+function getPersistentProcessSnapshot(
+  key: string
+): PersistentProcessState {
+  return persistentProcessStates.get(key) ?? IDLE_PERSISTENT_PROCESS_STATE;
+}
+
+function setPersistentProcessState(
+  key: string,
+  state: PersistentProcessState
+): void {
+  if (state.status === "idle") {
+    persistentProcessStates.delete(key);
+  } else {
+    persistentProcessStates.set(key, state);
+  }
+  persistentProcessListeners.forEach((listener) => listener());
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function PersistentProcessButton({
+  command,
+  cwd,
+  nodeId,
+  toolRunning,
+}: {
+  command: string;
+  cwd?: string;
+  nodeId?: string;
+  toolRunning: boolean;
+}) {
+  const key = getPersistentProcessKey(command, cwd);
+  const state = useSyncExternalStore(
+    subscribePersistentProcesses,
+    () => getPersistentProcessSnapshot(key),
+    () => getPersistentProcessSnapshot(key)
+  );
+
+  const start = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setPersistentProcessState(key, { status: "starting" });
+    try {
+      if (toolRunning && nodeId) {
+        await window.api.chat.cancelForNode(nodeId);
+        await wait(PERSISTENT_PROCESS_RESTART_DELAY_MS);
+      }
+      const result = await window.api.processes.start({ command, cwd });
+      setPersistentProcessState(key, { status: "running", ...result });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setPersistentProcessState(key, { status: "error", message });
+    }
+  };
+
+  const stop = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (state.status !== "running") return;
+    const result = await window.api.processes.stop(state.id);
+    if (result.stopped) {
+      setPersistentProcessState(key, { status: "idle" });
+    } else {
+      setPersistentProcessState(key, {
+        status: "error",
+        message: result.message ?? "Failed to stop process.",
+      });
+    }
+  };
+
+  if (state.status === "running") {
+    return (
+      <>
+        <button
+          type="button"
+          title={`Open process log: ${state.logPath}`}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void window.api.shell.openPath(state.logPath);
+          }}
+          className="inline-flex h-5 items-center gap-1 rounded-md border border-border bg-background px-1.5 text-[9px] font-medium text-muted-foreground hover:text-foreground"
+        >
+          <FileText size={10} />
+          {state.pid}
+        </button>
+        <button
+          type="button"
+          title="Stop detached process"
+          onClick={stop}
+          className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:text-foreground"
+        >
+          <Square size={9} />
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      title={
+        state.status === "error"
+          ? state.message
+          : toolRunning
+            ? "Stop the node and restart this command as a detached process"
+            : "Keep this command running after the node completes"
+      }
+      onClick={start}
+      disabled={state.status === "starting"}
+      className={clsx(
+        "inline-flex h-5 items-center gap-1 rounded-md border border-border bg-background px-1.5 text-[9px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60",
+        state.status === "error" && "border-destructive/40 text-destructive"
+      )}
+    >
+      {state.status === "starting" ? (
+        <Loader2 size={10} className="animate-spin" />
+      ) : (
+        <PlayCircle size={10} />
+      )}
+      Keep running
+    </button>
   );
 }
 
@@ -226,4 +403,36 @@ function prettyJson(v: unknown): string {
   } catch {
     return String(v);
   }
+}
+
+function extractPersistentCommand(block: ToolUseBlock): string | null {
+  if (!isCommandTool(block.name) || !isRecord(block.input)) return null;
+  const rawCommand = block.input["command"];
+  const command = Array.isArray(rawCommand)
+    ? rawCommand.filter((part): part is string => typeof part === "string").join(" ")
+    : typeof rawCommand === "string"
+      ? rawCommand
+      : null;
+  if (!command || !looksLongRunning(command)) return null;
+  return command;
+}
+
+function isCommandTool(name: string): boolean {
+  return name === "Bash" || name === "exec" || name === "command_execution";
+}
+
+function looksLongRunning(command: string): boolean {
+  const normalized = command.toLowerCase();
+  return [
+    /\b(bun|npm|pnpm|yarn)\s+(run\s+)?(dev|start|serve|preview|watch)\b/,
+    /\b(vite|next|astro|svelte-kit|webpack-dev-server|nodemon)\b/,
+    /\bturbo\s+(run\s+)?dev\b/,
+    /\btsx\s+watch\b/,
+    /\bpython3?\s+-m\s+http\.server\b/,
+    /\buvicorn\b/,
+  ].some((pattern) => pattern.test(normalized));
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
 }

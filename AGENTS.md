@@ -4,7 +4,7 @@ Guide for AI coding agents (Claude Code, Cursor, Codex, etc.) working in this re
 
 ## Project
 
-`local-lmcanvas` is a fully-local, canvas-based branching AI conversation tool. Electron 33 + React 19 + TypeScript 5.6 (strict). Uses the Claude Code CLI as its LLM backend; collects no telemetry.
+`local-lmcanvas` is a fully-local, canvas-based branching AI conversation tool. Electron 33 + React 19 + TypeScript 5.6 (strict). Supports multiple CLI-backed providers (Claude, Codex, Cursor) with per-provider model selection; collects no telemetry.
 
 ## Build & verify
 

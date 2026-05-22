@@ -12,9 +12,12 @@ import {
 import { readSettings, writeSettings } from "./storage/settings";
 import { buildPromptWithHistory } from "./claude/history";
 import { runAgent } from "./agents";
+import { generateGroupSummaries } from "./groupSummary/generate";
+import { generateCanvasName } from "./canvasName/generate";
 import { getProviderAuthStatus, openLoginTerminal } from "./auth/providerAuth";
 import { listFiles } from "./files";
 import { listSlashItems } from "./slashItems";
+import { startPersistentProcess, stopPersistentProcess } from "./processes";
 import {
   cancelAllForWebContents,
   completeRequest as completeAskUser,
@@ -26,7 +29,10 @@ import type {
   ChatEvent,
   ChatStartArgs,
   CanvasCreateArgs,
+  GenerateCanvasNameRequest,
+  PersistentProcessStartArgs,
   FileEntry,
+  GenerateGroupSummaryRequest,
   SlashItem,
 } from "@shared/ipc";
 import type { AppSettings, Canvas, Provider } from "@shared/types";
@@ -91,10 +97,10 @@ const activeChats = new Map<string, ActiveChat>();
 const TERSE_NARRATION_INSTRUCTION =
   "RESPONSE STYLE: Before each batch of tool calls (typically 1–5 parallel calls), write ONE very short action-form label as a single line — 3 to 8 words, MAX 10, gerund form. Examples: 'Reading the canvas store', 'Searching for tool handlers', 'Editing the badge component', 'Building the calculator UI'. Strict rules: (1) State ONLY the next action — never two sentences, never an acknowledgment followed by an action. (2) NEVER start with a reaction or judgment word: no 'Good', 'Great', 'Perfect', 'Nice', 'Cool', 'Awesome', 'Excellent', 'Got it', 'Done', 'OK', 'Okay', 'Alright', 'Hmm'. (3) NEVER describe what just happened or summarize a prior result — no 'X created.', 'X done.', 'X works.' Skip straight to the next action. (4) NEVER use first-person prefixes like 'I'll', 'Let me', 'I'm going to', 'Now I will'. (5) No trailing ellipsis. When you fire a long sequence of tool calls, insert a fresh action-form label every ~5 calls. Save longer prose for your final answer to the user.";
 
-// Asks the model to optionally end with a `<next-steps>` block listing 1–3
+// Asks the model to usually end with a `<next-steps>` block listing 1–3
 // follow-up prompts. The renderer strips this block from the visible text and
 // renders each item as a clickable button that branches into a new child node.
-const NEXT_STEPS_INSTRUCTION = `SUGGESTED NEXT STEPS: When — and only when — there are 1–3 obvious follow-up actions the user is likely to want next, end your response with a block in this exact format:
+const NEXT_STEPS_INSTRUCTION = `SUGGESTED NEXT STEPS: Default to ending most substantive responses with 1–3 proactive follow-up actions the user may want next, especially concrete things to build, refine, verify, compare, or explore. End your response with a block in this exact format:
 
 <next-steps>
 - Short label :: Full prompt the user could send as the next message
@@ -106,8 +112,12 @@ Rules:
 - Each item is on its own line, starts with "- ", and uses " :: " (space-colon-colon-space) as the separator.
 - Label is ≤6 words, sentence case, no trailing punctuation.
 - Prompt is a complete, standalone instruction the user could send verbatim.
-- 0–3 items. If nothing obvious comes to mind, omit the block entirely — do NOT force suggestions.
+- Prefer at least 1 item whenever there is a plausible next build step, experiment, cleanup, verification step, or adjacent feature. It is okay if the suggestion is proactive rather than explicitly requested.
+- Use 2–3 items when there are multiple useful directions, such as "build next", "improve UX", and "verify behavior".
+- Omit the block only for tiny acknowledgments, direct factual answers with no useful follow-up, blocked/error responses where the next action is already stated in prose, or when every suggestion would be generic busywork.
 - Never wrap the block in code fences or markdown. Never reference it in the prose above.`;
+
+const PERSISTENT_PROCESS_INSTRUCTION = `LONG-RUNNING LOCAL PROCESSES: If the user asks you to start a dev server, watcher, preview server, or similar command that should remain available after your response completes, do not rely on a transient agent background job. Start it in a detached/nohup shell with output redirected to a log file, report the PID and log path, and verify the service over HTTP or with an equivalent health check when possible.`;
 
 const FILES_CACHE_TTL_MS = 10_000;
 const filesCache = new Map<string, { at: number; files: FileEntry[] }>();
@@ -137,6 +147,14 @@ function registerIpc(): void {
   ipcMain.handle("shell:openPath", async (_e, path: string) => {
     await shell.openPath(path);
   });
+
+  ipcMain.handle("processes:start", async (_e, args: PersistentProcessStartArgs) =>
+    startPersistentProcess(args)
+  );
+
+  ipcMain.handle("processes:stop", async (_e, id: string) =>
+    stopPersistentProcess(id)
+  );
 
   ipcMain.handle("files:list", async (_e, cwd: string): Promise<FileEntry[]> => {
     if (!cwd) return [];
@@ -192,9 +210,8 @@ function registerIpc(): void {
         ? `${basePrompt}\n\n${TERSE_NARRATION_INSTRUCTION}`
         : TERSE_NARRATION_INSTRUCTION
       : basePrompt;
-    const systemPrompt = withTerse
-      ? `${withTerse}\n\n${NEXT_STEPS_INSTRUCTION}`
-      : NEXT_STEPS_INSTRUCTION;
+    const builtInPrompt = `${PERSISTENT_PROCESS_INSTRUCTION}\n\n${NEXT_STEPS_INSTRUCTION}`;
+    const systemPrompt = withTerse ? `${withTerse}\n\n${builtInPrompt}` : builtInPrompt;
 
     const provider: Provider =
       nodeSettings?.provider ?? canvas.provider ?? settings.defaultProvider ?? "claude";
@@ -272,6 +289,7 @@ function registerIpc(): void {
                 isError: ev.isError,
                 result: ev.result,
                 code: ev.code,
+                usage: ev.usage,
                 provider: ev.isError ? provider : undefined,
               });
               return;
@@ -325,6 +343,40 @@ function registerIpc(): void {
     const hash = canvasId ? `/canvas/${canvasId}` : "/";
     createWindow(hash);
   });
+
+  ipcMain.handle(
+    "groupSummary:generate",
+    async (_e, args: GenerateGroupSummaryRequest) => {
+      const settings = await readSettings();
+      const model =
+        settings.providers?.claude?.model ?? settings.claudeModel ?? undefined;
+      try {
+        return await generateGroupSummaries({
+          candidates: args.candidates,
+          existingGroupTitles: args.existingGroupTitles,
+          model,
+        });
+      } catch (err) {
+        console.error("[groupSummary:generate] failed:", err);
+        return [];
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "canvasName:generate",
+    async (_e, args: GenerateCanvasNameRequest) => {
+      const settings = await readSettings();
+      const model =
+        settings.providers?.claude?.model ?? settings.claudeModel ?? undefined;
+      try {
+        return await generateCanvasName({ prompt: args.prompt, model });
+      } catch (err) {
+        console.error("[canvasName:generate] failed:", err);
+        return null;
+      }
+    },
+  );
 }
 
 function installUpdateMenuItem(): void {
@@ -346,6 +398,25 @@ function installUpdateMenuItem(): void {
   );
   Menu.setApplicationMenu(menu);
 }
+
+// Subprocess stdin races (e.g. the Claude Agent SDK writing to its own child's
+// stdin after we abort the controller) surface as async EPIPE errors with no
+// catchable origin. Swallow those; rethrow anything else as a real crash.
+process.on("uncaughtException", (err: NodeJS.ErrnoException) => {
+  if (err?.code === "EPIPE") {
+    console.warn("[main] swallowed EPIPE from subprocess stdin:", err.message);
+    return;
+  }
+  console.error("[main] uncaughtException:", err);
+});
+process.on("unhandledRejection", (reason) => {
+  const err = reason as NodeJS.ErrnoException | undefined;
+  if (err?.code === "EPIPE") {
+    console.warn("[main] swallowed EPIPE rejection:", err.message);
+    return;
+  }
+  console.error("[main] unhandledRejection:", reason);
+});
 
 app.whenReady().then(async () => {
   // macOS GUI apps inherit a minimal PATH that lacks /opt/homebrew/bin,

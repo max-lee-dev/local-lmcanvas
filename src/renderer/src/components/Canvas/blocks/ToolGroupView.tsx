@@ -8,6 +8,7 @@ import { deriveToolActionLabel } from "./toolSummary";
 
 type Props = {
   blocks: ToolUseBlock[];
+  nodeId?: string;
   awaitingText?: boolean;
   summary?: string;
   chunkIndex?: number;
@@ -16,6 +17,7 @@ type Props = {
 
 export function ToolGroupView({
   blocks,
+  nodeId,
   awaitingText = false,
   summary,
   totalChunks = 1,
@@ -24,7 +26,13 @@ export function ToolGroupView({
   const summaryText = summary?.trim() || null;
 
   if (blocks.length === 1 && totalChunks === 1 && !summaryText) {
-    return <ToolUseView block={blocks[0]} awaitingText={awaitingText} />;
+    return (
+      <ToolUseView
+        block={blocks[0]}
+        nodeId={nodeId}
+        awaitingText={awaitingText}
+      />
+    );
   }
 
   const errorCount = blocks.filter((b) => b.result?.isError).length;
@@ -73,14 +81,14 @@ export function ToolGroupView({
             expanded && "rotate-90"
           )}
         />
-        <div className="flex -space-x-0.5 shrink-0">
+        <div className="flex -space-x-1.5 shrink-0">
           {blocks.slice(0, 3).map((b, i) => {
             const Icon = getToolIcon(b.name);
             return (
               <span
                 key={b.id || i}
                 className={clsx(
-                  "flex h-4 w-4 items-center justify-center rounded-[4px] border bg-card",
+                  "relative flex h-4 w-4 items-center justify-center rounded-[4px] border bg-card",
                   b.result?.isError ? "border-destructive/40" : "border-border"
                 )}
               >
@@ -101,7 +109,7 @@ export function ToolGroupView({
       {expanded && (
         <div className="flex flex-col gap-1 border-t border-border bg-muted/30 p-1.5">
           {blocks.map((b, i) => (
-            <ToolUseView key={b.id || i} block={b} />
+            <ToolUseView key={b.id || i} block={b} nodeId={nodeId} />
           ))}
         </div>
       )}

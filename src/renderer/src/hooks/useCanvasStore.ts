@@ -16,12 +16,14 @@ import type {
   Suggestion,
   TextBlock,
   ToolUseBlock,
+  UsageSummary,
 } from "@shared/types";
 import {
   getMessageHistoryForNode,
   messageTextForTitle,
   migrateMessage,
 } from "@shared/history";
+import { isUnnamedCanvasName, promptToCanvasName } from "@shared/canvasName";
 import { getEdgeHandles } from "@/lib/edgeHandles";
 import { FALLBACK_NODE_HEIGHT, VERTICAL_CHILD_OFFSET } from "@/lib/canvasConstants";
 import { useRecentsStore } from "@/hooks/useRecentsStore";
@@ -86,6 +88,7 @@ export type CanvasStoreState = {
     content: string,
     isError: boolean
   ) => void;
+  setMessageUsage: (nodeId: NodeId, messageId: string, usage?: UsageSummary) => void;
   finalizeMessage: (nodeId: NodeId, messageId: string) => void;
   errorMessage: (
     nodeId: NodeId,
@@ -161,6 +164,16 @@ function mapMessage(
     return fn(m);
   });
   return changed ? next : messages;
+}
+
+function firstUserPrompt(nodes: CanvasNode[]): string | null {
+  for (const node of nodes) {
+    const message = node.data.chat.messages.find((m) => m.role === "user");
+    if (!message) continue;
+    const text = messageTextForTitle(message).trim();
+    if (text) return text;
+  }
+  return null;
 }
 
 export function createCanvasStoreApi(): CanvasStoreApi {
@@ -300,6 +313,42 @@ export function createCanvasStoreApi(): CanvasStoreApi {
           loaded: true,
           dirty: { count: 0, lastChangeAt: 0 },
         });
+        const prompt = isUnnamedCanvasName(canvas.name)
+          ? firstUserPrompt(canvas.nodes)
+          : null;
+        const fallbackName = prompt ? promptToCanvasName(prompt) : "";
+        if (prompt && fallbackName) {
+          set({ name: fallbackName });
+          get().markDirty();
+          const notifyCanvasList = () =>
+            window.dispatchEvent(new Event("lmc:canvases-changed"));
+          void get()
+            .save()
+            .then(notifyCanvasList)
+            .catch((err) =>
+              console.error("Failed to save prompt-derived canvas name:", err),
+            );
+          void window.api.canvasName
+            .generate({ prompt })
+            .then((generatedName) => {
+              if (!generatedName) return;
+              const currentName = get().name;
+              if (currentName !== fallbackName && !isUnnamedCanvasName(currentName)) {
+                return;
+              }
+              set({ name: generatedName });
+              get().markDirty();
+              void get()
+                .save()
+                .then(notifyCanvasList)
+                .catch((err) =>
+                  console.error("Failed to save generated canvas name:", err),
+                );
+            })
+            .catch((err) =>
+              console.error("Failed to generate canvas name:", err),
+            );
+        }
       },
 
       setName: (name) => {
@@ -622,6 +671,16 @@ export function createCanvasStoreApi(): CanvasStoreApi {
               });
               return touched ? { ...m, blocks } : m;
             })
+          );
+          return nodes ? { nodes } : s;
+        });
+        get().markDirty();
+      },
+
+      setMessageUsage: (nodeId, messageId, usage) => {
+        set((s) => {
+          const nodes = updateMessages(s.nodes, nodeId, (messages) =>
+            mapMessage(messages, messageId, (m) => ({ ...m, usage })),
           );
           return nodes ? { nodes } : s;
         });

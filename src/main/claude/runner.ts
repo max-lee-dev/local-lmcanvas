@@ -74,7 +74,7 @@ function resolveClaudeBin(): string | undefined {
   return undefined;
 }
 
-const CLAUDE_BIN_PATH = resolveClaudeBin();
+export const CLAUDE_BIN_PATH = resolveClaudeBin();
 console.log("[lmcanvas] CLAUDE_BIN_PATH =", CLAUDE_BIN_PATH);
 import type {
   BetaContentBlock,
@@ -95,6 +95,7 @@ import type { WebContents } from "electron";
 import type { Attachment } from "@shared/ipc";
 import { buildAskUserServer } from "./askUserMcp";
 import { isAuthError, type RunnerEvent } from "../agents/types";
+import { normalizeUsage } from "../agents/usage";
 
 const ASK_USER_SYSTEM_NOTE = `\n\nWhen you need to ask the local user a structured multiple-choice question, use the \`mcp__lmc__ask_user_question\` tool. It renders an interactive picker inside the local-lmcanvas app. Do NOT use the built-in AskUserQuestion tool — it is disabled in this environment.`;
 
@@ -257,12 +258,15 @@ function handleUser(msg: SDKUserMessage, emit: (ev: RunnerEvent) => void): void 
 }
 
 function handleResult(msg: SDKResultMessage, emit: (ev: RunnerEvent) => void): void {
+  const usage = normalizeUsage((msg as { usage?: unknown }).usage, {
+    totalCostUsd: (msg as { total_cost_usd?: unknown }).total_cost_usd,
+  });
   if (msg.subtype === "success") {
-    emit({ kind: "done", isError: msg.is_error, result: msg.result });
+    emit({ kind: "done", isError: msg.is_error, result: msg.result, usage });
     return;
   }
   const errText = msg.errors && msg.errors.length ? msg.errors.join("\n") : msg.subtype;
-  emit({ kind: "done", isError: true, result: errText });
+  emit({ kind: "done", isError: true, result: errText, usage });
 }
 
 function toolResultContentToString(content: ToolResultBlockParam["content"]): string {

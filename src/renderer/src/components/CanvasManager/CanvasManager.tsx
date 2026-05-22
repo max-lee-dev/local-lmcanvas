@@ -53,6 +53,15 @@ export function CanvasManager({
   }, []);
 
   useEffect(() => {
+    const onCanvasesChanged = () => {
+      void refresh();
+    };
+    window.addEventListener("lmc:canvases-changed", onCanvasesChanged);
+    return () =>
+      window.removeEventListener("lmc:canvases-changed", onCanvasesChanged);
+  }, []);
+
+  useEffect(() => {
     const check = () => setIsLargeScreen(window.innerWidth >= 768);
     check();
     window.addEventListener("resize", check);
@@ -81,6 +90,7 @@ export function CanvasManager({
     setIsCreating(true);
     try {
       const c = await window.api.canvases.create({});
+      setIsOpen(false);
       await refresh();
       navigateToCanvas(c.id);
     } finally {

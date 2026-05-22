@@ -1,13 +1,19 @@
 import type { WebContents } from "electron";
 import type { Attachment } from "@shared/ipc";
-import type { ErrorCode } from "@shared/types";
+import type { ErrorCode, UsageSummary } from "@shared/types";
 
 export type RunnerEvent =
   | { kind: "text_delta"; text: string }
   | { kind: "tool_use"; toolUseId: string; name: string; input: unknown }
   | { kind: "tool_result"; toolUseId: string; content: string; isError: boolean }
   | { kind: "thinking_delta"; text: string }
-  | { kind: "done"; isError?: boolean; result?: string; code?: ErrorCode }
+  | {
+      kind: "done";
+      isError?: boolean;
+      result?: string;
+      code?: ErrorCode;
+      usage?: UsageSummary;
+    }
   | { kind: "error"; message: string; code?: ErrorCode };
 
 const AUTH_PATTERNS: RegExp[] = [

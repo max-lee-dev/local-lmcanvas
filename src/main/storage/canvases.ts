@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import type { Canvas, CanvasNode, CanvasSummary, Message, Provider } from "@shared/types";
 import { PROVIDERS } from "@shared/types";
 import { migrateMessage } from "@shared/history";
+import { isUnnamedCanvasName } from "@shared/canvasName";
 import { CANVASES_DIR, atomicWriteFile, canvasFilePath, ensureDirs } from "./paths";
 
 export async function listCanvases(): Promise<CanvasSummary[]> {
@@ -15,7 +16,8 @@ export async function listCanvases(): Promise<CanvasSummary[]> {
     try {
       const raw = await readFile(full, "utf-8");
       const parsed = JSON.parse(raw) as Partial<Canvas>;
-      if (!parsed.id || !parsed.name) continue;
+      if (!parsed.id || typeof parsed.name !== "string") continue;
+      if (isUnnamedCanvasName(parsed.name)) continue;
       summaries.push({
         id: parsed.id,
         name: parsed.name,
@@ -67,9 +69,10 @@ export async function createCanvas(args: {
   const id = nanoid(10);
   const now = Date.now();
   const cwd = args.cwd && args.cwd.length > 0 ? args.cwd : undefined;
+  const name = args.name?.trim() ?? "";
   const canvas: Canvas = {
     id,
-    name: args.name && args.name.length > 0 ? args.name : "Untitled canvas",
+    name,
     createdAt: now,
     updatedAt: now,
     nodes: [],

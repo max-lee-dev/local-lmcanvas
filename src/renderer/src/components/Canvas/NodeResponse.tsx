@@ -8,7 +8,6 @@ import { ToolGroupView } from "./blocks/ToolGroupView";
 import { ThinkingView } from "./blocks/ThinkingView";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import { ErrorBlock } from "./ErrorBlock";
-import { toActionLabel } from "./blocks/toolSummary";
 import { pickSuggestionIcons } from "@/lib/suggestionIcon";
 
 const MAX_TOOLS_PER_CHUNK = 5;
@@ -30,14 +29,6 @@ function groupBlocks(blocks: ContentBlock[]): RenderItem[] {
   let pendingTools: ToolUseBlock[] = [];
   const flush = () => {
     if (pendingTools.length === 0) return;
-    const last = items[items.length - 1];
-    let precedingText: string | undefined;
-    if (last && last.kind === "text") {
-      precedingText = last.text;
-      // Consume the text block so it doesn't also render above the group —
-      // it becomes the group's label instead.
-      items.pop();
-    }
     const totalChunks = Math.ceil(pendingTools.length / MAX_TOOLS_PER_CHUNK);
     for (let c = 0; c < totalChunks; c++) {
       const slice = pendingTools.slice(
@@ -48,9 +39,10 @@ function groupBlocks(blocks: ContentBlock[]): RenderItem[] {
         kind: "toolGroup",
         blocks: slice,
         key: `tg-${slice[0].id ?? `${items.length}-${c}`}`,
-        // first sub-chunk inherits the preceding prose (cleaned to action-form);
-        // later chunks let ToolGroupView derive a label from their tool calls
-        summary: c === 0 && precedingText ? toActionLabel(precedingText) : undefined,
+        // Label is derived from the tool calls inside ToolGroupView; the
+        // model's preceding prose stays as its own text block above so the
+        // user can read/expand it.
+        summary: undefined,
         chunkIndex: c,
         totalChunks,
       });
@@ -142,6 +134,7 @@ export function NodeResponse({ message, onStop, nodeId, onSuggestionClick }: Pro
             <ToolGroupView
               key={item.key}
               blocks={item.blocks}
+              nodeId={nodeId}
               awaitingText={awaitingText}
               summary={item.summary}
               chunkIndex={item.chunkIndex}

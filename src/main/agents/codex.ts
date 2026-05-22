@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { consumeJsonl } from "./jsonlReader";
 import { shellEnv } from "../shellPath";
 import { writeAttachmentsToTemp } from "./attachmentTempFiles";
+import { normalizeUsage } from "./usage";
 import {
   composePromptWithSystem,
   errorMessage,
@@ -111,6 +112,14 @@ export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void
     stderrBuf += chunk;
   });
 
+  // EPIPE on stdin (subprocess died before/during the write) is async and
+  // bypasses the surrounding try/catch — surface it as a runner error instead
+  // of letting it crash the main process.
+  proc.stdin.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EPIPE") return;
+    emit({ kind: "error", message: errorMessage(err) });
+  });
+
   try {
     proc.stdin.write(composePromptWithSystem(prompt, opts.systemPrompt));
     proc.stdin.end();
@@ -152,7 +161,11 @@ function handleEvent(ev: CodexEvent, emit: (e: RunnerEvent) => void): void {
     case "item.started":
       return;
     case "turn.completed":
-      emit({ kind: "done", isError: false });
+      emit({
+        kind: "done",
+        isError: false,
+        usage: normalizeUsage((ev as { usage?: unknown }).usage),
+      });
       return;
     case "turn.failed": {
       const message =

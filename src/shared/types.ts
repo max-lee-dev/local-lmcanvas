@@ -26,6 +26,17 @@ export type ContentBlock = TextBlock | ToolUseBlock | ThinkingBlock | ImageBlock
 
 export type ErrorCode = "auth_required";
 
+export type UsageSummary = {
+  inputTokens?: number;
+  outputTokens?: number;
+  cachedInputTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  reasoningOutputTokens?: number;
+  totalTokens?: number;
+  totalCostUsd?: number;
+};
+
 /** A model-proposed follow-up action. Rendered as a button under the assistant message;
  *  clicking creates a child node prefilled with `prompt` and auto-submits it. */
 export type Suggestion = { label: string; prompt: string };
@@ -35,6 +46,10 @@ export type Message = {
   role: "user" | "assistant";
   blocks: ContentBlock[];
   createdAt: number;
+  /** Provider that generated this assistant message. */
+  provider?: Provider;
+  /** Per-message token/cost usage, when reported by the provider CLI. */
+  usage?: UsageSummary;
   status?: MessageStatus;
   error?: string;
   /** Machine-readable error category — drives in-UI affordances like "Re-authenticate". */

@@ -282,6 +282,17 @@ header.app-drag {
     sans-serif;
 }
 
+.group-summary-overlay,
+.group-summary-overlay * {
+  font-family:
+    var(--font-geist-sans),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif !important;
+}
+
 /* Settings modal: pin Geist everywhere except explicit mono spans. */
 .settings-modal,
 .settings-modal input,

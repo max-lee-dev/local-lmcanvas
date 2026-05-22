@@ -1,6 +1,7 @@
+import { useMemo } from "react";
 import { Brain, Check, ChevronDown } from "lucide-react";
 import clsx from "clsx";
-import { PROVIDERS, type NodeId, type Provider } from "@shared/types";
+import { PROVIDERS, type CanvasNode, type NodeId, type Provider } from "@shared/types";
 import { useProviderInfo } from "@/hooks/useProviderInfo";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { PROVIDER_INFO } from "@/components/Onboarding/providerInfo";
@@ -8,14 +9,26 @@ import { ProviderLogo } from "./ProviderLogo";
 import { BadgePopover } from "./BadgePopover";
 
 type Props = { nodeId: NodeId };
+type ProviderUsageTotals = Record<
+  Provider,
+  {
+    turns: number;
+    totalTokens: number;
+    totalCostUsd: number;
+    hasTokenData: boolean;
+    hasCostData: boolean;
+  }
+>;
 
 export function ModelBadge({ nodeId }: Props) {
   const effectiveProvider = useCanvasStore((s) => s.getEffectiveProvider(nodeId));
   const overrideProvider = useCanvasStore(
     (s) => s.nodes[nodeId]?.data.nodeSettings?.provider,
   );
+  const nodes = useCanvasStore((s) => s.nodes);
   const setNodeSettings = useCanvasStore((s) => s.setNodeSettings);
   const { provider, label, labelsByProvider } = useProviderInfo(effectiveProvider);
+  const usageByProvider = useMemo(() => aggregateUsage(nodes), [nodes]);
 
   const overridden = overrideProvider !== undefined;
 
@@ -63,7 +76,12 @@ export function ModelBadge({ nodeId }: Props) {
                 )}
               >
                 <ProviderLogo provider={p} size={12} />
-                <span className="flex-1">{labelsByProvider[p]}</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate">{labelsByProvider[p]}</span>
+                  <span className="block text-[9px] text-muted-foreground">
+                    {formatUsage(usageByProvider[p])}
+                  </span>
+                </span>
                 {isActive && <Check className="h-3 w-3 text-foreground/70" />}
               </button>
             );
@@ -72,4 +90,54 @@ export function ModelBadge({ nodeId }: Props) {
       )}
     </BadgePopover>
   );
+}
+
+function aggregateUsage(nodes: Record<string, CanvasNode>): ProviderUsageTotals {
+  const out: ProviderUsageTotals = {
+    claude: emptyUsage(),
+    codex: emptyUsage(),
+    cursor: emptyUsage(),
+  };
+
+  for (const node of Object.values(nodes)) {
+    for (const message of node.data.chat.messages) {
+      if (message.role !== "assistant") continue;
+      const p = message.provider;
+      if (p !== "claude" && p !== "codex" && p !== "cursor") continue;
+      out[p].turns += 1;
+      if (message.usage?.totalTokens !== undefined) {
+        out[p].totalTokens += message.usage.totalTokens;
+        out[p].hasTokenData = true;
+      }
+      if (message.usage?.totalCostUsd !== undefined) {
+        out[p].totalCostUsd += message.usage.totalCostUsd;
+        out[p].hasCostData = true;
+      }
+    }
+  }
+
+  return out;
+}
+
+function emptyUsage() {
+  return {
+    turns: 0,
+    totalTokens: 0,
+    totalCostUsd: 0,
+    hasTokenData: false,
+    hasCostData: false,
+  };
+}
+
+function formatUsage(usage: ProviderUsageTotals[Provider]): string {
+  const parts: string[] = [`${usage.turns} turn${usage.turns === 1 ? "" : "s"}`];
+  if (usage.hasTokenData) parts.push(`${formatNumber(usage.totalTokens)} tok`);
+  if (usage.hasCostData) parts.push(`$${usage.totalCostUsd.toFixed(4)}`);
+  return parts.join(" · ");
+}
+
+function formatNumber(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return `${value}`;
 }

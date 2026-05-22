@@ -26,6 +26,8 @@ export type BranchOptions = {
   /** Force the child to be placed directly under the parent (same x) instead
    *  of in the right lane. Otherwise a prefill/context triggers right-lane. */
   placeBelow?: boolean;
+  /** If false, create the child without moving or zooming the viewport. */
+  focusViewport?: boolean;
   addedContext?: string;
   selectionViewportY?: number;
 };
@@ -45,7 +47,14 @@ export function useBranchFromNode(parentId: string): BranchFn {
 
   return useCallback(
     (opts) => {
-      const { prefill, autoSubmit, placeBelow, addedContext, selectionViewportY } = opts ?? {};
+      const {
+        prefill,
+        autoSubmit,
+        placeBelow,
+        focusViewport = true,
+        addedContext,
+        selectionViewportY,
+      } = opts ?? {};
       const parentPos = parentNode?.position ?? { x: 0, y: 0 };
       const isRightLane = !placeBelow && (Boolean(prefill) || Boolean(addedContext));
       let position: { x: number; y: number };
@@ -79,7 +88,7 @@ export function useBranchFromNode(parentId: string): BranchFn {
       connectEdge(parentId, child.id, sourceYOffset != null ? { sourceYOffset } : undefined);
 
       // Wait one rAF for the DOM to mount, then resolve horizontal collisions,
-      // animate the camera to center on the child, and focus its textarea.
+      // optionally center the camera on the child, and focus its textarea.
       requestAnimationFrame(() => {
         const state = storeApi.getState();
         const measure = makeDomHeightMeasurer(zoom);
@@ -92,7 +101,7 @@ export function useBranchFromNode(parentId: string): BranchFn {
         }
 
         const fresh = storeApi.getState().nodes[child.id];
-        if (fresh) {
+        if (fresh && focusViewport) {
           const h = measure(child.id);
           centerOnNode(
             fresh.position.x,

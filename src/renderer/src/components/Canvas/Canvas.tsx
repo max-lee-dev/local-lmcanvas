@@ -37,9 +37,8 @@ import {
   buildGroupSummaryInput,
   type DraftNode,
   type GeneratedNodeSummary,
-  type GroupSummary,
 } from "@/lib/groupSummary";
-import { buildFallbackGroupSummaries } from "@/lib/groupClustering";
+import { useGroupSummaries } from "@/hooks/useGroupSummaries";
 import type { ChatData } from "@shared/types";
 
 const nodeTypes = { custom: CustomNode };
@@ -296,10 +295,9 @@ function CanvasInner() {
 
   const nodeCount = rfNodes.length;
 
-  // TODO(group-summary): the candidates → groups pipeline runs entirely on
-  // the client right now, using avera's deterministic Jaccard clustering +
-  // fallback titler. When an LLM-backed summarizer lands, the candidates
-  // stay the same shape and the LLM-produced groups replace the fallback.
+  // Pull each node's latest user prompt as the candidate input for group
+  // titling. The hook handles LLM-backed generation (debounced, with the
+  // heuristic clusterer as immediate placeholder and graceful fallback).
   const candidates = useMemo(() => {
     const drafts: DraftNode[] = [];
     for (const n of rfNodes) {
@@ -319,14 +317,8 @@ function CanvasInner() {
     }));
   }, [candidates]);
 
-  const mockSummaries = useMemo<GroupSummary[]>(() => {
-    if (candidates.length < 2) return [];
-    return buildFallbackGroupSummaries(candidates).map((g, i) => ({
-      id: `fallback-group-${i}`,
-      title: g.title,
-      nodeIds: g.nodeIds,
-    }));
-  }, [candidates]);
+  const { summaries: groupSummaries, isGenerating: isGeneratingGroups } =
+    useGroupSummaries(candidates);
 
   return (
     <div
@@ -382,8 +374,9 @@ function CanvasInner() {
           color="var(--grid-line)"
         />
         <GroupSummaryOverlay
-          summaries={mockSummaries}
+          summaries={groupSummaries}
           nodeSummaries={mockNodeSummaries}
+          isGeneratingGroups={isGeneratingGroups}
           nodes={rfNodes}
         />
         {showMinimap && (

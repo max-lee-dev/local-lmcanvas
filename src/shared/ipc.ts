@@ -7,6 +7,7 @@ import type {
   Message,
   NodeSettings,
   Provider,
+  UsageSummary,
 } from "./types";
 
 export type AskUserOption = {
@@ -100,6 +101,7 @@ export type ChatEvent =
       result?: string;
       code?: ErrorCode;
       provider?: Provider;
+      usage?: UsageSummary;
     }
   | {
       chatId: string;
@@ -113,6 +115,46 @@ export type CanvasCreateArgs = {
   name?: string;
   cwd?: string;
   provider?: Provider;
+};
+
+export type GroupSummaryCandidateIpc = {
+  nodeId: string;
+  prompt: string;
+};
+
+export type GeneratedGroupSummaryIpc = {
+  title: string;
+  nodeIds: string[];
+  metadata?: {
+    confidence?: number;
+    promptVersion?: string;
+    generationModel?: string;
+  };
+};
+
+export type GenerateGroupSummaryRequest = {
+  candidates: GroupSummaryCandidateIpc[];
+  existingGroupTitles?: string[];
+};
+
+export type GenerateCanvasNameRequest = {
+  prompt: string;
+};
+
+export type PersistentProcessStartArgs = {
+  command: string;
+  cwd?: string;
+};
+
+export type PersistentProcessStartResult = {
+  id: string;
+  pid: number;
+  logPath: string;
+};
+
+export type PersistentProcessStopResult = {
+  stopped: boolean;
+  message?: string;
 };
 
 export type ProviderAuthStatus = {
@@ -149,6 +191,12 @@ export type LmcApi = {
   shell: {
     openPath(path: string): Promise<void>;
   };
+  processes: {
+    /** Start a long-running shell command detached from the agent turn. */
+    start(args: PersistentProcessStartArgs): Promise<PersistentProcessStartResult>;
+    /** Stop an app-started detached process while it is still tracked in this session. */
+    stop(id: string): Promise<PersistentProcessStopResult>;
+  };
   files: {
     list(cwd: string): Promise<FileEntry[]>;
   };
@@ -171,6 +219,14 @@ export type LmcApi = {
   window: {
     /** Open a new app window. If `canvasId` is provided, the new window opens directly on that canvas. */
     openCanvas(canvasId?: string): Promise<void>;
+  };
+  groupSummary: {
+    /** Generate LLM-backed titles for ordered candidate prompts. Returns [] on failure so the caller can fall back to the heuristic clusterer. */
+    generate(args: GenerateGroupSummaryRequest): Promise<GeneratedGroupSummaryIpc[]>;
+  };
+  canvasName: {
+    /** Generate an LLM-backed canvas name from the first prompt. Returns null on failure so the caller keeps its prompt-derived fallback. */
+    generate(args: GenerateCanvasNameRequest): Promise<string | null>;
   };
 };
 

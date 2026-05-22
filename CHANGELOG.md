@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Long-running command tool rows now expose `Keep running` while the command is still active, so a dev server can be restarted as a detached process before stopping the node.
+
 ## [0.1.0] — 2026-05-15
 
 Initial public release.

@@ -42,14 +42,23 @@ export function App() {
     void useRecentsStore.getState().hydrate();
   }, []);
 
-  // On first launch, redirect home → onboarding. Don't trap users elsewhere.
+  // Home is a transient landing: redirect first-launch users to onboarding,
+  // otherwise spin up a fresh blank canvas (mirrors avera, where opening the
+  // app drops you straight into a ready-to-type canvas).
   useEffect(() => {
     if (route.name !== "home") return;
     let cancelled = false;
-    void window.api.settings.read().then((s) => {
+    void (async () => {
+      const s = await window.api.settings.read();
       if (cancelled) return;
-      if (!s.onboardingCompleted) navigate("/onboarding");
-    });
+      if (!s.onboardingCompleted) {
+        navigate("/onboarding");
+        return;
+      }
+      const canvas = await window.api.canvases.create({});
+      if (cancelled) return;
+      navigate(`/canvas/${canvas.id}`);
+    })();
     return () => {
       cancelled = true;
     };

@@ -3,8 +3,10 @@ import type {
   ContentBlock,
   Message,
   NodeId,
+  Provider,
   TextBlock,
   ToolUseBlock,
+  UsageSummary,
 } from "./types";
 
 export function getMessageHistoryForNode(
@@ -122,12 +124,53 @@ export function migrateMessage(raw: unknown): Message | null {
     obj.status === "streaming" || obj.status === "complete" || obj.status === "error"
       ? obj.status
       : undefined;
+  const provider = isProvider(obj.provider) ? obj.provider : undefined;
+  const usage = parseUsage(obj.usage);
   return {
     id: obj.id,
     role: obj.role,
     blocks,
     createdAt: typeof obj.createdAt === "number" ? obj.createdAt : Date.now(),
+    provider,
+    usage,
     status,
     error: typeof obj.error === "string" ? obj.error : undefined,
   };
+}
+
+function isProvider(value: unknown): value is Provider {
+  return value === "claude" || value === "codex" || value === "cursor";
+}
+
+function parseUsage(raw: unknown): UsageSummary | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const obj = raw as Record<string, unknown>;
+  const usage: UsageSummary = {};
+
+  const inputTokens = num(obj.inputTokens);
+  if (inputTokens !== undefined) usage.inputTokens = inputTokens;
+  const outputTokens = num(obj.outputTokens);
+  if (outputTokens !== undefined) usage.outputTokens = outputTokens;
+  const cachedInputTokens = num(obj.cachedInputTokens);
+  if (cachedInputTokens !== undefined) usage.cachedInputTokens = cachedInputTokens;
+  const cacheReadInputTokens = num(obj.cacheReadInputTokens);
+  if (cacheReadInputTokens !== undefined) usage.cacheReadInputTokens = cacheReadInputTokens;
+  const cacheCreationInputTokens = num(obj.cacheCreationInputTokens);
+  if (cacheCreationInputTokens !== undefined) {
+    usage.cacheCreationInputTokens = cacheCreationInputTokens;
+  }
+  const reasoningOutputTokens = num(obj.reasoningOutputTokens);
+  if (reasoningOutputTokens !== undefined) {
+    usage.reasoningOutputTokens = reasoningOutputTokens;
+  }
+  const totalTokens = num(obj.totalTokens);
+  if (totalTokens !== undefined) usage.totalTokens = totalTokens;
+  const totalCostUsd = num(obj.totalCostUsd);
+  if (totalCostUsd !== undefined) usage.totalCostUsd = totalCostUsd;
+
+  return Object.keys(usage).length > 0 ? usage : undefined;
+}
+
+function num(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

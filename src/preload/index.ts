@@ -4,8 +4,11 @@ import type {
   AskUserResponsePayload,
   ChatEvent,
   ChatStartArgs,
+  GenerateCanvasNameRequest,
+  GenerateGroupSummaryRequest,
   LmcApi,
   CanvasCreateArgs,
+  PersistentProcessStartArgs,
 } from "@shared/ipc";
 import type { AppSettings, Canvas, Provider } from "@shared/types";
 
@@ -38,6 +41,11 @@ const api: LmcApi = {
   shell: {
     openPath: (path: string) => ipcRenderer.invoke("shell:openPath", path),
   },
+  processes: {
+    start: (args: PersistentProcessStartArgs) =>
+      ipcRenderer.invoke("processes:start", args),
+    stop: (id: string) => ipcRenderer.invoke("processes:stop", id),
+  },
   files: {
     list: (cwd: string) => ipcRenderer.invoke("files:list", cwd),
   },
@@ -63,6 +71,14 @@ const api: LmcApi = {
   window: {
     openCanvas: (canvasId?: string) =>
       ipcRenderer.invoke("window:openCanvas", canvasId),
+  },
+  groupSummary: {
+    generate: (args: GenerateGroupSummaryRequest) =>
+      ipcRenderer.invoke("groupSummary:generate", args),
+  },
+  canvasName: {
+    generate: (args: GenerateCanvasNameRequest) =>
+      ipcRenderer.invoke("canvasName:generate", args),
   },
 };
 
