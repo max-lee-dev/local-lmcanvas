@@ -30,6 +30,16 @@ if [ -f "$REPO_ROOT/.env.release" ]; then
   source "$REPO_ROOT/.env.release"
   set +a
 fi
+
+# Pin a modern Node — vite requires crypto.getRandomValues (Node 19+) and the
+# parent shell may have nvm pointing at an old default. Prefer the highest
+# v20/v22 nvm install if present, else trust PATH.
+for v in v22.13.1 v20.11.0; do
+  if [ -x "$HOME/.nvm/versions/node/$v/bin/node" ]; then
+    export PATH="$HOME/.nvm/versions/node/$v/bin:$PATH"
+    break
+  fi
+done
 cyan()   { printf "\033[36m%s\033[0m\n" "$*"; }
 green()  { printf "\033[32m%s\033[0m\n" "$*"; }
 yellow() { printf "\033[33m%s\033[0m\n" "$*"; }
