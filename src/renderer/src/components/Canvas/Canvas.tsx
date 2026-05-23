@@ -158,12 +158,21 @@ function CanvasInner() {
         const position = dragging.has(n.id) && existing
           ? existing.position
           : n.position;
+        // Selection lives on the store node (xyflow's applyNodeChanges writes
+        // it there in onNodesChange, and programmatic select actions like
+        // `setSelectedNodeId` also set it). Mirror it onto the rfNode so
+        // programmatic selection actually re-renders the canvas.
+        const storeSelected = Boolean(
+          (n as { selected?: boolean }).selected,
+        );
+        const existingSelected = Boolean(existing?.selected);
         if (
           existing &&
           existing.data === data &&
           existing.type === type &&
           existing.position.x === position.x &&
-          existing.position.y === position.y
+          existing.position.y === position.y &&
+          existingSelected === storeSelected
         ) {
           next.push(existing);
         } else {
@@ -173,8 +182,7 @@ function CanvasInner() {
             type,
             position,
             data,
-            // preserve selection/dragging flags xyflow may have attached
-            selected: existing?.selected,
+            selected: storeSelected,
             dragging: existing?.dragging,
           });
         }

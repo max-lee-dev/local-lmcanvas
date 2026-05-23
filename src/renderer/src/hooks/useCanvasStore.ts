@@ -76,6 +76,9 @@ export type CanvasStoreState = {
   patchNode: (id: NodeId, patch: Partial<CanvasNode["data"]>) => void;
   movePosition: (id: NodeId, pos: { x: number; y: number }) => void;
   onNodesChange: (changes: NodeChange[]) => void;
+  /** Programmatically set the canvas selection to exactly one node, or clear
+   *  it. Drives the right-side node drawer's auto-switch behavior. */
+  setSelectedNodeId: (id: NodeId | null) => void;
   removeNode: (id: NodeId) => void;
   connectEdge: (source: NodeId, target: NodeId, opts?: { sourceYOffset?: number }) => void;
   appendMessage: (nodeId: NodeId, msg: Message) => void;
@@ -528,6 +531,27 @@ export function createCanvasStoreApi(): CanvasStoreApi {
         if (didChange) get().markDirty();
       },
 
+      setSelectedNodeId: (id) => {
+        // xyflow attaches `selected` at runtime on the CanvasNode shape, even
+        // though our static type omits it. Widen locally to read/write it.
+        type WithSelected = CanvasNode & { selected?: boolean };
+        set((s) => {
+          let changed = false;
+          const nextById: Record<NodeId, CanvasNode> = {};
+          for (const key of Object.keys(s.nodes)) {
+            const n = s.nodes[key] as WithSelected;
+            const shouldBeSelected = id !== null && n.id === id;
+            if (Boolean(n.selected) === shouldBeSelected) {
+              nextById[key] = n;
+              continue;
+            }
+            changed = true;
+            nextById[key] = { ...n, selected: shouldBeSelected } as CanvasNode;
+          }
+          return changed ? { nodes: nextById } : s;
+        });
+      },
+
       removeNode: (id) => {
         void window.api.chat.cancelForNode(id);
         set((s) => {
@@ -781,6 +805,20 @@ export function CanvasStoreProvider({ children }: { children: ReactNode }) {
   const ref = useRef<CanvasStoreApi | null>(null);
   if (!ref.current) ref.current = createCanvasStoreApi();
   return createElement(CanvasStoreContext.Provider, { value: ref.current }, children);
+}
+
+/** Re-expose an existing store under CanvasStoreContext. Lets components
+ *  rendered outside any pane (e.g. the right-side NodePanel drawer) reuse
+ *  hooks/components that call `useCanvasStore`, by bridging the active
+ *  pane's store API down into their subtree. */
+export function CanvasStoreBridge({
+  api,
+  children,
+}: {
+  api: CanvasStoreApi;
+  children: ReactNode;
+}) {
+  return createElement(CanvasStoreContext.Provider, { value: api }, children);
 }
 
 export function useCanvasStoreApi(): CanvasStoreApi {

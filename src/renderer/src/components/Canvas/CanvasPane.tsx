@@ -6,6 +6,7 @@ import {
   CanvasStoreProvider,
   makeBlankNode,
   useCanvasStore,
+  useCanvasStoreApi,
 } from "@/hooks/useCanvasStore";
 import { PaneProvider, useActivePaneStore } from "@/hooks/useActivePane";
 import { SearchButton } from "@/components/Canvas/SearchModal";
@@ -18,6 +19,9 @@ import { closePane } from "@/lib/canvasNavigation";
 import { useFocusRequestStore } from "@/hooks/useFocusRequestStore";
 import { useCenterOnNode } from "@/hooks/useCenterOnNode";
 import { FALLBACK_NODE_HEIGHT, NODE_WIDTH } from "@/lib/canvasConstants";
+import { useRegisterPaneStore } from "@/hooks/usePaneRegistry";
+import { useBranchRequestStore } from "@/hooks/useBranchRequestStore";
+import { useBranchFromNode } from "@/hooks/useBranchFromNode";
 
 type CanvasPaneProps = {
   /** The canvas to load into this pane. Also serves as the pane's identity. */
@@ -59,6 +63,8 @@ export function CanvasPane({ id, splitMode, controlsSide = "right" }: CanvasPane
 }
 
 function CanvasPaneInner({ id, splitMode, controlsSide = "right" }: CanvasPaneProps) {
+  const storeApi = useCanvasStoreApi();
+  useRegisterPaneStore(id, storeApi);
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
   const loaded = useCanvasStore((s) => s.loaded);
   const canvasId = useCanvasStore((s) => s.canvasId);
@@ -163,6 +169,41 @@ function CanvasPaneInner({ id, splitMode, controlsSide = "right" }: CanvasPanePr
       </div>
 
       <DeleteNodeModal />
+      <BranchRequestListener paneId={id} />
     </div>
   );
+}
+
+/**
+ * Watches the global branch-request store and, when a request targets this
+ * pane, calls `useBranchFromNode` to spawn a child node and select it so the
+ * right-side node drawer follows the conversation forward. This indirection
+ * lets the drawer (which lives outside any pane / ReactFlow context) trigger
+ * the same branching path the canvas uses internally.
+ */
+function BranchRequestListener({ paneId }: { paneId: string }) {
+  const pending = useBranchRequestStore((s) => s.pending);
+  const consume = useBranchRequestStore((s) => s.consume);
+  const setSelectedNodeId = useCanvasStore((s) => s.setSelectedNodeId);
+
+  const matches = pending?.paneId === paneId;
+  const parentId = matches ? pending!.parentId : "";
+  const branch = useBranchFromNode(parentId);
+
+  useEffect(() => {
+    if (!pending || !matches || !parentId) return;
+    const requestId = pending.requestId;
+    branch({
+      prefill: pending.prefill,
+      autoSubmit: true,
+      onCreated: (childId) => {
+        // Move canvas selection onto the new child so the drawer
+        // auto-switches to it and keeps streaming visible.
+        setSelectedNodeId(childId);
+      },
+    });
+    consume(requestId);
+  }, [pending, matches, parentId, branch, consume, setSelectedNodeId]);
+
+  return null;
 }

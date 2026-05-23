@@ -30,6 +30,10 @@ export type BranchOptions = {
   focusViewport?: boolean;
   addedContext?: string;
   selectionViewportY?: number;
+  /** Called synchronously with the new child's id right after it's added to
+   *  the store. Lets callers programmatically follow the child (e.g. select
+   *  it so the right-side node drawer auto-switches to it). */
+  onCreated?: (childId: string) => void;
 };
 
 export type BranchFn = (opts?: BranchOptions) => void;
@@ -54,6 +58,7 @@ export function useBranchFromNode(parentId: string): BranchFn {
         focusViewport = true,
         addedContext,
         selectionViewportY,
+        onCreated,
       } = opts ?? {};
       const parentPos = parentNode?.position ?? { x: 0, y: 0 };
       const isRightLane = !placeBelow && (Boolean(prefill) || Boolean(addedContext));
@@ -86,6 +91,7 @@ export function useBranchFromNode(parentId: string): BranchFn {
       if (prefill) setPrefill(child.id, prefill, { autoSubmit });
       addNode(child);
       connectEdge(parentId, child.id, sourceYOffset != null ? { sourceYOffset } : undefined);
+      onCreated?.(child.id);
 
       // Wait one rAF for the DOM to mount, then resolve horizontal collisions,
       // optionally center the camera on the child, and focus its textarea.

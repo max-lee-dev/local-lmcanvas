@@ -4,10 +4,12 @@ import { CanvasPane } from "@/components/Canvas/CanvasPane";
 import { SplitDivider } from "@/components/Canvas/SplitDivider";
 import { SettingsModal } from "@/components/SettingsModal";
 import { BrowserPanel } from "@/components/BrowserPanel/BrowserPanel";
+import { NodePanel } from "@/components/NodePanel/NodePanel";
 import { CanvasManager } from "@/components/CanvasManager/CanvasManager";
 import { SplitPanePicker } from "@/components/CanvasManager/SplitPanePicker";
 import { useActivePaneStore } from "@/hooks/useActivePane";
 import { useBrowserPanelStore } from "@/hooks/useBrowserPanelStore";
+import { useActiveSelectedNodeId } from "@/hooks/useActiveSelectedNode";
 import { usePreferencesStore } from "@/hooks/usePreferencesStore";
 import { onOpenSettings } from "@/lib/openSettings";
 import { matchesShortcut } from "@/lib/shortcut";
@@ -28,6 +30,11 @@ export function CanvasPage({ ids }: CanvasPageProps) {
   const activePaneId = useActivePaneStore((s) => s.activePaneId);
   const browserOpen = useBrowserPanelStore((s) => s.open);
   const toggleBrowser = useBrowserPanelStore((s) => s.toggle);
+  const selectedNodeId = useActiveSelectedNodeId();
+  // Either drawer occupies the same right slot. When a node is selected, the
+  // NodePanel takes priority over the (toggled) BrowserPanel.
+  const nodeDrawerOpen = selectedNodeId !== null;
+  const rightDrawerOpen = nodeDrawerOpen || browserOpen;
   const splitPickerShortcut = usePreferencesStore(
     (s) => s.keybindings.splitPanePicker,
   );
@@ -67,7 +74,7 @@ export function CanvasPage({ ids }: CanvasPageProps) {
           left when the browser panel is open so the buttons stay accessible. */}
       <div
         className={`absolute top-3 ${
-          browserOpen
+          rightDrawerOpen
             ? "right-[calc(33.333%+12px)]"
             : isSplit
               ? "right-12"
@@ -122,7 +129,9 @@ export function CanvasPage({ ids }: CanvasPageProps) {
         )}
       </div>
 
-      <BrowserPanel />
+      {/* Right drawer: NodePanel takes priority when a node is selected;
+          otherwise the BrowserPanel renders per its own open/closed state. */}
+      {nodeDrawerOpen ? <NodePanel /> : <BrowserPanel />}
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
       <SplitPanePicker
