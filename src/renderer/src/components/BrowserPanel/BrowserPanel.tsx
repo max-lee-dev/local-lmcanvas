@@ -26,7 +26,9 @@ function urlForDisplay(url: string): string {
   return url === BLANK ? "" : url;
 }
 
-export function BrowserPanel() {
+export function BrowserPanel({
+  rightOffset = 0,
+}: { rightOffset?: number } = {}) {
   const open = useBrowserPanelStore((s) => s.open);
   const setOpen = useBrowserPanelStore((s) => s.setOpen);
   const url = useBrowserPanelStore((s) => s.url);
@@ -113,7 +115,8 @@ export function BrowserPanel() {
           animate={{ x: 0 }}
           exit={{ x: "100%" }}
           transition={{ type: "spring", stiffness: 320, damping: 32 }}
-          className="absolute top-0 right-0 h-full w-1/3 min-w-[360px] z-30 bg-background border-l border-border flex flex-col shadow-lg"
+          style={{ right: rightOffset }}
+          className="absolute top-0 h-full w-1/3 min-w-[360px] z-30 bg-background border-l border-border flex flex-col shadow-lg"
         >
           <div className="flex h-12 items-center gap-1 px-2 border-b border-border no-drag">
             <button

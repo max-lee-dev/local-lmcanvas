@@ -9,6 +9,11 @@ import { CanvasManager } from "@/components/CanvasManager/CanvasManager";
 import { SplitPanePicker } from "@/components/CanvasManager/SplitPanePicker";
 import { useActivePaneStore } from "@/hooks/useActivePane";
 import { useBrowserPanelStore } from "@/hooks/useBrowserPanelStore";
+import {
+  TIMELINE_PANEL_WIDTH,
+  useTimelinePanelStore,
+} from "@/hooks/useTimelinePanelStore";
+import { TimelinePanel } from "@/components/TimelinePanel/TimelinePanel";
 import { useActiveSelectedNodeId } from "@/hooks/useActiveSelectedNode";
 import { usePreferencesStore } from "@/hooks/usePreferencesStore";
 import { onOpenSettings } from "@/lib/openSettings";
@@ -30,11 +35,16 @@ export function CanvasPage({ ids }: CanvasPageProps) {
   const activePaneId = useActivePaneStore((s) => s.activePaneId);
   const browserOpen = useBrowserPanelStore((s) => s.open);
   const toggleBrowser = useBrowserPanelStore((s) => s.toggle);
+  const timelineOpen = useTimelinePanelStore((s) => s.open);
   const selectedNodeId = useActiveSelectedNodeId();
   // Either drawer occupies the same right slot. When a node is selected, the
   // NodePanel takes priority over the (toggled) BrowserPanel.
   const nodeDrawerOpen = selectedNodeId !== null;
   const rightDrawerOpen = nodeDrawerOpen || browserOpen;
+  // The timeline panel sits on the far right edge. When open, the
+  // NodePanel/BrowserPanel + the top-right control cluster shift inward by
+  // its width so nothing overlaps.
+  const timelineOffset = timelineOpen ? TIMELINE_PANEL_WIDTH : 0;
   const splitPickerShortcut = usePreferencesStore(
     (s) => s.keybindings.splitPanePicker,
   );
@@ -71,15 +81,15 @@ export function CanvasPage({ ids }: CanvasPageProps) {
       {/* Top-right: browser toggle + global settings. Shifted left in split
           mode so it never crowds the left pane's right-anchored search button
           when the divider is dragged close to the right edge. Shifted further
-          left when the browser panel is open so the buttons stay accessible. */}
+          left when the browser panel is open so the buttons stay accessible.
+          Also shifted left by the timeline panel's width when it's open. */}
       <div
-        className={`absolute top-3 ${
-          rightDrawerOpen
-            ? "right-[calc(33.333%+12px)]"
-            : isSplit
-              ? "right-12"
-              : "right-3"
-        } z-50 no-drag flex items-center gap-1`}
+        className="absolute top-3 z-50 no-drag flex items-center gap-1"
+        style={{
+          right: rightDrawerOpen
+            ? `calc(33.333% + 12px + ${timelineOffset}px)`
+            : (isSplit ? 48 : 12) + timelineOffset,
+        }}
       >
         <button
           onClick={toggleBrowser}
@@ -130,8 +140,16 @@ export function CanvasPage({ ids }: CanvasPageProps) {
       </div>
 
       {/* Right drawer: NodePanel takes priority when a node is selected;
-          otherwise the BrowserPanel renders per its own open/closed state. */}
-      {nodeDrawerOpen ? <NodePanel /> : <BrowserPanel />}
+          otherwise the BrowserPanel renders per its own open/closed state.
+          Both drawers shift inward by the timeline panel's width when it's
+          open, so all three (drawer + timeline + canvas) coexist cleanly. */}
+      {nodeDrawerOpen ? (
+        <NodePanel rightOffset={timelineOffset} />
+      ) : (
+        <BrowserPanel rightOffset={timelineOffset} />
+      )}
+
+      <TimelinePanel />
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
       <SplitPanePicker

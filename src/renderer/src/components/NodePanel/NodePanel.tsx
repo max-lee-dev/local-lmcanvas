@@ -24,7 +24,7 @@ import { NodePanelComposer } from "./NodePanelComposer";
  * CanvasPage uses the same signal to auto-switch between this and the
  * BrowserPanel.
  */
-export function NodePanel() {
+export function NodePanel({ rightOffset = 0 }: { rightOffset?: number } = {}) {
   const api = useActivePaneStoreApi();
   const selectedId = useActiveSelectedNodeId();
   const activePaneId = useActivePaneStore((s) => s.activePaneId);
@@ -40,7 +40,8 @@ export function NodePanel() {
           animate={{ x: 0 }}
           exit={{ x: "100%" }}
           transition={{ type: "spring", stiffness: 320, damping: 32 }}
-          className="absolute top-0 right-0 h-full w-1/3 min-w-[360px] z-30 bg-background border-l border-border flex flex-col shadow-lg"
+          style={{ right: rightOffset }}
+          className="absolute top-0 h-full w-1/3 min-w-[360px] z-30 bg-background border-l border-border flex flex-col shadow-lg"
         >
           <CanvasStoreBridge api={api!}>
             <NodePanelBody
