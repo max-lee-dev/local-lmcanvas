@@ -14,6 +14,7 @@ import {
   MentionPicker,
   filterEntries,
   getFilesForCwd,
+  invalidateFilesCache,
 } from "./MentionPicker";
 import {
   SlashPicker,
@@ -117,7 +118,10 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
 
   const ensureFilesLoaded = (): void => {
     if (!cwd) return;
-    if (filesLoadedForCwdRef.current === cwd) return;
+    // Bust the renderer cache on every @ open so newly-added files on disk
+    // (e.g. new Obsidian notes) surface without an app restart. Main-process
+    // 10s TTL absorbs rapid reopens.
+    invalidateFilesCache(cwd);
     filesLoadedForCwdRef.current = cwd;
     void getFilesForCwd(cwd)
       .then((entries) => setAllEntries(entries))
