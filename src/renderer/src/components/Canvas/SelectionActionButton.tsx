@@ -1,11 +1,15 @@
 import { type MouseEvent, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Plus } from "lucide-react";
+import { Plus, Timer } from "lucide-react";
 
 type SelectionActionButtonProps = {
   relativeTop: number;
   isVisible: boolean;
   onClick: (event?: MouseEvent<HTMLButtonElement>) => void;
+  /** Optional second action — when provided, the button renders as a split
+   *  control: left half runs `onClick` (persistent follow-up), right half
+   *  runs `onTemporaryClick` (temporary follow-up that auto-deletes). */
+  onTemporaryClick?: (event?: MouseEvent<HTMLButtonElement>) => void;
   absolutePosition?: { x: number; y: number };
 };
 
@@ -13,6 +17,7 @@ export function SelectionActionButton({
   relativeTop,
   isVisible,
   onClick,
+  onTemporaryClick,
   absolutePosition,
 }: SelectionActionButtonProps) {
   const [mounted, setMounted] = useState(false);
@@ -24,6 +29,7 @@ export function SelectionActionButton({
   const button = useMemo(() => {
     if (!isVisible) return null;
 
+    const isSplit = Boolean(onTemporaryClick);
     const positionClass = absolutePosition ? "fixed" : "absolute";
     const style = absolutePosition
       ? {
@@ -41,29 +47,87 @@ export function SelectionActionButton({
             "top 0.15s ease-out, right 0.15s ease-out, opacity 0.1s ease-out, transform 0.1s ease-out",
         };
 
-    return (
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onClick(event);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
+    const baseHalfClass =
+      "cursor-pointer pointer-events-auto flex h-8 w-8 items-center justify-center bg-[var(--accent-brand)] text-[var(--background)] transition-opacity hover:opacity-90";
+
+    if (!isSplit) {
+      return (
+        <button
+          type="button"
+          onClick={(event) => {
             event.stopPropagation();
-            onClick();
-          }
-        }}
-        aria-label="Create follow-up from selection"
-        tabIndex={0}
-        className="cursor-pointer pointer-events-auto z-50 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--accent-brand)] bg-[var(--accent-brand)] text-[var(--background)] shadow-lg hover:opacity-90 animate-in fade-in zoom-in-95 duration-200 nodrag"
+            onClick(event);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              event.stopPropagation();
+              onClick();
+            }
+          }}
+          aria-label="Create follow-up from selection"
+          tabIndex={0}
+          className={`${baseHalfClass} z-50 rounded-lg border border-[var(--accent-brand)] shadow-lg animate-in fade-in zoom-in-95 duration-200 nodrag`}
+          style={{ position: positionClass as "fixed" | "absolute", ...style }}
+          title="Create follow-up from selection"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      );
+    }
+
+    return (
+      <div
+        className="pointer-events-auto z-50 flex h-8 w-16 overflow-hidden rounded-lg border border-[var(--accent-brand)] shadow-lg animate-in fade-in zoom-in-95 duration-200 nodrag"
         style={{ position: positionClass as "fixed" | "absolute", ...style }}
       >
-        <Plus className="h-4 w-4" />
-      </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onClick(event);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              event.stopPropagation();
+              onClick();
+            }
+          }}
+          aria-label="Create follow-up from selection"
+          tabIndex={0}
+          className={baseHalfClass}
+          title="Create follow-up from selection"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+        <div
+          aria-hidden
+          className="w-px self-stretch bg-[var(--background)] opacity-30"
+        />
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onTemporaryClick?.(event);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              event.stopPropagation();
+              onTemporaryClick?.();
+            }
+          }}
+          aria-label="Create temporary follow-up from selection"
+          tabIndex={0}
+          className={baseHalfClass}
+          title="Create temporary follow-up (auto-deletes 10s after it completes)"
+        >
+          <Timer className="h-4 w-4" />
+        </button>
+      </div>
     );
-  }, [absolutePosition, isVisible, onClick, relativeTop]);
+  }, [absolutePosition, isVisible, onClick, onTemporaryClick, relativeTop]);
 
   if (!button) return null;
 

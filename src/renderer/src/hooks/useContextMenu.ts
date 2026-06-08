@@ -54,7 +54,8 @@ export function useContextMenu() {
     []
   );
 
-  const createNodeAtPointer = useCallback(() => {
+  const createNodeAtPointer = useCallback((opts?: { isTemporary?: boolean }) => {
+    const isTemporary = opts?.isTemporary ?? false;
     const parentId = rightClickedNodeId ?? undefined;
 
     // Orphan node (pane context menu): preserve the old cursor-centered
@@ -63,6 +64,7 @@ export function useContextMenu() {
       const flowPos = screenToFlowPosition({ x: position.x, y: position.y });
       const centered = { x: flowPos.x - NODE_WIDTH / 2, y: flowPos.y - 50 };
       const node = makeBlankNode(centered);
+      if (isTemporary) node.data.chat.isTemporary = true;
       addNode(node);
       focusNodeTextarea(node.id);
       return;
@@ -82,6 +84,7 @@ export function useContextMenu() {
       y: cursorFlow.y - 50,
     };
     const child = makeBlankNode(childPos, parentId);
+    if (isTemporary) child.data.chat.isTemporary = true;
     addNode(child);
     // Attach the parent end of the edge near the cursor Y so the connector
     // emerges from the spot the user clicked instead of a fixed handle.

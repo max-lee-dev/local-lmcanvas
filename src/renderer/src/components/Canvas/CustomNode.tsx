@@ -7,8 +7,6 @@ import { MergeButton } from "./MergeButton";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { ModelBadge } from "./ModelBadge";
 import { FolderBadge } from "./FolderBadge";
-import { BranchBadge } from "./BranchBadge";
-import { PlanBadge } from "./PlanBadge";
 import { OnboardingTitle } from "./OnboardingTitle";
 import { useNodeChat } from "@/hooks/useNodeChat";
 import type { CanvasNode, ImageBlock } from "@shared/types";
@@ -18,6 +16,7 @@ import { NodePromptInput, type NodePromptInputHandle } from "./NodePromptInput";
 import { AskUserPrompt } from "./AskUserPrompt";
 import { SelectionActionButton } from "./SelectionActionButton";
 import { CustomNodeContextBanner } from "./CustomNodeContextBanner";
+import { TemporaryBadge } from "./TemporaryBadge";
 import { NodeCopyButton } from "./NodeCopyButton";
 import { NodeSourceHandles, NodeTargetHandles } from "./NodeHandles";
 import { ResizeHandle } from "./ResizeHandle";
@@ -30,6 +29,7 @@ import { useNodeFileDrop } from "@/hooks/useNodeFileDrop";
 import { useNodeFinishSound } from "@/hooks/useNodeFinishSound";
 import { usePromptEdit } from "@/hooks/usePromptEdit";
 import { useSelectionBranchOnEnter } from "@/hooks/useSelectionBranchOnEnter";
+import { useTemporaryNodeAutodelete } from "@/hooks/useTemporaryNodeAutodelete";
 
 type CustomNodeData = CanvasNode["data"];
 
@@ -38,6 +38,7 @@ function CustomNodeImpl(props: NodeProps) {
   const nodeData = data as CustomNodeData;
   const { submit, stop, streaming } = useNodeChat(id);
   const removeNode = useCanvasStore((s) => s.removeNode);
+  const patchNode = useCanvasStore((s) => s.patchNode);
   const merging = useCanvasStore((s) => s.merging);
   const mergeIds = useCanvasStore((s) => s.mergeIds);
   const startMerge = useCanvasStore((s) => s.startMerge);
@@ -99,6 +100,14 @@ function CustomNodeImpl(props: NodeProps) {
   const justFinished = useNodeFinishSound({ nodeId: id, streaming, hovered });
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+  const isTemporary = Boolean(nodeData.chat.isTemporary);
+  const temporaryRemaining = useTemporaryNodeAutodelete({
+    nodeId: id,
+    isTemporary,
+    streaming,
+    hovered,
+    hasCompletedAssistant: lastAssistant?.status === "complete",
+  });
   const assistantText = lastAssistant
     ? lastAssistant.blocks
         .filter((b): b is { type: "text"; text: string } => b.type === "text")
@@ -146,6 +155,7 @@ function CustomNodeImpl(props: NodeProps) {
         className={clsx(
           "relative border rounded-[10px] transition-colors duration-300 px-5 pb-4 pt-12 shadow-sm bg-card",
           nodeData.chat.addedContext && "rounded-t-none border-t-0",
+          isTemporary && "border-dashed border-amber-500/60",
           isMergeSource
             ? "border-accent ring-2 ring-accent ring-offset-2 ring-offset-background"
             : isMergeSelected
@@ -158,8 +168,18 @@ function CustomNodeImpl(props: NodeProps) {
             ? "border-accent bg-muted"
             : selected
             ? "border-accent bg-accent/10"
+            : isTemporary
+            ? "border-amber-500/60"
             : "border-border",
         )}
+        style={
+          isTemporary
+            ? {
+                boxShadow:
+                  "0 0 22px 0 color-mix(in oklab, rgb(245 158 11) 35%, transparent), 0 1px 2px 0 rgb(0 0 0 / 0.05)",
+              }
+            : undefined
+        }
         onDragOver={fileDrop.onDragOver}
         onDragLeave={fileDrop.onDragLeave}
         onDrop={fileDrop.onDrop}
@@ -185,13 +205,14 @@ function CustomNodeImpl(props: NodeProps) {
 
         <ResizeHandle nodeId={id} width={nodeWidth} isVisible={hovered || selected} />
 
-        <CustomNodeContextBanner addedContext={nodeData.chat.addedContext} />
+        <CustomNodeContextBanner
+          addedContext={nodeData.chat.addedContext}
+          isTemporary={isTemporary}
+        />
 
         <div className="absolute left-4 right-4 top-3 flex items-center gap-2 min-w-0">
           <ModelBadge nodeId={id} />
           <FolderBadge nodeId={id} />
-          <BranchBadge nodeId={id} />
-          <PlanBadge nodeId={id} />
           {isMergeNode && (
             <span
               className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
@@ -200,6 +221,16 @@ function CustomNodeImpl(props: NodeProps) {
               <GitMerge className="h-2.5 w-2.5" />
               {mergedConversationCount}
             </span>
+          )}
+          {isTemporary && (
+            <TemporaryBadge
+              remaining={temporaryRemaining}
+              onConvertToPersistent={() =>
+                patchNode(id, {
+                  chat: { ...nodeData.chat, isTemporary: false },
+                })
+              }
+            />
           )}
         </div>
 
@@ -302,6 +333,14 @@ function CustomNodeImpl(props: NodeProps) {
               branch({
                 addedContext: selection.text,
                 selectionViewportY: selection.position.y,
+              });
+              selection.clear({ removeRange: true });
+            }}
+            onTemporaryClick={() => {
+              branch({
+                addedContext: selection.text,
+                selectionViewportY: selection.position.y,
+                isTemporary: true,
               });
               selection.clear({ removeRange: true });
             }}

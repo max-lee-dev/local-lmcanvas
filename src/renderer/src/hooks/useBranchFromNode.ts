@@ -34,6 +34,9 @@ export type BranchOptions = {
    *  the store. Lets callers programmatically follow the child (e.g. select
    *  it so the right-side node drawer auto-switches to it). */
   onCreated?: (childId: string) => void;
+  /** Mark the new child as temporary — it will auto-delete 10s after its
+   *  assistant message completes unless the user hovers it. */
+  isTemporary?: boolean;
 };
 
 export type BranchFn = (opts?: BranchOptions) => void;
@@ -59,6 +62,7 @@ export function useBranchFromNode(parentId: string): BranchFn {
         addedContext,
         selectionViewportY,
         onCreated,
+        isTemporary,
       } = opts ?? {};
       const parentPos = parentNode?.position ?? { x: 0, y: 0 };
       const isRightLane = !placeBelow && (Boolean(prefill) || Boolean(addedContext));
@@ -88,6 +92,7 @@ export function useBranchFromNode(parentId: string): BranchFn {
         };
       }
       const child = makeBlankNode(position, parentId, addedContext);
+      if (isTemporary) child.data.chat.isTemporary = true;
       if (prefill) setPrefill(child.id, prefill, { autoSubmit });
       addNode(child);
       connectEdge(parentId, child.id, sourceYOffset != null ? { sourceYOffset } : undefined);

@@ -7,7 +7,6 @@ import {
   ReactFlow,
   SelectionMode,
   applyNodeChanges,
-  useReactFlow,
   type Connection,
   type Edge,
   type Node,
@@ -15,7 +14,7 @@ import {
   type EdgeChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCanvasStore, makeBlankNode } from "@/hooks/useCanvasStore";
+import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { useDebouncedSave } from "@/hooks/useDebouncedSave";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useContextMenu } from "@/hooks/useContextMenu";
@@ -26,7 +25,6 @@ import { useSearchModal } from "@/providers/SearchModalProvider";
 import { useCommandPalette } from "@/providers/CommandPaletteProvider";
 import { useIsActivePane } from "@/hooks/useActivePane";
 import { CustomNode } from "./CustomNode";
-import { focusNodeTextarea } from "@/lib/nodeDom";
 import { ContextMenu } from "./ContextMenu";
 import { OffsetEdge } from "./OffsetEdge";
 import { SearchModalWrapper } from "./SearchModal";
@@ -58,7 +56,6 @@ function CanvasInner() {
   const nodesById = useCanvasStore((s) => s.nodes);
   const edgesState = useCanvasStore((s) => s.edges);
   const canvasId = useCanvasStore((s) => s.canvasId);
-  const addNode = useCanvasStore((s) => s.addNode);
   const connectEdge = useCanvasStore((s) => s.connectEdge);
   const movePosition = useCanvasStore((s) => s.movePosition);
   const removeNode = useCanvasStore((s) => s.removeNode);
@@ -286,21 +283,6 @@ function CanvasInner() {
     [connectEdge]
   );
 
-  const { screenToFlowPosition } = useReactFlow();
-
-  const onPaneDoubleClick = useCallback(
-    (e: React.MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.closest(".react-flow__node")) return;
-      const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      const centered = { x: pos.x - 225, y: pos.y - 50 };
-      const node = makeBlankNode(centered);
-      addNode(node);
-      focusNodeTextarea(node.id);
-    },
-    [screenToFlowPosition, addNode]
-  );
-
   const nodeCount = rfNodes.length;
 
   // Pull each node's latest user prompt as the candidate input for group
@@ -332,7 +314,6 @@ function CanvasInner() {
     <div
       ref={wrapperRef}
       className="h-full w-full bg-background relative"
-      onDoubleClick={onPaneDoubleClick}
     >
       <ReactFlow
         id={canvasId ?? undefined}

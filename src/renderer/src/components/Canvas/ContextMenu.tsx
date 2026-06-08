@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Timer, Trash2 } from "lucide-react";
 import type { MenuOption } from "@/hooks/useContextMenu";
 
 type ContextMenuOption = MenuOption & {
@@ -12,7 +12,7 @@ type ContextMenuProps = {
   isOpen: boolean;
   position: { x: number; y: number };
   rightClickedNodeId: string | null;
-  createNodeAtPointer: () => void;
+  createNodeAtPointer: (opts?: { isTemporary?: boolean }) => void;
   deleteNodeAtPointer: () => void;
   onClose: () => void;
 };
@@ -33,8 +33,18 @@ export const ContextMenu = ({
       {
         id: rightClickedNodeId ? "add_child_node" : "add_new_node",
         label: rightClickedNodeId ? "Add child node" : "Add new node",
-        onClick: createNodeAtPointer,
+        onClick: () => createNodeAtPointer(),
         icon: <Plus className="h-4 w-4" />,
+      },
+      {
+        id: rightClickedNodeId
+          ? "add_temporary_child_node"
+          : "add_temporary_node",
+        label: rightClickedNodeId
+          ? "Add temporary child node"
+          : "Add temporary node",
+        onClick: () => createNodeAtPointer({ isTemporary: true }),
+        icon: <Timer className="h-4 w-4" />,
       },
       ...(rightClickedNodeId
         ? [
