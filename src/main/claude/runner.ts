@@ -99,6 +99,29 @@ import { normalizeUsage } from "../agents/usage";
 
 const ASK_USER_SYSTEM_NOTE = `\n\nWhen you need to ask the local user a structured multiple-choice question, use the \`mcp__lmc__ask_user_question\` tool. It renders an interactive picker inside the local-lmcanvas app. Do NOT use the built-in AskUserQuestion tool — it is disabled in this environment.`;
 
+// Built-in agentic tools dropped in chatOnly mode. Removing them from the
+// model's context means the SDK doesn't ship their descriptions on every
+// turn — that's the bulk of the per-request token tax.
+const CHAT_ONLY_DISALLOWED_TOOLS = [
+  "AskUserQuestion",
+  "Bash",
+  "BashOutput",
+  "KillShell",
+  "Read",
+  "Edit",
+  "Write",
+  "MultiEdit",
+  "NotebookEdit",
+  "Glob",
+  "Grep",
+  "WebFetch",
+  "WebSearch",
+  "TodoWrite",
+  "Task",
+  "SlashCommand",
+  "ExitPlanMode",
+];
+
 export type { RunnerEvent };
 
 export type RunClaudeOpts = {
@@ -109,6 +132,8 @@ export type RunClaudeOpts = {
   signal?: AbortSignal;
   /** When true, the SDK runs in plan mode (read-only: model proposes a plan but can't use mutating tools). */
   planMode?: boolean;
+  /** When true, skip the claude_code preset and drop agent tools — fast pure-chat path. Ignored when planMode is also true. */
+  chatOnly?: boolean;
   webContents: WebContents;
   nodeId: string;
   onEvent: (ev: RunnerEvent) => void;
@@ -144,8 +169,22 @@ export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<vo
   const promptInput: string | AsyncIterable<SDKUserMessage> =
     attachments.length > 0 ? buildStreamingPrompt(prompt, attachments) : prompt;
 
-  const askUserServer = buildAskUserServer(opts.webContents, opts.nodeId, controller.signal);
-  const appendedSystemPrompt = (opts.systemPrompt ?? "") + ASK_USER_SYSTEM_NOTE;
+  // Plan mode forces the agent preset; chatOnly only kicks in for vanilla chat.
+  const chatOnly = opts.chatOnly === true && !opts.planMode;
+  const baseSystemPrompt = opts.systemPrompt ?? "";
+  const askUserServer = chatOnly
+    ? undefined
+    : buildAskUserServer(opts.webContents, opts.nodeId, controller.signal);
+
+  const systemPromptOption = chatOnly
+    ? baseSystemPrompt.length > 0
+      ? baseSystemPrompt
+      : undefined
+    : {
+        type: "preset" as const,
+        preset: "claude_code" as const,
+        append: baseSystemPrompt + ASK_USER_SYSTEM_NOTE,
+      };
 
   try {
     const q = query({
@@ -158,18 +197,14 @@ export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<vo
         allowDangerouslySkipPermissions: !opts.planMode,
         model: opts.model,
         pathToClaudeCodeExecutable: CLAUDE_BIN_PATH,
-        // append vs raw: we always extend claude_code preset so the agent
-        // keeps its built-in tooling instructions
-        systemPrompt: {
-          type: "preset",
-          preset: "claude_code",
-          append: appendedSystemPrompt,
-        },
+        // chatOnly: raw system prompt (no claude_code preset) → drops ~10k
+        // tokens of agentic tool instructions on every turn, big TTFT win.
+        systemPrompt: systemPromptOption,
         includePartialMessages: true,
         settingSources: ["user", "project"],
         abortController: controller,
-        mcpServers: { lmc: askUserServer },
-        disallowedTools: ["AskUserQuestion"],
+        mcpServers: askUserServer ? { lmc: askUserServer } : {},
+        disallowedTools: chatOnly ? CHAT_ONLY_DISALLOWED_TOOLS : ["AskUserQuestion"],
       },
     });
 

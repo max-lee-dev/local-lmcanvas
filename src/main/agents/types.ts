@@ -41,6 +41,8 @@ export type RunAgentOpts = {
   binPath?: string;
   /** Claude-only; ignored by codex/cursor runners. */
   planMode?: boolean;
+  /** Claude-only; skip the claude_code preset for a fast pure-chat path. Ignored when planMode is also true. */
+  chatOnly?: boolean;
   // webContents/nodeId are claude-specific (askUser MCP), but kept required so
   // the IPC handler can pass a single opts object to any provider runner.
   webContents: WebContents;

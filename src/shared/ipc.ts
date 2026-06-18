@@ -74,6 +74,8 @@ export type ChatStartArgs = {
   nodeSettings?: NodeSettings;
   /** One-shot plan-mode flag (from inline `/plan`). ORed with nodeSettings.planMode. */
   planMode?: boolean;
+  /** One-shot chat-only flag (from inline `/chat`). ORed with nodeSettings.chatOnly. */
+  chatOnly?: boolean;
 };
 
 export type ChatEvent =

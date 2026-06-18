@@ -210,9 +210,17 @@ export function useNodeChat(nodeId: NodeId) {
       // provenance.
       const inlinePlanMatch = trimmed.match(/^\/plan(?:\s+|$)/);
       const inlinePlanMode = Boolean(inlinePlanMatch);
-      const promptAfterPlanStrip = inlinePlanMatch
+      const afterPlanStrip = inlinePlanMatch
         ? trimmed.slice(inlinePlanMatch[0].length)
         : trimmed;
+
+      // One-shot chat-only mode: leading `/chat` drops the claude_code preset
+      // for this run so the model responds with chat-grade latency.
+      const inlineChatMatch = afterPlanStrip.match(/^\/chat(?:\s+|$)/);
+      const inlineChatOnly = Boolean(inlineChatMatch);
+      const promptAfterPlanStrip = inlineChatMatch
+        ? afterPlanStrip.slice(inlineChatMatch[0].length)
+        : afterPlanStrip;
 
       const addedContext =
         storeApi.getState().nodes[nodeId]?.data.chat.addedContext;
@@ -235,6 +243,7 @@ export function useNodeChat(nodeId: NodeId) {
           attachments: attachments.length > 0 ? attachments : undefined,
           nodeSettings,
           planMode: inlinePlanMode || undefined,
+          chatOnly: inlineChatOnly || undefined,
         });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);

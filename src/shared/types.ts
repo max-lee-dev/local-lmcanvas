@@ -80,6 +80,8 @@ export type NodeSettings = {
   branch?: string;
   /** When true, the SDK runs in plan mode — model proposes a plan, cannot use mutating tools. Claude-only. */
   planMode?: boolean;
+  /** When true, skip the claude_code preset and disable agent tools — fast pure-chat path. Claude-only. */
+  chatOnly?: boolean;
 };
 
 export type CanvasNode = {

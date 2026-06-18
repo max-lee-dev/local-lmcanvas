@@ -7,6 +7,7 @@ import { MergeButton } from "./MergeButton";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { ModelBadge } from "./ModelBadge";
 import { FolderBadge } from "./FolderBadge";
+import { FastBadge } from "./FastBadge";
 import { OnboardingTitle } from "./OnboardingTitle";
 import { useNodeChat } from "@/hooks/useNodeChat";
 import type { CanvasNode, ImageBlock } from "@shared/types";
@@ -213,6 +214,7 @@ function CustomNodeImpl(props: NodeProps) {
         <div className="absolute left-4 right-4 top-3 flex items-center gap-2 min-w-0">
           <ModelBadge nodeId={id} />
           <FolderBadge nodeId={id} />
+          <FastBadge nodeId={id} />
           {isMergeNode && (
             <span
               className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
