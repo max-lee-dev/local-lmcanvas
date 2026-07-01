@@ -48,7 +48,9 @@ export function NodePanelComposer({ paneId, parentId }: Props) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            // Ignore the Enter that commits an IME composition (CJK input) —
+            // isComposing is still true, so submitting would eat the candidate.
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               submit();
             }
