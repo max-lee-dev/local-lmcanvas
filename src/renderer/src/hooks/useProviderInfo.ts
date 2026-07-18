@@ -8,7 +8,7 @@ export type ProviderInfoState = {
 };
 
 const DEFAULT_MODEL_BY_PROVIDER: Record<Provider, string> = {
-  claude: "claude-opus-4-7",
+  claude: "claude-fable-5",
   codex: "gpt-5.3-codex",
   cursor: "auto",
 };
@@ -55,7 +55,11 @@ export function useProviderInfo(canvasProvider?: Provider): ProviderInfoState {
 
 function prettyModelLabel(provider: Provider, modelId?: string): string {
   if (provider === "claude") {
-    if (!modelId) return "Opus 4.7";
+    if (!modelId) return "Fable 5";
+    if (modelId.includes("fable")) {
+      if (modelId.includes("5")) return "Fable 5";
+      return "Fable";
+    }
     if (modelId.includes("opus")) {
       if (modelId.includes("4-7")) return "Opus 4.7";
       if (modelId.includes("4-6")) return "Opus 4.6";

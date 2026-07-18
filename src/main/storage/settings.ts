@@ -7,7 +7,7 @@ const MAX_RECENTS = 8;
 
 const DEFAULTS: AppSettings = {
   systemPrompt: "",
-  claudeModel: undefined,
+  claudeModel: "claude-fable-5",
   claudeBinPath: "claude",
   defaultProvider: "claude",
   providers: {
