@@ -66,7 +66,7 @@ export function SettingsModal({ open, onClose }: Props) {
 
   const updateProviderConfig = (
     provider: Provider,
-    patch: { binPath?: string }
+    patch: { binPath?: string; model?: string }
   ) => {
     setSettings((s) => ({
       ...s,
@@ -242,6 +242,27 @@ export function SettingsModal({ open, onClose }: Props) {
                                     }
                                     className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
                                     placeholder={provider}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-medium text-muted-foreground">
+                                    model id
+                                  </label>
+                                  <input
+                                    value={settings.providers?.[provider]?.model ?? ""}
+                                    onChange={(e) =>
+                                      updateProviderConfig(provider, {
+                                        model: e.target.value,
+                                      })
+                                    }
+                                    className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                                    placeholder={
+                                      provider === "codex"
+                                        ? "gpt-5.6-sol"
+                                        : provider === "cursor"
+                                        ? "auto"
+                                        : "claude-fable-5"
+                                    }
                                   />
                                 </div>
                               </div>

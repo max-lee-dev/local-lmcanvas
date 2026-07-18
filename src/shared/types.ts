@@ -73,6 +73,17 @@ export type ChatData = {
 
 export type CanvasNodeType = "custom" | "stickyNote";
 
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+
+export const REASONING_EFFORTS: readonly ReasoningEffort[] = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultra",
+] as const;
+
 export type NodeSettings = {
   provider?: Provider;
   cwd?: string;
@@ -82,6 +93,8 @@ export type NodeSettings = {
   planMode?: boolean;
   /** When true, skip the claude_code preset and disable agent tools — fast pure-chat path. Claude-only. */
   chatOnly?: boolean;
+  /** Reasoning-effort override for providers that support it. Codex-only today. */
+  reasoningEffort?: ReasoningEffort;
 };
 
 export type CanvasNode = {
@@ -123,6 +136,8 @@ export type ProviderConfig = {
   binPath?: string;
   /** Optional model override for this provider. */
   model?: string;
+  /** Optional reasoning-effort override for providers that support it. */
+  reasoningEffort?: ReasoningEffort;
 };
 
 export type Canvas = {

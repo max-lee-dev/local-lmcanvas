@@ -47,7 +47,25 @@ function sameNodeSettings(
 ): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
-  return a.provider === b.provider && a.cwd === b.cwd && a.branch === b.branch;
+  return (
+    a.provider === b.provider &&
+    a.cwd === b.cwd &&
+    a.branch === b.branch &&
+    a.planMode === b.planMode &&
+    a.chatOnly === b.chatOnly &&
+    a.reasoningEffort === b.reasoningEffort
+  );
+}
+
+function hasNodeSettings(settings: NodeSettings): boolean {
+  return (
+    settings.provider !== undefined ||
+    settings.cwd !== undefined ||
+    settings.branch !== undefined ||
+    settings.planMode !== undefined ||
+    settings.chatOnly !== undefined ||
+    settings.reasoningEffort !== undefined
+  );
 }
 
 export const useRecentsStore = create<RecentsState>((set, get) => ({
@@ -90,10 +108,7 @@ export const useRecentsStore = create<RecentsState>((set, get) => ({
     queueSettingsWrite({ recentBranches: next });
   },
   setLastNodeSettings: (settings) => {
-    const cleaned =
-      settings && (settings.provider || settings.cwd || settings.branch)
-        ? { ...settings }
-        : undefined;
+    const cleaned = settings && hasNodeSettings(settings) ? { ...settings } : undefined;
     if (sameNodeSettings(get().lastNodeSettings, cleaned)) return;
     set({ lastNodeSettings: cleaned });
     queueSettingsWrite({ lastNodeSettings: cleaned });

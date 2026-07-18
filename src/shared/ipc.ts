@@ -70,7 +70,7 @@ export type ChatStartArgs = {
   prompt: string;
   attachments?: Attachment[];
   systemPromptOverride?: string;
-  /** Per-node overrides for provider / cwd. Resolved against canvas defaults in main. */
+  /** Per-node run-setting overrides. Resolved against canvas/app defaults in main. */
   nodeSettings?: NodeSettings;
   /** One-shot plan-mode flag (from inline `/plan`). ORed with nodeSettings.planMode. */
   planMode?: boolean;

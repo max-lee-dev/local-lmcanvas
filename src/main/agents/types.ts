@@ -1,6 +1,6 @@
 import type { WebContents } from "electron";
 import type { Attachment } from "@shared/ipc";
-import type { ErrorCode, UsageSummary } from "@shared/types";
+import type { ErrorCode, ReasoningEffort, UsageSummary } from "@shared/types";
 
 export type RunnerEvent =
   | { kind: "text_delta"; text: string }
@@ -39,6 +39,8 @@ export type RunAgentOpts = {
   attachments?: Attachment[];
   signal?: AbortSignal;
   binPath?: string;
+  /** Reasoning effort for providers that support it. Codex-only today. */
+  reasoningEffort?: ReasoningEffort;
   /** Claude-only; ignored by codex/cursor runners. */
   planMode?: boolean;
   /** Claude-only; skip the claude_code preset for a fast pure-chat path. Ignored when planMode is also true. */

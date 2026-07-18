@@ -223,6 +223,8 @@ function registerIpc(): void {
     const model =
       providerCfg?.model ??
       (provider === "claude" ? settings.claudeModel : undefined);
+    const reasoningEffort =
+      nodeSettings?.reasoningEffort ?? providerCfg?.reasoningEffort;
 
     // Effective cwd: node override → canvas → user home (least-invasive fallback so
     // every provider runner — which require a string cwd — always has one).
@@ -242,6 +244,7 @@ function registerIpc(): void {
       await runAgent(provider, combinedPrompt, {
         cwd: effectiveCwd,
         model,
+        reasoningEffort,
         binPath,
         systemPrompt,
         attachments,

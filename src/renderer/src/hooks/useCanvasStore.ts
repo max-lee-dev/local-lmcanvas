@@ -62,7 +62,7 @@ export type CanvasStoreState = {
   loadCanvas: (id: string) => Promise<void>;
   setName: (name: string) => void;
   setProvider: (provider: Provider) => void;
-  /** Merge a patch into `node.data.nodeSettings`. Per-node override of provider/cwd/branch. */
+  /** Merge a patch into `node.data.nodeSettings`. Per-node overrides for run settings. */
   setNodeSettings: (nodeId: NodeId, patch: Partial<NodeSettings>) => void;
   /** Unset a single nodeSettings field so the node falls back to canvas defaults. */
   clearNodeSettingsField: (nodeId: NodeId, field: keyof NodeSettings) => void;
@@ -121,6 +121,17 @@ export type CanvasStoreApi = Mutate<
 
 function makeEdgeId(source: NodeId, target: NodeId): string {
   return `e-${source}-${target}`;
+}
+
+function hasNodeSettings(settings: NodeSettings): boolean {
+  return (
+    settings.provider !== undefined ||
+    settings.cwd !== undefined ||
+    settings.branch !== undefined ||
+    settings.planMode !== undefined ||
+    settings.chatOnly !== undefined ||
+    settings.reasoningEffort !== undefined
+  );
 }
 
 function canvasFromState(s: CanvasStoreState): Canvas | null {
@@ -377,11 +388,13 @@ export function createCanvasStoreApi(): CanvasStoreApi {
             else if (key === "provider") merged.provider = value as Provider;
             else if (key === "cwd") merged.cwd = value as string;
             else if (key === "branch") merged.branch = value as string;
+            else if (key === "planMode") merged.planMode = value as boolean;
+            else if (key === "chatOnly") merged.chatOnly = value as boolean;
+            else if (key === "reasoningEffort") {
+              merged.reasoningEffort = value as NodeSettings["reasoningEffort"];
+            }
           }
-          const hasAny =
-            merged.provider !== undefined ||
-            merged.cwd !== undefined ||
-            merged.branch !== undefined;
+          const hasAny = hasNodeSettings(merged);
           const nextData = { ...existing.data };
           if (hasAny) nextData.nodeSettings = merged;
           else delete nextData.nodeSettings;
@@ -402,10 +415,7 @@ export function createCanvasStoreApi(): CanvasStoreApi {
           if (!current || current[field] === undefined) return s;
           const next: NodeSettings = { ...current };
           delete next[field];
-          const hasAny =
-            next.provider !== undefined ||
-            next.cwd !== undefined ||
-            next.branch !== undefined;
+          const hasAny = hasNodeSettings(next);
           const nextData = { ...existing.data };
           if (hasAny) nextData.nodeSettings = next;
           else delete nextData.nodeSettings;
@@ -443,7 +453,7 @@ export function createCanvasStoreApi(): CanvasStoreApi {
               : undefined;
             const inherited =
               parentSettings ?? useRecentsStore.getState().lastNodeSettings;
-            if (inherited && (inherited.provider || inherited.cwd || inherited.branch)) {
+            if (inherited && hasNodeSettings(inherited)) {
               nextNode = {
                 ...node,
                 data: { ...node.data, nodeSettings: { ...inherited } },

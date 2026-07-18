@@ -82,6 +82,9 @@ export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void
     "--cd",
     opts.cwd,
     ...(opts.model ? ["-c", `model="${opts.model}"`] : []),
+    ...(opts.reasoningEffort
+      ? ["-c", `model_reasoning_effort="${opts.reasoningEffort}"`]
+      : []),
     ...imagePaths.flatMap((p) => ["-i", p]),
     "--",
     "-",

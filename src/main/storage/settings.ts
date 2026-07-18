@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
-import type { AppSettings, NodeSettings, Provider } from "@shared/types";
-import { PROVIDERS } from "@shared/types";
+import type { AppSettings, NodeSettings, Provider, ReasoningEffort } from "@shared/types";
+import { PROVIDERS, REASONING_EFFORTS } from "@shared/types";
 import { SETTINGS_FILE, atomicWriteFile, ensureDirs } from "./paths";
 
 const MAX_RECENTS = 8;
@@ -12,7 +12,11 @@ const DEFAULTS: AppSettings = {
   defaultProvider: "claude",
   providers: {
     claude: { binPath: "claude" },
-    codex: { binPath: "codex" },
+    codex: {
+      binPath: "codex",
+      model: "gpt-5.6-sol",
+      reasoningEffort: "high",
+    },
     cursor: { binPath: "cursor-agent" },
   },
   onboardingCompleted: false,
@@ -36,6 +40,13 @@ function sanitizeRecents(values: unknown): string[] {
   return out;
 }
 
+function isReasoningEffort(value: unknown): value is ReasoningEffort {
+  return (
+    typeof value === "string" &&
+    (REASONING_EFFORTS as readonly string[]).includes(value)
+  );
+}
+
 function sanitizeNodeSettings(raw: unknown): NodeSettings | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const obj = raw as Record<string, unknown>;
@@ -45,13 +56,33 @@ function sanitizeNodeSettings(raw: unknown): NodeSettings | undefined {
   }
   if (typeof obj.cwd === "string" && obj.cwd.length > 0) out.cwd = obj.cwd;
   if (typeof obj.branch === "string" && obj.branch.length > 0) out.branch = obj.branch;
-  return out.provider || out.cwd || out.branch ? out : undefined;
+  if (typeof obj.planMode === "boolean") out.planMode = obj.planMode;
+  if (typeof obj.chatOnly === "boolean") out.chatOnly = obj.chatOnly;
+  if (isReasoningEffort(obj.reasoningEffort)) out.reasoningEffort = obj.reasoningEffort;
+  return out.provider ||
+    out.cwd ||
+    out.branch ||
+    out.planMode ||
+    out.chatOnly ||
+    out.reasoningEffort
+    ? out
+    : undefined;
 }
 
 function mergeWithDefaults(s: Partial<AppSettings>): AppSettings {
   const providers = {
-    ...DEFAULTS.providers,
-    ...(s.providers ?? {}),
+    claude: {
+      ...DEFAULTS.providers?.claude,
+      ...(s.providers?.claude ?? {}),
+    },
+    codex: {
+      ...DEFAULTS.providers?.codex,
+      ...(s.providers?.codex ?? {}),
+    },
+    cursor: {
+      ...DEFAULTS.providers?.cursor,
+      ...(s.providers?.cursor ?? {}),
+    },
   };
   const lastNodeSettings = sanitizeNodeSettings(s.lastNodeSettings);
   return {

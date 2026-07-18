@@ -9,7 +9,7 @@ export type ProviderInfoState = {
 
 const DEFAULT_MODEL_BY_PROVIDER: Record<Provider, string> = {
   claude: "claude-fable-5",
-  codex: "gpt-5.3-codex",
+  codex: "gpt-5.6-sol",
   cursor: "auto",
 };
 
@@ -78,7 +78,7 @@ function prettyModelLabel(provider: Provider, modelId?: string): string {
     return modelId;
   }
   if (provider === "codex") {
-    if (!modelId || modelId.length === 0) return "GPT-5.3 Codex";
+    if (!modelId || modelId.length === 0) return "GPT-5.6 Sol";
     const lower = normalizeModelId(modelId);
     if (
       lower === "codex" ||
@@ -108,7 +108,7 @@ function prettyModelLabel(provider: Provider, modelId?: string): string {
 }
 
 function prettyOpenAIModelName(modelId?: string): string {
-  if (!modelId || modelId.length === 0) return "GPT-5.3 Codex";
+  if (!modelId || modelId.length === 0) return "GPT-5.6 Sol";
   const lower = normalizeModelId(modelId);
   if (lower === "auto") return "Auto";
   if (lower === "codex") return "Codex (Default)";
@@ -125,7 +125,10 @@ function prettyOpenAIModelName(modelId?: string): string {
       return token.charAt(0).toUpperCase() + token.slice(1);
     })
     .join("-");
-  return pretty.replace("-Codex", " Codex").replace("-Turbo", " Turbo");
+  return pretty
+    .replace("-Codex", " Codex")
+    .replace("-Sol", " Sol")
+    .replace("-Turbo", " Turbo");
 }
 
 function normalizeModelId(modelId: string): string {
