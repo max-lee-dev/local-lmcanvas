@@ -9,6 +9,7 @@ import { ModelBadge } from "./ModelBadge";
 import { FolderBadge } from "./FolderBadge";
 import { FastBadge } from "./FastBadge";
 import { PowerBadge } from "./PowerBadge";
+import { CodexSpeedBadge } from "./CodexSpeedBadge";
 import { OnboardingTitle } from "./OnboardingTitle";
 import { useNodeChat } from "@/hooks/useNodeChat";
 import type { CanvasNode, ImageBlock } from "@shared/types";
@@ -215,6 +216,7 @@ function CustomNodeImpl(props: NodeProps) {
         <div className="absolute left-4 right-4 top-3 flex items-center gap-2 min-w-0">
           <ModelBadge nodeId={id} />
           <PowerBadge nodeId={id} />
+          <CodexSpeedBadge nodeId={id} />
           <FolderBadge nodeId={id} />
           <FastBadge nodeId={id} />
           {isMergeNode && (

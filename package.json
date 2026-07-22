@@ -22,7 +22,10 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "bun run typecheck:node && bun run typecheck:web",
     "pack": "electron-vite build && electron-builder --dir",
-    "dist": "electron-vite build && electron-builder --publish never"
+    "dist": "electron-vite build && electron-builder --publish never",
+    "release:start": "./scripts/release-background.sh start",
+    "release:status": "./scripts/release-background.sh status",
+    "release:logs": "./scripts/release-background.sh logs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.141",

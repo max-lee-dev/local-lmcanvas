@@ -53,7 +53,8 @@ function sameNodeSettings(
     a.branch === b.branch &&
     a.planMode === b.planMode &&
     a.chatOnly === b.chatOnly &&
-    a.reasoningEffort === b.reasoningEffort
+    a.reasoningEffort === b.reasoningEffort &&
+    a.serviceTier === b.serviceTier
   );
 }
 
@@ -64,7 +65,8 @@ function hasNodeSettings(settings: NodeSettings): boolean {
     settings.branch !== undefined ||
     settings.planMode !== undefined ||
     settings.chatOnly !== undefined ||
-    settings.reasoningEffort !== undefined
+    settings.reasoningEffort !== undefined ||
+    settings.serviceTier !== undefined
   );
 }
 

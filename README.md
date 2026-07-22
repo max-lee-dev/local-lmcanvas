@@ -1,6 +1,6 @@
 # local-lmcanvas
 
-A fully local, canvas-based branching AI conversation tool. Desktop Electron app that uses the **Claude Code CLI** (`claude -p --output-format stream-json`) as its LLM backend — no API keys, no cloud, no database.
+A fully local, canvas-based branching AI conversation tool. The Electron app drives your installed Claude, Codex, or Cursor agent harness — no API keys to paste into the app, no database, and no LMCanvas telemetry.
 
 Each conversation is a tree of message nodes on a canvas. Branch from any node to fork the conversation history, or highlight text in a response to branch from that phrase. Everything persists to `~/.local-lmcanvas/`.
 
@@ -29,20 +29,37 @@ The Electron window opens automatically. Build a distributable with:
 bun run dist   # .dmg on macOS, .AppImage on Linux, .exe on Windows
 ```
 
+## Release
+
+Maintainers can start a signed and notarized macOS release in the background:
+
+```bash
+bun run release:start patch
+bun run release:status
+bun run release:logs
+```
+
+The one-shot macOS background job keeps running if the launching terminal closes,
+does not restart after completion, and prevents idle sleep while it runs. Release
+state and logs live under `~/.local/state/local-lmcanvas/release/`. The repository
+must be clean before a release starts. `minor`, `major`, and `--no-bump` are also
+supported.
+
 ## Architecture
 
 ```
 src/
 ├── main/           Electron main process (Node)
 │   ├── index.ts    IPC handlers, BrowserWindow setup
-│   ├── claude/     spawns `claude` CLI, parses stream-json
+│   ├── claude/     Claude Agent SDK session/fork integration
+│   ├── agents/     provider adapters and persistent Codex app-server transport
 │   └── storage/    reads/writes ~/.local-lmcanvas/
 ├── preload/        contextBridge: exposes window.api to renderer
 ├── renderer/       React UI (xyflow canvas, zustand store)
 └── shared/         types + graph logic used by both sides
 ```
 
-All renderer → main calls go over IPC (`window.api.canvases.list()`, etc.) — no HTTP.
+All renderer → main calls go over IPC (`window.api.canvases.list()`, etc.).
 
 ## Storage
 
@@ -85,4 +102,3 @@ Report vulnerabilities privately via [GitHub Security Advisories](https://github
 ## License
 
 [MIT](./LICENSE) © 2026 Max Lee
-

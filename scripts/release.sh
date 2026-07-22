@@ -66,6 +66,12 @@ command -v xcrun >/dev/null  || { red "xcode tools not installed"; exit 1; }
 command -v gh >/dev/null     || { red "gh CLI not installed";    exit 1; }
 gh auth status -h github.com >/dev/null 2>&1 || { red "gh CLI not authenticated"; exit 1; }
 
+if [ -n "$(git status --porcelain)" ]; then
+  red "Repository must be clean before releasing. Commit or stash changes first."
+  git status --short >&2
+  exit 1
+fi
+
 if ! security find-identity -p codesigning -v 2>/dev/null \
      | grep -q "Developer ID Application"; then
   red 'No "Developer ID Application" identity found in keychain.'
@@ -73,6 +79,10 @@ if ! security find-identity -p codesigning -v 2>/dev/null \
   exit 1
 fi
 green "✓ env, tools, signing identity"
+
+section "Typecheck"
+bun run typecheck
+green "✓ Typecheck passed"
 
 # -------- version --------
 
@@ -88,6 +98,11 @@ else
 fi
 VERSION="$(node -p "require('./package.json').version")"
 PRODUCT_NAME="$(node -p "require('./package.json').build.productName")"
+TAG="v$VERSION"
+if git rev-parse --quiet --verify "refs/tags/$TAG" >/dev/null; then
+  red "Tag $TAG already exists. Bump the version before releasing."
+  exit 1
+fi
 green "✓ Building $PRODUCT_NAME v$VERSION"
 
 # -------- build --------
@@ -160,12 +175,11 @@ if [ "${SKIP_GIT_PUSH:-0}" = "1" ]; then
 fi
 
 section "Git tag + push"
-TAG="v$VERSION"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
-if [ -n "$(git status --porcelain)" ]; then
+if ! git diff --quiet -- package.json; then
   git add package.json
-  git commit -m "🚀 release $TAG"
+  git commit --only -m "🚀 release $TAG" -- package.json
 fi
 git tag "$TAG"
 git push origin "$BRANCH"

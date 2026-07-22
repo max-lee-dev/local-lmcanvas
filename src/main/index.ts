@@ -12,6 +12,7 @@ import {
 import { readSettings, writeSettings } from "./storage/settings";
 import { buildPromptWithHistory } from "./claude/history";
 import { runAgent } from "./agents";
+import { shutdownCodexAppServers } from "./agents/codexAppServer";
 import { generateGroupSummaries } from "./groupSummary/generate";
 import { generateCanvasName } from "./canvasName/generate";
 import { getProviderAuthStatus, openLoginTerminal } from "./auth/providerAuth";
@@ -188,6 +189,7 @@ function registerIpc(): void {
       nodeSettings,
       planMode: inlinePlanMode,
       chatOnly: inlineChatOnly,
+      parentSession,
     } = args;
     const sender = e.sender;
 
@@ -225,6 +227,10 @@ function registerIpc(): void {
       (provider === "claude" ? settings.claudeModel : undefined);
     const reasoningEffort =
       nodeSettings?.reasoningEffort ?? providerCfg?.reasoningEffort;
+    const serviceTier = nodeSettings?.serviceTier ?? providerCfg?.serviceTier;
+    const compatibleParentSession =
+      parentSession?.provider === provider ? parentSession : undefined;
+    const agentPrompt = compatibleParentSession ? prompt : combinedPrompt;
 
     // Effective cwd: node override → canvas → user home (least-invasive fallback so
     // every provider runner — which require a string cwd — always has one).
@@ -239,12 +245,17 @@ function registerIpc(): void {
     activeChats.set(chatId, { controller, nodeId });
 
     send({ chatId, type: "start" });
+    const startedAt = Date.now();
+    let firstProviderEventSeen = false;
+    console.info("[lmcanvas:latency]", { chatId, provider, phase: "start", elapsedMs: 0 });
 
     try {
-      await runAgent(provider, combinedPrompt, {
+      await runAgent(provider, agentPrompt, {
         cwd: effectiveCwd,
         model,
         reasoningEffort,
+        serviceTier,
+        parentSession: compatibleParentSession,
         binPath,
         systemPrompt,
         attachments,
@@ -254,7 +265,24 @@ function registerIpc(): void {
         webContents: sender,
         nodeId,
         onEvent: (ev) => {
+          if (
+            !firstProviderEventSeen &&
+            (ev.kind === "text_delta" ||
+              ev.kind === "thinking_delta" ||
+              ev.kind === "tool_use")
+          ) {
+            firstProviderEventSeen = true;
+            console.info("[lmcanvas:latency]", {
+              chatId,
+              provider,
+              phase: "first_provider_event",
+              elapsedMs: Date.now() - startedAt,
+            });
+          }
           switch (ev.kind) {
+            case "session":
+              send({ chatId, type: "session", session: ev.session });
+              return;
             case "text_delta":
               send({ chatId, type: "text_delta", text: ev.text });
               return;
@@ -289,6 +317,12 @@ function registerIpc(): void {
               });
               return;
             case "done":
+              console.info("[lmcanvas:latency]", {
+                chatId,
+                provider,
+                phase: "done",
+                elapsedMs: Date.now() - startedAt,
+              });
               send({
                 chatId,
                 type: "done",
@@ -447,4 +481,8 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  void shutdownCodexAppServers();
 });

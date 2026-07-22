@@ -93,6 +93,7 @@ import type {
 } from "@anthropic-ai/sdk/resources/messages/messages.mjs";
 import type { WebContents } from "electron";
 import type { Attachment } from "@shared/ipc";
+import type { ProviderSessionRef } from "@shared/types";
 import { buildAskUserServer } from "./askUserMcp";
 import { isAuthError, type RunnerEvent } from "../agents/types";
 import { normalizeUsage } from "../agents/usage";
@@ -134,6 +135,7 @@ export type RunClaudeOpts = {
   planMode?: boolean;
   /** When true, skip the claude_code preset and drop agent tools — fast pure-chat path. Ignored when planMode is also true. */
   chatOnly?: boolean;
+  parentSession?: ProviderSessionRef;
   webContents: WebContents;
   nodeId: string;
   onEvent: (ev: RunnerEvent) => void;
@@ -148,6 +150,7 @@ export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<vo
 
   const seenToolUseIds = new Set<string>();
   let doneEmitted = false;
+  let emittedSessionId: string | null = null;
 
   const emit = (ev: RunnerEvent): void => {
     if (ev.kind === "done") doneEmitted = true;
@@ -196,6 +199,11 @@ export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<vo
         permissionMode: opts.planMode ? "plan" : "bypassPermissions",
         allowDangerouslySkipPermissions: !opts.planMode,
         model: opts.model,
+        resume:
+          opts.parentSession?.provider === "claude"
+            ? opts.parentSession.id
+            : undefined,
+        forkSession: opts.parentSession?.provider === "claude" || undefined,
         pathToClaudeCodeExecutable: CLAUDE_BIN_PATH,
         // chatOnly: raw system prompt (no claude_code preset) → drops ~10k
         // tokens of agentic tool instructions on every turn, big TTFT win.
@@ -209,6 +217,15 @@ export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<vo
     });
 
     for await (const msg of q as AsyncIterable<SDKMessage>) {
+      const sessionId = (msg as { session_id?: unknown }).session_id;
+      if (
+        typeof sessionId === "string" &&
+        sessionId.length > 0 &&
+        sessionId !== emittedSessionId
+      ) {
+        emittedSessionId = sessionId;
+        emit({ kind: "session", session: { provider: "claude", id: sessionId } });
+      }
       handleMessage(msg, seenToolUseIds, emit);
       if (msg.type === "result") {
         break;

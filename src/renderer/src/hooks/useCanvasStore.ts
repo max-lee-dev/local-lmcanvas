@@ -8,11 +8,13 @@ import type {
   CanvasEdge,
   CanvasNode,
   ContentBlock,
+  AppSettings,
   ErrorCode,
   Message,
   NodeId,
   NodeSettings,
   Provider,
+  ProviderSessionRef,
   Suggestion,
   TextBlock,
   ToolUseBlock,
@@ -38,6 +40,7 @@ export type CanvasStoreState = {
   provider: Provider | undefined;
   /** Mirror of AppSettings.defaultProvider — populated on canvas load so effective-provider lookups don't have to hit IPC. */
   defaultProvider: Provider | undefined;
+  providerConfigs: AppSettings["providers"];
   nodes: Record<NodeId, CanvasNode>;
   edges: CanvasEdge[];
   loaded: boolean;
@@ -83,6 +86,7 @@ export type CanvasStoreState = {
   connectEdge: (source: NodeId, target: NodeId, opts?: { sourceYOffset?: number }) => void;
   appendMessage: (nodeId: NodeId, msg: Message) => void;
   appendTextDelta: (nodeId: NodeId, messageId: string, text: string) => void;
+  appendThinkingDelta: (nodeId: NodeId, messageId: string, text: string) => void;
   appendBlock: (nodeId: NodeId, messageId: string, block: ContentBlock) => void;
   setToolResult: (
     nodeId: NodeId,
@@ -92,6 +96,7 @@ export type CanvasStoreState = {
     isError: boolean
   ) => void;
   setMessageUsage: (nodeId: NodeId, messageId: string, usage?: UsageSummary) => void;
+  setProviderSession: (nodeId: NodeId, session: ProviderSessionRef) => void;
   finalizeMessage: (nodeId: NodeId, messageId: string) => void;
   errorMessage: (
     nodeId: NodeId,
@@ -130,7 +135,8 @@ function hasNodeSettings(settings: NodeSettings): boolean {
     settings.branch !== undefined ||
     settings.planMode !== undefined ||
     settings.chatOnly !== undefined ||
-    settings.reasoningEffort !== undefined
+    settings.reasoningEffort !== undefined ||
+    settings.serviceTier !== undefined
   );
 }
 
@@ -199,6 +205,7 @@ export function createCanvasStoreApi(): CanvasStoreApi {
       createdAt: 0,
       provider: undefined,
       defaultProvider: undefined,
+      providerConfigs: undefined,
       nodes: {},
       edges: [],
       loaded: false,
@@ -322,6 +329,7 @@ export function createCanvasStoreApi(): CanvasStoreApi {
           createdAt: canvas.createdAt,
           provider: canvas.provider,
           defaultProvider: settings.defaultProvider,
+          providerConfigs: settings.providers,
           nodes,
           edges: canvas.edges,
           loaded: true,
@@ -341,26 +349,6 @@ export function createCanvasStoreApi(): CanvasStoreApi {
             .then(notifyCanvasList)
             .catch((err) =>
               console.error("Failed to save prompt-derived canvas name:", err),
-            );
-          void window.api.canvasName
-            .generate({ prompt })
-            .then((generatedName) => {
-              if (!generatedName) return;
-              const currentName = get().name;
-              if (currentName !== fallbackName && !isUnnamedCanvasName(currentName)) {
-                return;
-              }
-              set({ name: generatedName });
-              get().markDirty();
-              void get()
-                .save()
-                .then(notifyCanvasList)
-                .catch((err) =>
-                  console.error("Failed to save generated canvas name:", err),
-                );
-            })
-            .catch((err) =>
-              console.error("Failed to generate canvas name:", err),
             );
         }
       },
@@ -392,6 +380,8 @@ export function createCanvasStoreApi(): CanvasStoreApi {
             else if (key === "chatOnly") merged.chatOnly = value as boolean;
             else if (key === "reasoningEffort") {
               merged.reasoningEffort = value as NodeSettings["reasoningEffort"];
+            } else if (key === "serviceTier") {
+              merged.serviceTier = value as NodeSettings["serviceTier"];
             }
           }
           const hasAny = hasNodeSettings(merged);
@@ -678,6 +668,26 @@ export function createCanvasStoreApi(): CanvasStoreApi {
         get().markDirty();
       },
 
+      appendThinkingDelta: (nodeId, messageId, text) => {
+        if (!text) return;
+        set((s) => {
+          const nodes = updateMessages(s.nodes, nodeId, (messages) =>
+            mapMessage(messages, messageId, (m) => {
+              const blocks = m.blocks.length > 0 ? [...m.blocks] : [];
+              const last = blocks[blocks.length - 1];
+              if (last && last.type === "thinking") {
+                blocks[blocks.length - 1] = { ...last, text: last.text + text };
+              } else {
+                blocks.push({ type: "thinking", text });
+              }
+              return { ...m, blocks };
+            }),
+          );
+          return nodes ? { nodes } : s;
+        });
+        get().markDirty();
+      },
+
       appendBlock: (nodeId, messageId, block) => {
         set((s) => {
           const nodes = updateMessages(s.nodes, nodeId, (messages) =>
@@ -721,6 +731,26 @@ export function createCanvasStoreApi(): CanvasStoreApi {
         get().markDirty();
       },
 
+      setProviderSession: (nodeId, session) => {
+        set((s) => {
+          const node = s.nodes[nodeId];
+          if (!node) return s;
+          return {
+            nodes: {
+              ...s.nodes,
+              [nodeId]: {
+                ...node,
+                data: {
+                  ...node.data,
+                  chat: { ...node.data.chat, providerSession: session },
+                },
+              },
+            },
+          };
+        });
+        get().markDirty();
+      },
+
       finalizeMessage: (nodeId, messageId) => {
         set((s) => {
           const nodes = updateMessages(s.nodes, nodeId, (messages) =>
@@ -749,8 +779,16 @@ export function createCanvasStoreApi(): CanvasStoreApi {
 
       clearMessages: (nodeId) => {
         set((s) => {
-          const nodes = updateMessages(s.nodes, nodeId, () => []);
-          return nodes ? { nodes } : s;
+          const node = s.nodes[nodeId];
+          if (!node) return s;
+          const chat = { ...node.data.chat, messages: [] };
+          delete chat.providerSession;
+          return {
+            nodes: {
+              ...s.nodes,
+              [nodeId]: { ...node, data: { ...node.data, chat } },
+            },
+          };
         });
         get().markDirty();
       },

@@ -64,6 +64,8 @@ export type ChatData = {
   messages: Message[];
   parentIds: NodeId[];
   childIds: NodeId[];
+  /** Provider-native conversation state captured after this node completes. */
+  providerSession?: ProviderSessionRef;
   addedContext?: string;
   /** When true, the node auto-deletes 10s after its assistant message completes,
    *  unless hovered (hover resets the countdown). Set when the user creates a
@@ -74,6 +76,14 @@ export type ChatData = {
 export type CanvasNodeType = "custom" | "stickyNote";
 
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+
+export type CodexServiceTier = "standard" | "fast";
+
+export type ProviderSessionRef = {
+  provider: Provider;
+  /** Claude session UUID or Codex app-server thread ID. */
+  id: string;
+};
 
 export const REASONING_EFFORTS: readonly ReasoningEffort[] = [
   "low",
@@ -95,6 +105,8 @@ export type NodeSettings = {
   chatOnly?: boolean;
   /** Reasoning-effort override for providers that support it. Codex-only today. */
   reasoningEffort?: ReasoningEffort;
+  /** Codex processing tier override. */
+  serviceTier?: CodexServiceTier;
 };
 
 export type CanvasNode = {
@@ -138,6 +150,8 @@ export type ProviderConfig = {
   model?: string;
   /** Optional reasoning-effort override for providers that support it. */
   reasoningEffort?: ReasoningEffort;
+  /** Optional Codex processing tier override. */
+  serviceTier?: CodexServiceTier;
 };
 
 export type Canvas = {

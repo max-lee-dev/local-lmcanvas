@@ -7,6 +7,7 @@ import type {
   Message,
   NodeSettings,
   Provider,
+  ProviderSessionRef,
   UsageSummary,
 } from "./types";
 
@@ -76,10 +77,13 @@ export type ChatStartArgs = {
   planMode?: boolean;
   /** One-shot chat-only flag (from inline `/chat`). ORed with nodeSettings.chatOnly. */
   chatOnly?: boolean;
+  /** Native session belonging to this node's primary parent, when available. */
+  parentSession?: ProviderSessionRef;
 };
 
 export type ChatEvent =
   | { chatId: string; type: "start" }
+  | { chatId: string; type: "session"; session: ProviderSessionRef }
   | { chatId: string; type: "text_delta"; text: string }
   | {
       chatId: string;

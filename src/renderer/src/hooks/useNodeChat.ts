@@ -7,7 +7,6 @@ import type {
   NodeId,
   Provider,
   TextBlock,
-  ThinkingBlock,
   ToolUseBlock,
   ContentBlock,
 } from "@shared/types";
@@ -84,26 +83,6 @@ export function useNodeChat(nodeId: NodeId) {
             .catch((err) =>
               console.error("Failed to save prompt-derived canvas name:", err),
             );
-          void window.api.canvasName
-            .generate({ prompt: trimmed })
-            .then((generatedName) => {
-              if (!generatedName) return;
-              const currentName = storeApi.getState().name;
-              if (currentName !== fallbackName && !isUnnamedCanvasName(currentName)) {
-                return;
-              }
-              storeApi.getState().setName(generatedName);
-              void storeApi
-                .getState()
-                .save()
-                .then(notifyCanvasList)
-                .catch((err) =>
-                  console.error("Failed to save generated canvas name:", err),
-                );
-            })
-            .catch((err) =>
-              console.error("Failed to generate canvas name:", err),
-            );
         }
       }
 
@@ -120,6 +99,13 @@ export function useNodeChat(nodeId: NodeId) {
 
       const fullHistory = storeApi.getState().getHistoryForNode(nodeId);
       const history = fullHistory.slice(0, -2);
+      const parentId =
+        nodeBeforeSubmit?.data.chat.parentIds.length === 1
+          ? nodeBeforeSubmit.data.chat.parentIds[0]
+          : undefined;
+      const parentSession = parentId
+        ? storeApi.getState().nodes[parentId]?.data.chat.providerSession
+        : undefined;
 
       const chatId = nanoid();
       activeChatIdRef.current = chatId;
@@ -128,9 +114,53 @@ export function useNodeChat(nodeId: NodeId) {
       // the visible text and persists the parsed items on the assistant
       // message. State lives inside this closure so concurrent chats can't
       // bleed into each other.
+      const streamStartedAt = performance.now();
+      let pendingText = "";
+      let pendingThinking = "";
+      let textTimer: ReturnType<typeof setTimeout> | null = null;
+      let thinkingTimer: ReturnType<typeof setTimeout> | null = null;
+      let firstPaintReported = false;
+
+      const reportFirstPaint = () => {
+        if (firstPaintReported) return;
+        firstPaintReported = true;
+        requestAnimationFrame(() => {
+          console.info("[lmcanvas:latency]", {
+            chatId,
+            phase: "first_paint",
+            elapsedMs: Math.round(performance.now() - streamStartedAt),
+          });
+        });
+      };
+      const flushText = () => {
+        if (textTimer) clearTimeout(textTimer);
+        textTimer = null;
+        if (!pendingText) return;
+        const text = pendingText;
+        pendingText = "";
+        storeApi.getState().appendTextDelta(nodeId, asstMsgId, text);
+        reportFirstPaint();
+      };
+      const flushThinking = () => {
+        if (thinkingTimer) clearTimeout(thinkingTimer);
+        thinkingTimer = null;
+        if (!pendingThinking) return;
+        const text = pendingThinking;
+        pendingThinking = "";
+        storeApi.getState().appendThinkingDelta(nodeId, asstMsgId, text);
+        reportFirstPaint();
+      };
+      const queueText = (text: string) => {
+        pendingText += text;
+        if (!textTimer) textTimer = setTimeout(flushText, 32);
+      };
+      const queueThinking = (text: string) => {
+        pendingThinking += text;
+        if (!thinkingTimer) thinkingTimer = setTimeout(flushThinking, 32);
+      };
+
       const nextStepsStreamer = createNextStepsStreamer({
-        onText: (text) =>
-          storeApi.getState().appendTextDelta(nodeId, asstMsgId, text),
+        onText: queueText,
         onSuggestions: (suggestions) =>
           storeApi.getState().setSuggestions(nodeId, asstMsgId, suggestions),
       });
@@ -140,6 +170,8 @@ export function useNodeChat(nodeId: NodeId) {
         // Flush any remaining buffered text (e.g. an unterminated <next-steps>
         // block) so we don't silently swallow it.
         nextStepsStreamer.flush();
+        flushThinking();
+        flushText();
         if (off) {
           off();
           off = null;
@@ -156,18 +188,21 @@ export function useNodeChat(nodeId: NodeId) {
           case "start":
             return;
           case "text_delta":
+            flushThinking();
             nextStepsStreamer.ingest(ev.text);
             return;
           case "thinking_delta": {
             // Flush held-back text first so any pending characters land
             // before the new non-text block.
             nextStepsStreamer.flush();
-            const block: ThinkingBlock = { type: "thinking", text: ev.text };
-            s.appendBlock(nodeId, asstMsgId, block);
+            flushText();
+            queueThinking(ev.text);
             return;
           }
           case "tool_use": {
             nextStepsStreamer.flush();
+            flushText();
+            flushThinking();
             const block: ToolUseBlock = {
               type: "tool_use",
               id: ev.toolUseId,
@@ -178,7 +213,12 @@ export function useNodeChat(nodeId: NodeId) {
             return;
           }
           case "tool_result":
+            flushText();
+            flushThinking();
             s.setToolResult(nodeId, asstMsgId, ev.toolUseId, ev.content, ev.isError);
+            return;
+          case "session":
+            s.setProviderSession(nodeId, ev.session);
             return;
           case "done":
             if (ev.usage) {
@@ -244,6 +284,7 @@ export function useNodeChat(nodeId: NodeId) {
           nodeSettings,
           planMode: inlinePlanMode || undefined,
           chatOnly: inlineChatOnly || undefined,
+          parentSession,
         });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);

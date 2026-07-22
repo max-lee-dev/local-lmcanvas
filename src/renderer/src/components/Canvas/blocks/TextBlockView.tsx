@@ -12,6 +12,7 @@ type Props = {
   text: string;
   isUser?: boolean;
   nodeId?: string;
+  streaming?: boolean;
 };
 
 type CodeProps = ComponentPropsWithoutRef<"code"> & { inline?: boolean };
@@ -140,7 +141,7 @@ function processChildren(
   return children;
 }
 
-function TextBlockViewImpl({ text, isUser, nodeId }: Props) {
+function TextBlockViewImpl({ text, isUser, nodeId, streaming }: Props) {
   const cwd = useCanvasStore((state) =>
     nodeId ? state.getEffectiveCwd(nodeId) : state.cwd,
   );
@@ -262,6 +263,14 @@ function TextBlockViewImpl({ text, isUser, nodeId }: Props) {
         ) : (
           <UserMessageBody text={text} />
         )}
+      </div>
+    );
+  }
+
+  if (streaming) {
+    return (
+      <div className="whitespace-pre-wrap break-words node-md max-w-full min-w-0 cursor-text">
+        {text}
       </div>
     );
   }

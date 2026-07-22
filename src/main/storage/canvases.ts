@@ -1,6 +1,13 @@
 import { readdir, readFile, unlink } from "node:fs/promises";
 import { nanoid } from "nanoid";
-import type { Canvas, CanvasNode, CanvasSummary, Message, Provider } from "@shared/types";
+import type {
+  Canvas,
+  CanvasNode,
+  CanvasSummary,
+  Message,
+  Provider,
+  ProviderSessionRef,
+} from "@shared/types";
 import { PROVIDERS } from "@shared/types";
 import { migrateMessage } from "@shared/history";
 import { isUnnamedCanvasName } from "@shared/canvasName";
@@ -104,6 +111,14 @@ function isProvider(value: unknown): value is Provider {
   return typeof value === "string" && (PROVIDERS as readonly string[]).includes(value);
 }
 
+function parseProviderSession(value: unknown): ProviderSessionRef | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const session = value as Record<string, unknown>;
+  if (!isProvider(session.provider)) return undefined;
+  if (typeof session.id !== "string" || session.id.length === 0) return undefined;
+  return { provider: session.provider, id: session.id };
+}
+
 function migrateCanvas(raw: Partial<Canvas> & Record<string, unknown>): Canvas | null {
   if (typeof raw.id !== "string" || typeof raw.name !== "string") return null;
   const nodes: CanvasNode[] = Array.isArray(raw.nodes)
@@ -138,6 +153,7 @@ function migrateNode(node: CanvasNode): CanvasNode {
       chat: {
         ...chat,
         messages,
+        providerSession: parseProviderSession(chat.providerSession),
       },
     },
   };

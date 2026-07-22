@@ -26,7 +26,7 @@ export function useActiveSelectedNodeId(): string | null {
     let found: string | null = null;
     for (const id of Object.keys(s.nodes)) {
       const n = s.nodes[id] as WithSelected;
-      if (n.selected) {
+      if (n.selected && n.type === "custom") {
         if (found !== null) return null; // more than one — bail
         found = id;
       }

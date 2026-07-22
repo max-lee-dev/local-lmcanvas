@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, MessageSquareDashed, Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { AppSettings, Provider } from "@shared/types";
+import type { AppSettings, Provider, ProviderConfig } from "@shared/types";
 import { PROVIDERS } from "@shared/types";
 import {
   MinimapSetting,
@@ -66,7 +66,7 @@ export function SettingsModal({ open, onClose }: Props) {
 
   const updateProviderConfig = (
     provider: Provider,
-    patch: { binPath?: string; model?: string }
+    patch: Partial<ProviderConfig>,
   ) => {
     setSettings((s) => ({
       ...s,
@@ -265,6 +265,26 @@ export function SettingsModal({ open, onClose }: Props) {
                                     }
                                   />
                                 </div>
+                                {provider === "codex" && (
+                                  <div>
+                                    <label className="text-xs font-medium text-muted-foreground">
+                                      processing speed
+                                    </label>
+                                    <select
+                                      value={settings.providers?.codex?.serviceTier ?? "standard"}
+                                      onChange={(e) =>
+                                        updateProviderConfig("codex", {
+                                          serviceTier:
+                                            e.target.value === "fast" ? "fast" : "standard",
+                                        })
+                                      }
+                                      className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                                    >
+                                      <option value="standard">standard</option>
+                                      <option value="fast">fast</option>
+                                    </select>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ))}

@@ -124,7 +124,14 @@ export function NodeResponse({ message, onStop, nodeId, onSuggestionClick }: Pro
         const lastIdx = items.length - 1;
         return items.map((item, idx) => {
           if (item.kind === "text") {
-            return <TextBlockView key={item.key} text={item.text} nodeId={nodeId} />;
+            return (
+              <TextBlockView
+                key={item.key}
+                text={item.text}
+                nodeId={nodeId}
+                streaming={isStreaming && idx === lastIdx}
+              />
+            );
           }
           if (item.kind === "thinking") {
             return <ThinkingView key={item.key} text={item.text} />;

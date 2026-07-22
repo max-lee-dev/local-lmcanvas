@@ -1,255 +1,329 @@
-import { spawn } from "node:child_process";
-import { consumeJsonl } from "./jsonlReader";
-import { shellEnv } from "../shellPath";
 import { writeAttachmentsToTemp } from "./attachmentTempFiles";
-import { normalizeUsage } from "./usage";
+import { CodexAppServerClient } from "./codexAppServer";
+import type { UsageSummary } from "@shared/types";
 import {
-  composePromptWithSystem,
   errorMessage,
   isAuthError,
   type RunAgentOpts,
   type RunnerEvent,
 } from "./types";
 
-type CodexItem = {
-  id?: string;
-  type?: string;
-  text?: string;
-  stdout?: string;
-  stderr?: string;
-  exit_code?: number;
-  command?: string | string[];
-  path?: string;
-  diff?: string;
-  tool_name?: string;
-  arguments?: unknown;
-  result?: unknown;
-  [k: string]: unknown;
-};
+type JsonObject = Record<string, unknown>;
 
-type CodexEvent =
-  | { type: "thread.started"; thread_id?: string }
-  | { type: "turn.started" }
-  | { type: "turn.completed"; usage?: unknown }
-  | { type: "turn.failed"; error?: { message?: string } }
-  | { type: "item.started"; item?: CodexItem }
-  | { type: "item.completed"; item?: CodexItem }
-  | { type: "error"; message?: string }
-  | { type: string; [k: string]: unknown };
+function asObject(value: unknown): JsonObject | null {
+  return value !== null && typeof value === "object"
+    ? (value as JsonObject)
+    : null;
+}
+
+function stringField(value: unknown, key: string): string | undefined {
+  const obj = asObject(value);
+  return typeof obj?.[key] === "string" ? obj[key] : undefined;
+}
+
+function numberField(value: unknown, key: string): number | undefined {
+  const obj = asObject(value);
+  return typeof obj?.[key] === "number" ? obj[key] : undefined;
+}
+
+function serviceTier(value: RunAgentOpts["serviceTier"]): string | null | undefined {
+  if (value === "fast") return "fast";
+  if (value === "standard") return null;
+  return undefined;
+}
 
 export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void> {
   let doneEmitted = false;
-  const emit = (ev: RunnerEvent): void => {
-    if (ev.kind === "done") doneEmitted = true;
-    if (ev.kind === "error" && !ev.code && isAuthError(ev.message)) {
-      opts.onEvent({ ...ev, code: "auth_required" });
+  const emit = (event: RunnerEvent): void => {
+    if (event.kind === "done") doneEmitted = true;
+    if (event.kind === "error" && !event.code && isAuthError(event.message)) {
+      opts.onEvent({ ...event, code: "auth_required" });
       return;
     }
-    if (ev.kind === "done" && ev.isError && !ev.code && isAuthError(ev.result ?? "")) {
-      opts.onEvent({ ...ev, code: "auth_required" });
+    if (
+      event.kind === "done" &&
+      event.isError &&
+      !event.code &&
+      isAuthError(event.result ?? "")
+    ) {
+      opts.onEvent({ ...event, code: "auth_required" });
       return;
     }
-    opts.onEvent(ev);
+    opts.onEvent(event);
   };
 
   let attachmentCleanup: (() => Promise<void>) | null = null;
-  let imagePaths: string[] = [];
-  if (opts.attachments && opts.attachments.length > 0) {
-    try {
+  try {
+    let imagePaths: string[] = [];
+    if (opts.attachments && opts.attachments.length > 0) {
       const written = await writeAttachmentsToTemp(opts.attachments);
       imagePaths = written.paths;
       attachmentCleanup = written.cleanup;
-    } catch (err) {
-      emit({
-        kind: "error",
-        message: `Failed to stage codex image attachments: ${errorMessage(err)}`,
-      });
-      emit({ kind: "done", isError: true });
-      return;
     }
-  }
 
-  const bin = opts.binPath || "codex";
-  // `-` is the positional PROMPT arg meaning "read from stdin". clap's variadic
-  // `-i <FILE>...` will greedily consume the `-` as another image path unless
-  // we terminate option parsing with `--`. The separator is harmless when
-  // there are no images.
-  const args = [
-    "exec",
-    "--json",
-    "--skip-git-repo-check",
-    "--dangerously-bypass-approvals-and-sandbox",
-    "--cd",
-    opts.cwd,
-    ...(opts.model ? ["-c", `model="${opts.model}"`] : []),
-    ...(opts.reasoningEffort
-      ? ["-c", `model_reasoning_effort="${opts.reasoningEffort}"`]
-      : []),
-    ...imagePaths.flatMap((p) => ["-i", p]),
-    "--",
-    "-",
-  ];
+    const client = await CodexAppServerClient.connect(opts.binPath || "codex");
+    const threadConfig: JsonObject = {
+      cwd: opts.cwd,
+      approvalPolicy: "never",
+      sandbox: "danger-full-access",
+      ...(opts.model ? { model: opts.model } : {}),
+      ...(opts.systemPrompt ? { developerInstructions: opts.systemPrompt } : {}),
+      ...(serviceTier(opts.serviceTier) !== undefined
+        ? { serviceTier: serviceTier(opts.serviceTier) }
+        : {}),
+    };
 
-  const env = await shellEnv();
-  const proc = spawn(bin, args, { stdio: ["pipe", "pipe", "pipe"], env });
+    const parentThreadId =
+      opts.parentSession?.provider === "codex" ? opts.parentSession.id : undefined;
+    const threadResult = await client.request(
+      parentThreadId ? "thread/fork" : "thread/start",
+      parentThreadId ? { threadId: parentThreadId, ...threadConfig } : threadConfig,
+    );
+    const thread = asObject(asObject(threadResult)?.thread);
+    const threadId = typeof thread?.id === "string" ? thread.id : undefined;
+    if (!threadId) throw new Error("Codex app-server did not return a thread ID.");
 
-  if (opts.signal) {
-    if (opts.signal.aborted) proc.kill("SIGTERM");
-    else
-      opts.signal.addEventListener("abort", () => proc.kill("SIGTERM"), {
-        once: true,
+    emit({ kind: "session", session: { provider: "codex", id: threadId } });
+
+    let turnId: string | null = null;
+    let settled = false;
+    let lastUsage: JsonObject | undefined;
+    const agentDeltaItems = new Set<string>();
+    const reasoningDeltaItems = new Set<string>();
+    const commandOutput = new Map<string, string>();
+
+    const completion = new Promise<void>((resolve, reject) => {
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        off();
+        if (error) reject(error);
+        else resolve();
+      };
+
+      const off = client.onNotification((method, params) => {
+        if (method === "transport/error") {
+          finish(new Error(stringField(params, "message") ?? "Codex app-server stopped."));
+          return;
+        }
+        if (params.threadId !== threadId) return;
+        const notificationTurnId =
+          typeof params.turnId === "string"
+            ? params.turnId
+            : stringField(params.turn, "id");
+        if (turnId && notificationTurnId && notificationTurnId !== turnId) return;
+
+        if (method === "item/agentMessage/delta") {
+          const itemId = stringField(params, "itemId") ?? "agent";
+          const delta = stringField(params, "delta");
+          if (delta) {
+            agentDeltaItems.add(itemId);
+            emit({ kind: "text_delta", text: delta });
+          }
+          return;
+        }
+
+        if (
+          method === "item/reasoning/summaryTextDelta" ||
+          method === "item/reasoning/textDelta"
+        ) {
+          const itemId = stringField(params, "itemId") ?? "reasoning";
+          const delta = stringField(params, "delta");
+          if (delta) {
+            reasoningDeltaItems.add(itemId);
+            emit({ kind: "thinking_delta", text: delta });
+          }
+          return;
+        }
+
+        if (method === "item/commandExecution/outputDelta") {
+          const itemId = stringField(params, "itemId");
+          const delta = stringField(params, "delta");
+          if (itemId && delta) {
+            const output = (commandOutput.get(itemId) ?? "") + delta;
+            commandOutput.set(itemId, output);
+            emit({
+              kind: "tool_result",
+              toolUseId: itemId,
+              content: output,
+              isError: false,
+            });
+          }
+          return;
+        }
+
+        if (method === "item/started") {
+          const item = asObject(params.item);
+          if (item) emitStartedItem(item, emit);
+          return;
+        }
+
+        if (method === "item/completed") {
+          const item = asObject(params.item);
+          if (item) {
+            emitCompletedItem(
+              item,
+              emit,
+              agentDeltaItems,
+              reasoningDeltaItems,
+              commandOutput,
+            );
+          }
+          return;
+        }
+
+        if (method === "thread/tokenUsage/updated") {
+          const usage = asObject(asObject(params.tokenUsage)?.last);
+          if (usage) lastUsage = usage;
+          return;
+        }
+
+        if (method === "turn/completed") {
+          const turn = asObject(params.turn);
+          const status = stringField(turn, "status");
+          if (status === "failed") {
+            const error = asObject(turn?.error);
+            const message =
+              stringField(error, "message") ?? "Codex app-server turn failed.";
+            emit({ kind: "error", message });
+            emit({ kind: "done", isError: true, result: message });
+          } else {
+            emit({ kind: "done", isError: status === "interrupted", usage: usage(lastUsage) });
+          }
+          finish();
+          return;
+        }
+
+        if (method === "error") {
+          const message = stringField(params, "message") ?? "Codex app-server error.";
+          finish(new Error(message));
+        }
       });
-  }
 
-  proc.on("error", (err: NodeJS.ErrnoException) => {
-    const msg =
-      err.code === "ENOENT"
-        ? `codex executable not found (tried "${bin}"). Install codex CLI.`
-        : errorMessage(err);
-    emit({ kind: "error", message: msg });
-  });
-
-  let stderrBuf = "";
-  proc.stderr.setEncoding("utf8");
-  proc.stderr.on("data", (chunk: string) => {
-    stderrBuf += chunk;
-  });
-
-  // EPIPE on stdin (subprocess died before/during the write) is async and
-  // bypasses the surrounding try/catch — surface it as a runner error instead
-  // of letting it crash the main process.
-  proc.stdin.on("error", (err: NodeJS.ErrnoException) => {
-    if (err.code === "EPIPE") return;
-    emit({ kind: "error", message: errorMessage(err) });
-  });
-
-  try {
-    proc.stdin.write(composePromptWithSystem(prompt, opts.systemPrompt));
-    proc.stdin.end();
-
-    await consumeJsonl(proc.stdout, (obj) => handleEvent(obj as CodexEvent, emit));
-
-    const code: number | null = await new Promise((resolve) => {
-      if (proc.exitCode !== null) resolve(proc.exitCode);
-      else proc.once("close", (c) => resolve(c));
+      const onAbort = () => {
+        if (!turnId) return;
+        void client
+          .request("turn/interrupt", { threadId, turnId })
+          .catch((error) => console.warn("[codex] interrupt failed:", error));
+      };
+      if (opts.signal) {
+        if (opts.signal.aborted) onAbort();
+        else opts.signal.addEventListener("abort", onAbort, { once: true });
+      }
     });
 
-    if (!doneEmitted) {
-      if (code !== 0 && code !== null) {
-        const message = `codex exited with code ${code}${stderrBuf ? `\n${stderrBuf}` : ""}`;
-        emit({ kind: "error", message });
-        emit({ kind: "done", isError: true, result: message });
-      } else {
-        emit({ kind: "done", isError: false });
-      }
+    const input: JsonObject[] = [
+      { type: "text", text: prompt, text_elements: [] },
+      ...imagePaths.map((path) => ({ type: "localImage", path })),
+    ];
+    const turnResult = await client.request("turn/start", {
+      threadId,
+      input,
+      cwd: opts.cwd,
+      approvalPolicy: "never",
+      sandboxPolicy: { type: "dangerFullAccess" },
+      ...(opts.model ? { model: opts.model } : {}),
+      ...(opts.reasoningEffort ? { effort: opts.reasoningEffort } : {}),
+      ...(serviceTier(opts.serviceTier) !== undefined
+        ? { serviceTier: serviceTier(opts.serviceTier) }
+        : {}),
+    });
+    turnId = stringField(asObject(turnResult)?.turn, "id") ?? null;
+    if (!turnId) throw new Error("Codex app-server did not return a turn ID.");
+    if (opts.signal?.aborted) {
+      await client.request("turn/interrupt", { threadId, turnId });
     }
-  } catch (err) {
-    emit({ kind: "error", message: errorMessage(err) });
-    if (!doneEmitted) emit({ kind: "done", isError: true });
+
+    await completion;
+  } catch (error) {
+    const message = errorMessage(error);
+    emit({ kind: "error", message });
+    if (!doneEmitted) emit({ kind: "done", isError: true, result: message });
   } finally {
     if (attachmentCleanup) {
       try {
         await attachmentCleanup();
       } catch {
-        // best-effort; temp files in os.tmpdir() are cleared by the OS eventually
+        // best effort; the OS also clears its temporary directory
       }
     }
   }
 }
 
-function handleEvent(ev: CodexEvent, emit: (e: RunnerEvent) => void): void {
-  switch (ev.type) {
-    case "thread.started":
-    case "turn.started":
-    case "item.started":
-      return;
-    case "turn.completed":
-      emit({
-        kind: "done",
-        isError: false,
-        usage: normalizeUsage((ev as { usage?: unknown }).usage),
-      });
-      return;
-    case "turn.failed": {
-      const message =
-        (ev as { error?: { message?: string } }).error?.message ?? "codex turn failed";
-      emit({ kind: "error", message });
-      emit({ kind: "done", isError: true });
-      return;
-    }
-    case "error": {
-      const message = (ev as { message?: string }).message ?? "codex error";
-      emit({ kind: "error", message });
-      return;
-    }
-    case "item.completed": {
-      const item = (ev as { item?: CodexItem }).item;
-      if (item) handleItem(item, emit);
-      return;
-    }
-    default:
-      return;
+function emitStartedItem(item: JsonObject, emit: (event: RunnerEvent) => void): void {
+  const id = stringField(item, "id") ?? `codex_${Math.random().toString(36).slice(2)}`;
+  const type = stringField(item, "type");
+  if (type === "commandExecution") {
+    emit({ kind: "tool_use", toolUseId: id, name: "exec", input: item });
+  } else if (type === "fileChange") {
+    emit({ kind: "tool_use", toolUseId: id, name: "file_change", input: item });
+  } else if (type === "mcpToolCall" || type === "dynamicToolCall") {
+    const tool = stringField(item, "tool") ?? type;
+    emit({ kind: "tool_use", toolUseId: id, name: tool, input: item });
+  } else if (type === "webSearch") {
+    emit({ kind: "tool_use", toolUseId: id, name: "web_search", input: item });
   }
 }
 
-function handleItem(item: CodexItem, emit: (e: RunnerEvent) => void): void {
-  const id = item.id ?? `codex_${Math.random().toString(36).slice(2)}`;
-  switch (item.type) {
-    case "agent_message":
-      if (typeof item.text === "string" && item.text.length > 0) {
-        emit({ kind: "text_delta", text: item.text });
-      }
-      return;
-    case "reasoning":
-      if (typeof item.text === "string" && item.text.length > 0) {
-        emit({ kind: "thinking_delta", text: item.text });
-      }
-      return;
-    case "command_execution": {
-      emit({ kind: "tool_use", toolUseId: id, name: "exec", input: item });
-      const out = combineOutputs(item.stdout, item.stderr);
-      if (out.length > 0 || typeof item.exit_code === "number") {
-        emit({
-          kind: "tool_result",
-          toolUseId: id,
-          content: out,
-          isError: typeof item.exit_code === "number" && item.exit_code !== 0,
-        });
-      }
-      return;
-    }
-    case "file_change":
-      emit({ kind: "tool_use", toolUseId: id, name: "file_change", input: item });
-      return;
-    case "mcp_tool_call": {
-      const name =
-        typeof item.tool_name === "string" ? item.tool_name : "mcp_tool_call";
-      emit({ kind: "tool_use", toolUseId: id, name, input: item });
-      if (item.result !== undefined) {
-        emit({
-          kind: "tool_result",
-          toolUseId: id,
-          content:
-            typeof item.result === "string" ? item.result : JSON.stringify(item.result),
-          isError: false,
-        });
-      }
-      return;
-    }
-    default:
-      emit({
-        kind: "tool_use",
-        toolUseId: id,
-        name: item.type ?? "unknown",
-        input: item,
-      });
-      return;
+function emitCompletedItem(
+  item: JsonObject,
+  emit: (event: RunnerEvent) => void,
+  agentDeltaItems: Set<string>,
+  reasoningDeltaItems: Set<string>,
+  commandOutput: Map<string, string>,
+): void {
+  const id = stringField(item, "id") ?? `codex_${Math.random().toString(36).slice(2)}`;
+  const type = stringField(item, "type");
+  if (type === "agentMessage" && !agentDeltaItems.has(id)) {
+    const text = stringField(item, "text");
+    if (text) emit({ kind: "text_delta", text });
+    return;
+  }
+  if (type === "reasoning" && !reasoningDeltaItems.has(id)) {
+    const summary = Array.isArray(item.summary)
+      ? item.summary.filter((value): value is string => typeof value === "string")
+      : [];
+    const content = Array.isArray(item.content)
+      ? item.content.filter((value): value is string => typeof value === "string")
+      : [];
+    const text = [...summary, ...content].join("\n");
+    if (text) emit({ kind: "thinking_delta", text });
+    return;
+  }
+  if (type === "commandExecution") {
+    const output = stringField(item, "aggregatedOutput") ?? commandOutput.get(id) ?? "";
+    const exitCode = numberField(item, "exitCode");
+    emit({
+      kind: "tool_result",
+      toolUseId: id,
+      content: output,
+      isError: stringField(item, "status") === "failed" || (exitCode ?? 0) !== 0,
+    });
+    return;
+  }
+  if (type === "mcpToolCall" || type === "dynamicToolCall") {
+    const result = item.result ?? item.contentItems ?? item.error ?? "";
+    emit({
+      kind: "tool_result",
+      toolUseId: id,
+      content: typeof result === "string" ? result : JSON.stringify(result),
+      isError: item.error != null || item.success === false,
+    });
   }
 }
 
-function combineOutputs(stdout?: string, stderr?: string): string {
-  const parts: string[] = [];
-  if (stdout && stdout.length > 0) parts.push(stdout);
-  if (stderr && stderr.length > 0) parts.push(stderr);
-  return parts.join("\n");
+function usage(raw: JsonObject | undefined): UsageSummary | undefined {
+  if (!raw) return undefined;
+  const inputTokens = numberField(raw, "inputTokens");
+  const outputTokens = numberField(raw, "outputTokens");
+  const cachedInputTokens = numberField(raw, "cachedInputTokens");
+  const reasoningOutputTokens = numberField(raw, "reasoningOutputTokens");
+  const totalTokens = numberField(raw, "totalTokens");
+  return {
+    ...(inputTokens !== undefined ? { inputTokens } : {}),
+    ...(outputTokens !== undefined ? { outputTokens } : {}),
+    ...(cachedInputTokens !== undefined ? { cachedInputTokens } : {}),
+    ...(reasoningOutputTokens !== undefined ? { reasoningOutputTokens } : {}),
+    ...(totalTokens !== undefined ? { totalTokens } : {}),
+  };
 }

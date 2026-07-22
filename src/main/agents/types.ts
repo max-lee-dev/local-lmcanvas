@@ -1,9 +1,16 @@
 import type { WebContents } from "electron";
 import type { Attachment } from "@shared/ipc";
-import type { ErrorCode, ReasoningEffort, UsageSummary } from "@shared/types";
+import type {
+  CodexServiceTier,
+  ErrorCode,
+  ProviderSessionRef,
+  ReasoningEffort,
+  UsageSummary,
+} from "@shared/types";
 
 export type RunnerEvent =
   | { kind: "text_delta"; text: string }
+  | { kind: "session"; session: ProviderSessionRef }
   | { kind: "tool_use"; toolUseId: string; name: string; input: unknown }
   | { kind: "tool_result"; toolUseId: string; content: string; isError: boolean }
   | { kind: "thinking_delta"; text: string }
@@ -41,6 +48,10 @@ export type RunAgentOpts = {
   binPath?: string;
   /** Reasoning effort for providers that support it. Codex-only today. */
   reasoningEffort?: ReasoningEffort;
+  /** Codex-only processing tier. */
+  serviceTier?: CodexServiceTier;
+  /** Provider-native state from the primary parent node. */
+  parentSession?: ProviderSessionRef;
   /** Claude-only; ignored by codex/cursor runners. */
   planMode?: boolean;
   /** Claude-only; skip the claude_code preset for a fast pure-chat path. Ignored when planMode is also true. */

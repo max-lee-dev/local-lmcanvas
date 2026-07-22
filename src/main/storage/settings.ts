@@ -1,5 +1,11 @@
 import { readFile } from "node:fs/promises";
-import type { AppSettings, NodeSettings, Provider, ReasoningEffort } from "@shared/types";
+import type {
+  AppSettings,
+  CodexServiceTier,
+  NodeSettings,
+  Provider,
+  ReasoningEffort,
+} from "@shared/types";
 import { PROVIDERS, REASONING_EFFORTS } from "@shared/types";
 import { SETTINGS_FILE, atomicWriteFile, ensureDirs } from "./paths";
 
@@ -16,6 +22,7 @@ const DEFAULTS: AppSettings = {
       binPath: "codex",
       model: "gpt-5.6-sol",
       reasoningEffort: "high",
+      serviceTier: "standard",
     },
     cursor: { binPath: "cursor-agent" },
   },
@@ -47,6 +54,10 @@ function isReasoningEffort(value: unknown): value is ReasoningEffort {
   );
 }
 
+function isCodexServiceTier(value: unknown): value is CodexServiceTier {
+  return value === "standard" || value === "fast";
+}
+
 function sanitizeNodeSettings(raw: unknown): NodeSettings | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const obj = raw as Record<string, unknown>;
@@ -59,12 +70,14 @@ function sanitizeNodeSettings(raw: unknown): NodeSettings | undefined {
   if (typeof obj.planMode === "boolean") out.planMode = obj.planMode;
   if (typeof obj.chatOnly === "boolean") out.chatOnly = obj.chatOnly;
   if (isReasoningEffort(obj.reasoningEffort)) out.reasoningEffort = obj.reasoningEffort;
+  if (isCodexServiceTier(obj.serviceTier)) out.serviceTier = obj.serviceTier;
   return out.provider ||
     out.cwd ||
     out.branch ||
     out.planMode ||
     out.chatOnly ||
-    out.reasoningEffort
+    out.reasoningEffort ||
+    out.serviceTier
     ? out
     : undefined;
 }
