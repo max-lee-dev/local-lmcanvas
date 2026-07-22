@@ -177,7 +177,7 @@ fi
 section "Git tag + push"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
-if ! git diff --quiet -- package.json; then
+if ! git diff --quiet HEAD -- package.json; then
   git add package.json
   git commit --only -m "🚀 release $TAG" -- package.json
 fi
