@@ -39,6 +39,18 @@ bun run release:status
 bun run release:logs
 ```
 
+Store notarization credentials in the macOS Keychain once, then add only the
+profile name to `.env.release`:
+
+```bash
+xcrun notarytool store-credentials "lmcanvas-notary" --apple-id "you@example.com" --team-id "TEAMID"
+APPLE_KEYCHAIN_PROFILE=lmcanvas-notary
+```
+
+`store-credentials` prompts securely for the app-specific password. Avoid
+putting `APPLE_APP_SPECIFIC_PASSWORD` in `.env.release`; the legacy env-based
+flow remains supported only as a fallback.
+
 The one-shot macOS background job keeps running if the launching terminal closes,
 does not restart after completion, and prevents idle sleep while it runs. Release
 state and logs live under `~/.local/state/local-lmcanvas/release/`. The repository

@@ -7,9 +7,13 @@
 #   scripts/release.sh major            # major bump
 #   scripts/release.sh --no-bump        # use current version in package.json
 #
-# Required env vars (export before running):
+# Preferred notarization auth:
+#   APPLE_KEYCHAIN_PROFILE         profile created with `xcrun notarytool store-credentials`
+#   APPLE_KEYCHAIN                 optional path to a non-default keychain
+#
+# Legacy fallback env vars:
 #   APPLE_ID                       Apple ID email
-#   APPLE_APP_SPECIFIC_PASSWORD    xxxx-xxxx-xxxx-xxxx (from appleid.apple.com)
+#   APPLE_APP_SPECIFIC_PASSWORD    app-specific password
 #   APPLE_TEAM_ID                  10-char team identifier
 #
 # Optional env vars:
@@ -57,9 +61,26 @@ require_env() {
 # -------- preconditions --------
 
 section "Preconditions"
-require_env APPLE_ID
-require_env APPLE_APP_SPECIFIC_PASSWORD
-require_env APPLE_TEAM_ID
+NOTARY_AUTH_ARGS=()
+if [ -n "${APPLE_KEYCHAIN_PROFILE:-}" ]; then
+  NOTARY_AUTH_ARGS=(--keychain-profile "$APPLE_KEYCHAIN_PROFILE")
+  if [ -n "${APPLE_KEYCHAIN:-}" ]; then
+    NOTARY_AUTH_ARGS+=(--keychain "$APPLE_KEYCHAIN")
+  fi
+  # electron-builder prefers Apple-ID env credentials over a keychain profile.
+  # Remove them from its environment so credentials never appear in child args.
+  unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD
+else
+  require_env APPLE_ID
+  require_env APPLE_APP_SPECIFIC_PASSWORD
+  require_env APPLE_TEAM_ID
+  NOTARY_AUTH_ARGS=(
+    --apple-id "$APPLE_ID"
+    --password "$APPLE_APP_SPECIFIC_PASSWORD"
+    --team-id "$APPLE_TEAM_ID"
+  )
+  yellow "Using legacy notarization env credentials; prefer APPLE_KEYCHAIN_PROFILE."
+fi
 
 command -v bun >/dev/null    || { red "bun not installed";       exit 1; }
 command -v xcrun >/dev/null  || { red "xcode tools not installed"; exit 1; }
@@ -138,9 +159,7 @@ notarize_submit() {
   local dmg="$1"
   local log="$2"
   xcrun notarytool submit "$dmg" \
-    --apple-id    "$APPLE_ID" \
-    --password    "$APPLE_APP_SPECIFIC_PASSWORD" \
-    --team-id     "$APPLE_TEAM_ID" \
+    "${NOTARY_AUTH_ARGS[@]}" \
     --wait > "$log" 2>&1
 }
 
