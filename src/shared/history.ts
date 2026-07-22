@@ -160,7 +160,8 @@ function parseModelFallback(value: unknown): ModelFallback | undefined {
   if (
     typeof fallback.fromModel !== "string" ||
     typeof fallback.toModel !== "string" ||
-    fallback.reason !== "policy_refusal"
+    (fallback.reason !== "policy_refusal" &&
+      fallback.reason !== "highRiskCyberActivity")
   ) {
     return undefined;
   }

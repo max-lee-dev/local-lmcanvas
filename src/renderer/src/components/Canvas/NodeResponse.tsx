@@ -184,8 +184,17 @@ function ModelFallbackNotice({ fallback }: { fallback: ModelFallback }) {
     <div className="mb-1.5 flex items-start gap-1.5 rounded-[6px] border border-amber-500/30 bg-amber-500/5 px-2 py-1.5 text-[10px] text-amber-600 dark:text-amber-400">
       <RefreshCw className="mt-0.5 h-3 w-3 shrink-0" />
       <span>
-        {modelLabel(fallback.fromModel)} was blocked by Claude policy checks.
-        Retried automatically with {modelLabel(fallback.toModel)}.
+        {fallback.reason === "policy_refusal" ? (
+          <>
+            {modelLabel(fallback.fromModel)} was blocked by Claude policy checks.
+            Retried automatically with {modelLabel(fallback.toModel)}.
+          </>
+        ) : (
+          <>
+            Codex rerouted {modelLabel(fallback.fromModel)} to
+            {" "}{modelLabel(fallback.toModel)} for high-risk cyber safeguards.
+          </>
+        )}
       </span>
     </div>
   );

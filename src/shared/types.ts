@@ -44,7 +44,7 @@ export type Suggestion = { label: string; prompt: string };
 export type ModelFallback = {
   fromModel: string;
   toModel: string;
-  reason: "policy_refusal";
+  reason: "policy_refusal" | "highRiskCyberActivity";
 };
 
 export type Message = {
@@ -107,6 +107,9 @@ export type CodexModelInfo = {
 export type CodexRuntimeInfo = {
   models: CodexModelInfo[];
   defaultModelId?: string;
+  /** User-agent reported by the running Codex app-server. */
+  codexUserAgent?: string;
+  protocolVersion: 2;
 };
 
 export type ProviderSessionRef = {

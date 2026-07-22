@@ -3,6 +3,7 @@ import type { Attachment } from "@shared/ipc";
 import type {
   CodexServiceTier,
   ErrorCode,
+  ModelFallback,
   ProviderSessionRef,
   ReasoningEffort,
   UsageSummary,
@@ -15,6 +16,7 @@ export type RunnerEvent =
   | { kind: "tool_use"; toolUseId: string; name: string; input: unknown }
   | { kind: "tool_result"; toolUseId: string; content: string; isError: boolean }
   | { kind: "thinking_delta"; text: string }
+  | ({ kind: "model_fallback" } & ModelFallback)
   | {
       kind: "done";
       isError?: boolean;

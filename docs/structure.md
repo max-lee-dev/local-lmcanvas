@@ -3,9 +3,12 @@
 The source layout follows the summary in `README.md` and `AGENTS.md`.
 
 - `src/main/agents/codexAppServer.ts` owns the single long-lived Codex app-server
-  transport, runtime model catalog, overload retry policy, thread subscription
-  cap, and per-thread turn serialization. `src/main/agents/codex.ts` maps its
-  thread, turn, item, and delta notifications into provider-neutral chat events.
+  JSON-RPC transport, request timeouts, runtime model catalog, overload retry
+  policy, thread subscription cap, and per-thread turn serialization.
+  `src/main/agents/codexProtocol.ts` is the typed protocol-v2 subset reviewed
+  against Codex's generated Apache-2.0 TypeScript schema. `src/main/agents/codex.ts`
+  maps its thread, turn, item, delta, approval, and user-input traffic into
+  provider-neutral chat events.
 - `src/main/claude/runner.ts` owns Claude Agent SDK sessions. Provider-native
   session references are persisted on canvas chat nodes in `src/shared/types.ts`.
 - `src/renderer/src/hooks/useNodeChat.ts` batches provider deltas before updating
@@ -19,3 +22,8 @@ Codex and Claude keep their native transcripts in their normal CLI data stores.
 Canvas JSON stores only the provider and opaque session/thread ID needed to
 continue a node or fork a child branch. Codex is prewarmed during app startup;
 its installed CLI supplies model, reasoning-effort, and service-tier metadata.
+
+Codex compatibility tooling lives in `scripts/codex-harness-smoke.mjs` and
+`scripts/check-codex-protocol.mjs`. The smoke script validates the installed CLI
+without making a model request; the protocol check flags new upstream
+server-initiated requests and removed client methods for review.

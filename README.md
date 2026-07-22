@@ -23,6 +23,19 @@ bun install
 bun run dev
 ```
 
+Validate the app and the locally installed Codex harness:
+
+```bash
+bun run typecheck
+bun run codex:smoke
+bun run codex:protocol-check
+```
+
+`codex:smoke` initializes the app-server, reads its model catalog, and creates an
+ephemeral thread; it does not make a model request. `codex:protocol-check`
+compares LMCanvas's boundary with Codex's generated upstream schema. Set
+`CODEX_SOURCE_DIR` to a local `openai/codex` checkout for an offline check.
+
 The Electron window opens automatically. Build a distributable with:
 
 ```bash

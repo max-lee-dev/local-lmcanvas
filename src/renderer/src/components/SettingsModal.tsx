@@ -351,6 +351,15 @@ export function SettingsModal({ open, onClose }: Props) {
                                         )}
                                       </select>
                                     </div>
+                                    {codexRuntime?.codexUserAgent && (
+                                      <p
+                                        className="truncate text-[10px] text-muted-foreground"
+                                        title={codexRuntime.codexUserAgent}
+                                      >
+                                        running {codexRuntime.codexUserAgent} · protocol v
+                                        {codexRuntime.protocolVersion}
+                                      </p>
+                                    )}
                                   </>
                                 )}
                               </div>

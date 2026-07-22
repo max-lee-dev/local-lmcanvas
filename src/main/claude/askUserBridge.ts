@@ -12,6 +12,7 @@ type Pending = {
   abortHandler?: () => void;
   webContents: WebContents;
   destroyedHandler?: () => void;
+  timeout?: ReturnType<typeof setTimeout>;
 };
 
 const pending = new Map<string, Pending>();
@@ -26,6 +27,7 @@ export function requestAnswer(
   webContents: WebContents,
   nodeId: string,
   signal?: AbortSignal,
+  timeoutMs?: number,
 ): Promise<AskUserResponsePayload> {
   if (webContents.isDestroyed()) {
     return Promise.reject(new Error("Target window is destroyed"));
@@ -54,6 +56,13 @@ export function requestAnswer(
     entry.destroyedHandler = onDestroyed;
     webContents.once("destroyed", onDestroyed);
 
+    if (timeoutMs && timeoutMs > 0) {
+      entry.timeout = setTimeout(() => {
+        cleanup(id);
+        resolve({ id, cancelled: true });
+      }, timeoutMs);
+    }
+
     pending.set(id, entry);
     webContents.send("askUser:request", { id, nodeId, questions });
   });
@@ -69,6 +78,7 @@ function cleanup(id: string): Pending | undefined {
   if (entry.destroyedHandler && !entry.webContents.isDestroyed()) {
     entry.webContents.off("destroyed", entry.destroyedHandler);
   }
+  if (entry.timeout) clearTimeout(entry.timeout);
   return entry;
 }
 

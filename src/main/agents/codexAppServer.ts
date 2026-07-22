@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
+import { app } from "electron";
 import type {
   CodexModelInfo,
   CodexRuntimeInfo,
@@ -7,22 +8,34 @@ import type {
 } from "@shared/types";
 import { REASONING_EFFORTS } from "@shared/types";
 import { shellEnv } from "../shellPath";
+import {
+  isJsonObject,
+  isJsonRpcId,
+  type CodexClientRequestMap,
+  type JsonObject,
+  type JsonRpcId,
+} from "./codexProtocol";
 
-type JsonObject = Record<string, unknown>;
 type NotificationHandler = (method: string, params: JsonObject) => void;
+export type ServerRequestResolution = { result: unknown };
+type ServerRequestHandler = (
+  method: string,
+  params: JsonObject,
+) => Promise<ServerRequestResolution | undefined> | ServerRequestResolution | undefined;
 
 type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
 };
 
 const clients = new Map<string, Promise<CodexAppServerClient>>();
+const liveClients = new Set<CodexAppServerClient>();
 const MAX_SUBSCRIBED_THREADS = 24;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
 function asObject(value: unknown): JsonObject | null {
-  return value !== null && typeof value === "object"
-    ? (value as JsonObject)
-    : null;
+  return isJsonObject(value) ? value : null;
 }
 
 class CodexRpcError extends Error {
@@ -142,13 +155,20 @@ export class CodexAppServerClient {
       env,
     });
     const client = new CodexAppServerClient(bin, proc);
-    await client.initialize();
+    liveClients.add(client);
+    try {
+      await client.initialize();
+    } catch (error) {
+      client.shutdown();
+      throw error;
+    }
     return client;
   }
 
   private nextId = 1;
-  private readonly pending = new Map<number, PendingRequest>();
+  private readonly pending = new Map<JsonRpcId, PendingRequest>();
   private readonly handlers = new Set<NotificationHandler>();
+  private readonly serverRequestHandlers = new Set<ServerRequestHandler>();
   private readonly loadedThreads = new Set<string>();
   private readonly threadLastUsedAt = new Map<string, number>();
   private readonly activeThreads = new Set<string>();
@@ -178,36 +198,55 @@ export class CodexAppServerClient {
   }
 
   private async initialize(): Promise<void> {
-    await this.request("initialize", {
+    const response = await this.request("initialize", {
       clientInfo: {
         name: "local_lmcanvas",
         title: "LMCanvas",
-        version: "1.0.0",
+        version: app.getVersion(),
       },
       capabilities: {
         experimentalApi: true,
         requestAttestation: false,
       },
     });
+    this.userAgent = response.userAgent;
     this.notify("initialized");
   }
 
-  request(method: string, params: JsonObject): Promise<unknown> {
+  private userAgent: string | undefined;
+
+  request<M extends keyof CodexClientRequestMap>(
+    method: M,
+    params: CodexClientRequestMap[M]["params"],
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+  ): Promise<CodexClientRequestMap[M]["result"]> {
     if (this.closed) {
       return Promise.reject(new Error(`Codex app-server is not running (${this.bin}).`));
     }
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(
+          new Error(
+            `Codex app-server request timed out after ${timeoutMs}ms (${String(method)}).`,
+          ),
+        );
+      }, timeoutMs);
+      this.pending.set(id, {
+        resolve: resolve as (value: unknown) => void,
+        reject,
+        timer,
+      });
       this.write({ method, id, params });
     });
   }
 
-  async requestWithOverloadRetry(
-    method: string,
-    params: JsonObject,
+  async requestWithOverloadRetry<M extends keyof CodexClientRequestMap>(
+    method: M,
+    params: CodexClientRequestMap[M]["params"],
     maxAttempts = 3,
-  ): Promise<unknown> {
+  ): Promise<CodexClientRequestMap[M]["result"]> {
     let delayMs = 250;
     for (let attempt = 1; ; attempt += 1) {
       try {
@@ -229,6 +268,11 @@ export class CodexAppServerClient {
 
   isThreadLoaded(threadId: string): boolean {
     return this.loadedThreads.has(threadId);
+  }
+
+  markThreadUnloaded(threadId: string): void {
+    this.loadedThreads.delete(threadId);
+    this.threadLastUsedAt.delete(threadId);
   }
 
   markThreadLoaded(threadId: string): void {
@@ -310,6 +354,8 @@ export class CodexAppServerClient {
     return {
       models,
       defaultModelId: models.find((model) => model.isDefault)?.id,
+      ...(this.userAgent ? { codexUserAgent: this.userAgent } : {}),
+      protocolVersion: 2,
     };
   }
 
@@ -322,9 +368,22 @@ export class CodexAppServerClient {
     return () => this.handlers.delete(handler);
   }
 
+  onServerRequest(handler: ServerRequestHandler): () => void {
+    this.serverRequestHandlers.add(handler);
+    return () => this.serverRequestHandlers.delete(handler);
+  }
+
   shutdown(): void {
     if (this.closed) return;
     this.closed = true;
+    clients.delete(this.bin);
+    liveClients.delete(this);
+    const error = new Error(`Codex app-server was shut down (${this.bin}).`);
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+    this.pending.clear();
     this.proc.kill("SIGTERM");
   }
 
@@ -342,10 +401,16 @@ export class CodexAppServerClient {
     const message = asObject(parsed);
     if (!message) return;
 
-    if (typeof message.id === "number") {
+    if (typeof message.method === "string" && isJsonRpcId(message.id)) {
+      void this.handleServerRequest(message.id, message.method, asObject(message.params) ?? {});
+      return;
+    }
+
+    if (isJsonRpcId(message.id)) {
       const pending = this.pending.get(message.id);
       if (!pending) return;
       this.pending.delete(message.id);
+      clearTimeout(pending.timer);
       if (message.error !== undefined) pending.reject(errorFromResponse(message));
       else pending.resolve(message.result);
       return;
@@ -363,17 +428,61 @@ export class CodexAppServerClient {
     for (const handler of this.handlers) handler(message.method, params);
   }
 
+  private async handleServerRequest(
+    id: JsonRpcId,
+    method: string,
+    params: JsonObject,
+  ): Promise<void> {
+    if (method === "currentTime/read") {
+      this.write({ id, result: { currentTimeAt: Math.floor(Date.now() / 1000) } });
+      return;
+    }
+    try {
+      for (const handler of this.serverRequestHandlers) {
+        const resolution = await handler(method, params);
+        if (!resolution) continue;
+        this.write({ id, result: resolution.result });
+        return;
+      }
+      this.write({
+        id,
+        error: {
+          code: -32601,
+          message: `LMCanvas does not support Codex server request: ${method}`,
+        },
+      });
+    } catch (error) {
+      this.write({
+        id,
+        error: {
+          code: -32603,
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  }
+
   private fail(error: Error): void {
     if (this.closed) return;
     this.closed = true;
     clients.delete(this.bin);
-    for (const pending of this.pending.values()) pending.reject(error);
+    liveClients.delete(this);
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
     this.pending.clear();
     for (const handler of this.handlers) {
       handler("transport/error", { message: error.message });
     }
     this.handlers.clear();
+    this.serverRequestHandlers.clear();
   }
+}
+
+export function isThreadUnavailableError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /thread .*(?:not found|not loaded|closed)|no rollout found/i.test(message);
 }
 
 export async function getCodexRuntimeInfo(bin: string): Promise<CodexRuntimeInfo> {
@@ -391,11 +500,7 @@ export async function prewarmCodexAppServer(bin: string): Promise<void> {
   });
 }
 
-export async function shutdownCodexAppServers(): Promise<void> {
-  const pending = [...clients.values()];
+export function shutdownCodexAppServers(): void {
   clients.clear();
-  const resolved = await Promise.allSettled(pending);
-  for (const result of resolved) {
-    if (result.status === "fulfilled") result.value.shutdown();
-  }
+  for (const client of [...liveClients]) client.shutdown();
 }

@@ -21,6 +21,8 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "bun run typecheck:node && bun run typecheck:web",
+    "codex:smoke": "node scripts/codex-harness-smoke.mjs",
+    "codex:protocol-check": "node scripts/check-codex-protocol.mjs",
     "pack": "electron-vite build && electron-builder --dir",
     "dist": "electron-vite build && electron-builder --publish never",
     "release:start": "./scripts/release-background.sh start",

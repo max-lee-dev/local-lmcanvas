@@ -1,5 +1,29 @@
 # Architecture decisions
 
+## 2026-07-22 — Typed, bidirectional Codex protocol boundary
+
+- LMCanvas maintains a small typed protocol-v2 boundary based on Codex's
+  generated Apache-2.0 TypeScript definitions instead of duplicating the entire
+  fast-moving upstream schema. A dependency-free drift check compares the
+  supported server-request surface and required client methods with upstream.
+- JSON-RPC request IDs accept both strings and numbers. Client requests have
+  bounded timeouts, and server-initiated requests receive a result or explicit
+  JSON-RPC error so Codex cannot wait forever on an unanswered request.
+- Native user-input requests, command and file approvals, current-time reads,
+  and MCP form/URL elicitations are handled inline. Unsupported dynamic-tool,
+  token-refresh, and attestation requests fail explicitly; LMCanvas does not
+  advertise the capabilities that would intentionally trigger them.
+- A stale unloaded thread may be resumed and `turn/start` attempted once more.
+  Failures after a turn has started are never automatically replayed because a
+  retry could duplicate model output or tool side effects. A dead app-server is
+  removed from the client cache so the next user action starts a fresh process.
+- The installed-CLI smoke check performs initialize, model discovery, and an
+  ephemeral thread start without spending model tokens. Runtime diagnostics
+  expose the Codex user-agent and protocol version in advanced settings.
+- Closing the last LMCanvas window quits the app on every platform. Quit cleanup
+  synchronously terminates every live Codex app-server child, so neither the app
+  nor its harness remains hidden after the user closes it.
+
 ## 2026-07-21 — Provider-native sessions and latency-sensitive streaming
 
 - A completed chat node records an opaque provider-native session reference.

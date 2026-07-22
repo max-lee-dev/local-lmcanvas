@@ -299,6 +299,15 @@ function registerIpc(): void {
         case "thinking_delta":
           send({ chatId, type: "thinking_delta", text: ev.text });
           return;
+        case "model_fallback":
+          send({
+            chatId,
+            type: "model_fallback",
+            fromModel: ev.fromModel,
+            toModel: ev.toModel,
+            reason: ev.reason,
+          });
+          return;
         case "tool_use":
           send({
             chatId,
@@ -566,9 +575,9 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  app.quit();
 });
 
 app.on("before-quit", () => {
-  void shutdownCodexAppServers();
+  shutdownCodexAppServers();
 });

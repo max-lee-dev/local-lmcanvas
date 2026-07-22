@@ -17,13 +17,21 @@ export type AskUserOption = {
   label: string;
   description: string;
   preview?: string;
+  /** Provider-native value returned when it differs from the display label. */
+  value?: string;
 };
 
 export type AskUserQuestion = {
+  /** Stable provider question id; falls back to `question` for legacy callers. */
+  id?: string;
   question: string;
   header: string;
   multiSelect: boolean;
   options: AskUserOption[];
+  allowFreeText?: boolean;
+  secret?: boolean;
+  /** Optional questions do not block submission when left unanswered. */
+  required?: boolean;
 };
 
 export type AskUserRequest = {

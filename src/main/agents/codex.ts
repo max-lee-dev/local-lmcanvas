@@ -1,20 +1,34 @@
 import { randomUUID } from "node:crypto";
+import { shell as electronShell } from "electron";
 import { writeAttachmentsToTemp } from "./attachmentTempFiles";
-import { CodexAppServerClient } from "./codexAppServer";
+import {
+  CodexAppServerClient,
+  isThreadUnavailableError,
+  type ServerRequestResolution,
+} from "./codexAppServer";
+import { requestAnswer } from "../claude/askUserBridge";
 import type {
   CodexModelInfo,
   CodexRuntimeInfo,
   ReasoningEffort,
   UsageSummary,
 } from "@shared/types";
+import type { AskUserQuestion, AskUserResponsePayload } from "@shared/ipc";
+import type {
+  CommandApprovalParams,
+  FileChangeApprovalParams,
+  JsonObject,
+  McpElicitationPropertySchema,
+  McpServerElicitationParams,
+  ToolRequestUserInputParams,
+  TurnPlanUpdatedParams,
+} from "./codexProtocol";
 import {
   errorMessage,
   isAuthError,
   type RunAgentOpts,
   type RunnerEvent,
 } from "./types";
-
-type JsonObject = Record<string, unknown>;
 
 function asObject(value: unknown): JsonObject | null {
   return value !== null && typeof value === "object"
@@ -79,7 +93,7 @@ export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void
     const client = await CodexAppServerClient.connect(opts.binPath || "codex");
     const runtimeInfo: CodexRuntimeInfo = await client.getRuntimeInfo().catch((error) => {
       console.warn("[codex] model catalog unavailable:", error);
-      return { models: [] };
+      return { models: [], protocolVersion: 2 };
     });
     const modelId = opts.model ?? runtimeInfo.defaultModelId;
     const modelInfo = runtimeInfo.models.find((model) => model.id === modelId);
@@ -146,19 +160,47 @@ export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void
     });
 
     emit({ kind: "session", session: { provider: "codex", id: threadId } });
-    await client.runThreadExclusive(threadId, () =>
-      runCodexTurn({
-        client,
+    const runTurn = (activeThreadId: string) =>
+      client.runThreadExclusive(activeThreadId, () =>
+        runCodexTurn({
+          client,
+          threadId: activeThreadId,
+          prompt,
+          imagePaths,
+          opts,
+          emit,
+          modelId,
+          reasoningEffort,
+          serviceTier: resolvedServiceTier,
+        }),
+      );
+    try {
+      await runTurn(threadId);
+    } catch (error) {
+      if (
+        lifecycle !== "continue" ||
+        !(error instanceof CodexTurnStartError) ||
+        !isThreadUnavailableError(error.original)
+      ) {
+        throw error;
+      }
+      client.markThreadUnloaded(threadId);
+      const result = await client.requestWithOverloadRetry("thread/resume", {
         threadId,
-        prompt,
-        imagePaths,
-        opts,
-        emit,
-        modelId,
-        reasoningEffort,
-        serviceTier: resolvedServiceTier,
-      }),
-    );
+        excludeTurns: true,
+        ...threadConfig,
+      });
+      const resumedThreadId = result.thread.id;
+      if (!resumedThreadId) throw error;
+      threadId = resumedThreadId;
+      client.markThreadLoaded(threadId);
+      console.info("[codex:latency]", {
+        nodeId: opts.nodeId,
+        phase: "thread_recovered",
+        elapsedMs: Date.now() - lifecycleStartedAt,
+      });
+      await runTurn(threadId);
+    }
   } catch (error) {
     const message = errorMessage(error);
     emit({ kind: "error", message });
@@ -186,6 +228,13 @@ type RunCodexTurnArgs = {
   serviceTier?: string | null;
 };
 
+class CodexTurnStartError extends Error {
+  constructor(readonly original: unknown) {
+    super(errorMessage(original));
+    this.name = "CodexTurnStartError";
+  }
+}
+
 async function runCodexTurn({
   client,
   threadId,
@@ -203,6 +252,7 @@ async function runCodexTurn({
   let firstDeltaSeen = false;
   let lastUsage: JsonObject | undefined;
   const agentDeltaItems = new Set<string>();
+  const planDeltaItems = new Set<string>();
   const reasoningDeltaItems = new Set<string>();
   const commandOutput = new Map<string, string>();
 
@@ -218,11 +268,25 @@ async function runCodexTurn({
 
   let removeAbortListener = (): void => {};
   let cancelCompletion = (): void => {};
+  const serverRequestController = new AbortController();
+  const offServerRequests = client.onServerRequest((method, params) => {
+    const requestThreadId =
+      stringField(params, "threadId") ?? stringField(params, "conversationId");
+    if (requestThreadId && requestThreadId !== threadId) return undefined;
+    return handleCodexServerRequest(
+      method,
+      params,
+      opts,
+      serverRequestController.signal,
+    );
+  });
   const completion = new Promise<void>((resolve, reject) => {
     const finish = (error?: Error) => {
       if (settled) return;
       settled = true;
       off();
+      offServerRequests();
+      serverRequestController.abort();
       removeAbortListener();
       if (error) reject(error);
       else resolve();
@@ -247,6 +311,17 @@ async function runCodexTurn({
         if (delta) {
           markFirstDelta();
           agentDeltaItems.add(itemId);
+          emit({ kind: "text_delta", text: delta });
+        }
+        return;
+      }
+
+      if (method === "item/plan/delta") {
+        const itemId = stringField(params, "itemId") ?? "plan";
+        const delta = stringField(params, "delta");
+        if (delta) {
+          markFirstDelta();
+          planDeltaItems.add(itemId);
           emit({ kind: "text_delta", text: delta });
         }
         return;
@@ -299,6 +374,7 @@ async function runCodexTurn({
             item,
             emit,
             agentDeltaItems,
+            planDeltaItems,
             reasoningDeltaItems,
             commandOutput,
           );
@@ -309,6 +385,26 @@ async function runCodexTurn({
       if (method === "thread/tokenUsage/updated") {
         const usageValue = asObject(asObject(params.tokenUsage)?.last);
         if (usageValue) lastUsage = usageValue;
+        return;
+      }
+
+      if (method === "turn/plan/updated") {
+        const plan = params as TurnPlanUpdatedParams;
+        console.info("[codex] plan updated", {
+          nodeId: opts.nodeId,
+          turnId: plan.turnId,
+          steps: Array.isArray(plan.plan) ? plan.plan.length : 0,
+        });
+        return;
+      }
+
+      if (method === "model/rerouted") {
+        const fromModel = stringField(params, "fromModel");
+        const toModel = stringField(params, "toModel");
+        const reason = stringField(params, "reason");
+        if (fromModel && toModel && reason === "highRiskCyberActivity") {
+          emit({ kind: "model_fallback", fromModel, toModel, reason });
+        }
         return;
       }
 
@@ -345,6 +441,7 @@ async function runCodexTurn({
     });
 
     const onAbort = () => {
+      serverRequestController.abort();
       if (!turnId) return;
       void client
         .request("turn/interrupt", { threadId, turnId })
@@ -380,7 +477,7 @@ async function runCodexTurn({
     });
   } catch (error) {
     cancelCompletion();
-    throw error;
+    throw new CodexTurnStartError(error);
   }
   turnId = stringField(asObject(turnResult)?.turn, "id") ?? null;
   if (!turnId) {
@@ -397,6 +494,395 @@ async function runCodexTurn({
   }
 
   await completion;
+}
+
+async function handleCodexServerRequest(
+  method: string,
+  params: JsonObject,
+  opts: RunAgentOpts,
+  requestSignal: AbortSignal,
+): Promise<ServerRequestResolution | undefined> {
+  if (method === "item/tool/requestUserInput") {
+    const request = params as ToolRequestUserInputParams;
+    const questions: AskUserQuestion[] = request.questions.map((question) => ({
+      id: question.id,
+      header: question.header,
+      question: question.question,
+      multiSelect: false,
+      options: question.options ?? [],
+      allowFreeText: question.isOther || question.options === null,
+      secret: question.isSecret,
+    }));
+    const response = await requestAnswer(
+      questions,
+      opts.webContents,
+      opts.nodeId,
+      requestSignal,
+      request.autoResolutionMs ?? undefined,
+    );
+    const answers: Record<string, { answers: string[] }> = {};
+    if (!response.cancelled) {
+      for (const question of request.questions) {
+        const value = response.answers[question.id];
+        answers[question.id] = {
+          answers: Array.isArray(value) ? value : value ? [value] : [],
+        };
+      }
+    }
+    return { result: { answers } };
+  }
+
+  if (method === "item/commandExecution/requestApproval") {
+    const request = params as CommandApprovalParams;
+    const response = await requestCodexApproval(
+      {
+        id: "decision",
+        header: "Command",
+        question: request.reason ?? "Allow Codex to run this command?",
+        multiSelect: false,
+        options: [
+          {
+            label: "Allow once",
+            description: "Run this command once.",
+            preview: [request.command, request.cwd].filter(Boolean).join("\n"),
+          },
+          {
+            label: "Allow session",
+            description: "Allow this command for the current Codex session.",
+          },
+          { label: "Decline", description: "Do not run the command." },
+        ],
+      },
+      opts,
+      requestSignal,
+    );
+    const choice = approvalChoice(response);
+    return {
+      result: {
+        decision:
+          choice === "Allow once"
+            ? "accept"
+            : choice === "Allow session"
+              ? "acceptForSession"
+              : choice === "Decline"
+                ? "decline"
+                : "cancel",
+      },
+    };
+  }
+
+  if (method === "item/fileChange/requestApproval") {
+    const request = params as FileChangeApprovalParams;
+    const response = await requestCodexApproval(
+      {
+        id: "decision",
+        header: "File change",
+        question: request.reason ?? "Allow Codex to apply these file changes?",
+        multiSelect: false,
+        options: [
+          {
+            label: "Allow once",
+            description: "Apply this change once.",
+            preview: request.grantRoot ?? undefined,
+          },
+          {
+            label: "Allow session",
+            description: "Allow changes for the current Codex session.",
+          },
+          { label: "Decline", description: "Do not apply the changes." },
+        ],
+      },
+      opts,
+      requestSignal,
+    );
+    const choice = approvalChoice(response);
+    return {
+      result: {
+        decision:
+          choice === "Allow once"
+            ? "accept"
+            : choice === "Allow session"
+              ? "acceptForSession"
+              : choice === "Decline"
+                ? "decline"
+                : "cancel",
+      },
+    };
+  }
+
+  if (method === "execCommandApproval" || method === "applyPatchApproval") {
+    const response = await requestCodexApproval(
+      {
+        id: "decision",
+        header: "Approval",
+        question:
+          stringField(params, "reason") ??
+          (method === "execCommandApproval"
+            ? "Allow Codex to run this command?"
+            : "Allow Codex to apply these changes?"),
+        multiSelect: false,
+        options: [
+          { label: "Allow once", description: "Approve this action once." },
+          {
+            label: "Allow session",
+            description: "Approve similar actions for this session.",
+          },
+          { label: "Decline", description: "Do not perform this action." },
+        ],
+      },
+      opts,
+      requestSignal,
+    );
+    const choice = approvalChoice(response);
+    return {
+      result: {
+        decision:
+          choice === "Allow once"
+            ? "approved"
+            : choice === "Allow session"
+              ? "approved_for_session"
+              : choice === "Decline"
+                ? { denied: { rejection: "Declined by the user." } }
+                : "abort",
+      },
+    };
+  }
+
+  if (method === "item/permissions/requestApproval") {
+    return { result: { permissions: {}, scope: "turn" } };
+  }
+
+  if (method === "mcpServer/elicitation/request") {
+    const request = params as McpServerElicitationParams;
+    const message = request.message ?? "An MCP server needs input.";
+    if (request.mode === "url") {
+      const url = request.url;
+      const response = await requestCodexApproval(
+        {
+          id: "decision",
+          header: "MCP",
+          question: message,
+          multiSelect: false,
+          options: [
+            {
+              label: "Open link",
+              description: "Open the MCP authorization page.",
+              preview: url,
+            },
+            { label: "Cancel", description: "Cancel this MCP request." },
+          ],
+        },
+        opts,
+        requestSignal,
+      );
+      if (!response.cancelled && response.answers.decision === "Open link" && url) {
+        await electronShell.openExternal(url);
+        return { result: { action: "accept", content: null, _meta: null } };
+      }
+      return { result: { action: "cancel", content: null, _meta: null } };
+    }
+
+    const formFields = buildMcpFormFields(request.requestedSchema);
+    if (formFields.length > 0) {
+      const response = await requestAnswer(
+        formFields.map((field) => field.question),
+        opts.webContents,
+        opts.nodeId,
+        requestSignal,
+      );
+      if (response.cancelled) {
+        return { result: { action: "cancel", content: null, _meta: null } };
+      }
+      try {
+        const content = Object.fromEntries(
+          formFields.flatMap((field) => {
+            const raw = response.answers[field.key];
+            if ((raw === "" || raw === undefined) && field.question.required === false) {
+              return [];
+            }
+            return [[field.key, parseMcpFormValue(raw, field.schema)]];
+          }),
+        );
+        return { result: { action: "accept", content, _meta: null } };
+      } catch {
+        return { result: { action: "decline", content: null, _meta: null } };
+      }
+    }
+
+    const response = await requestCodexApproval(
+      {
+        id: "content",
+        header: "MCP",
+        question: `${message} Enter the requested value as JSON.`,
+        multiSelect: false,
+        options: [],
+        allowFreeText: true,
+      },
+      opts,
+      requestSignal,
+    );
+    if (response.cancelled) {
+      return { result: { action: "cancel", content: null, _meta: null } };
+    }
+    const raw = response.answers.content;
+    try {
+      const content = JSON.parse(Array.isArray(raw) ? raw.join("\n") : raw ?? "null");
+      return { result: { action: "accept", content, _meta: null } };
+    } catch {
+      return { result: { action: "decline", content: null, _meta: null } };
+    }
+  }
+
+  return undefined;
+}
+
+type McpFormField = {
+  key: string;
+  schema: McpElicitationPropertySchema;
+  question: AskUserQuestion;
+};
+
+function buildMcpFormFields(schemaValue: unknown): McpFormField[] {
+  const schema = asObject(schemaValue);
+  const properties = asObject(schema?.properties);
+  if (!properties) return [];
+  const required = new Set(
+    Array.isArray(schema?.required)
+      ? schema.required.filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [],
+  );
+  return Object.entries(properties).flatMap(([key, value]) => {
+    const property = asObject(value) as McpElicitationPropertySchema | null;
+    if (!property) return [];
+    const type = stringField(property, "type");
+    const options = mcpFormOptions(property);
+    const isMulti = type === "array";
+    const title = stringField(property, "title") ?? key;
+    const description = stringField(property, "description");
+    return [
+      {
+        key,
+        schema: property,
+        question: {
+          id: key,
+          header: title.slice(0, 24),
+          question: description ?? `Enter ${title}.`,
+          multiSelect: isMulti,
+          options,
+          allowFreeText: options.length === 0,
+          secret: /password|secret|token|api.?key/i.test(`${key} ${title}`),
+          required: required.has(key),
+        },
+      },
+    ];
+  });
+}
+
+function mcpFormOptions(
+  schema: McpElicitationPropertySchema,
+): AskUserQuestion["options"] {
+  if (schema.type === "boolean") {
+    return [
+      { label: "Yes", value: "true", description: "Use true." },
+      { label: "No", value: "false", description: "Use false." },
+    ];
+  }
+  const directValues = Array.isArray(schema.enum)
+    ? schema.enum.filter((value): value is string => typeof value === "string")
+    : [];
+  if (directValues.length > 0) {
+    return directValues.map((value, index) => ({
+      label: schema.enumNames?.[index] ?? value,
+      value,
+      description: `Use ${value}.`,
+    }));
+  }
+  if (Array.isArray(schema.oneOf)) {
+    return schema.oneOf.flatMap((option) =>
+      typeof option?.const === "string"
+        ? [
+            {
+              label: option.title ?? option.const,
+              value: option.const,
+              description: `Use ${option.const}.`,
+            },
+          ]
+        : [],
+    );
+  }
+  const items = asObject(schema.items);
+  const itemValues = Array.isArray(items?.enum)
+    ? items.enum.filter((value): value is string => typeof value === "string")
+    : [];
+  if (itemValues.length > 0) {
+    return itemValues.map((value) => ({
+      label: value,
+      value,
+      description: `Include ${value}.`,
+    }));
+  }
+  const itemOptions = Array.isArray(items?.anyOf)
+    ? items.anyOf
+    : Array.isArray(items?.oneOf)
+      ? items.oneOf
+      : [];
+  return itemOptions.flatMap((value) => {
+    const option = asObject(value);
+    const optionValue = stringField(option, "const");
+    if (!optionValue) return [];
+    return [
+      {
+        label: stringField(option, "title") ?? optionValue,
+        value: optionValue,
+        description: `Include ${optionValue}.`,
+      },
+    ];
+  });
+}
+
+function parseMcpFormValue(
+  raw: string | string[] | undefined,
+  schema: McpElicitationPropertySchema,
+): unknown {
+  if (schema.type === "array") return Array.isArray(raw) ? raw : raw ? [raw] : [];
+  const value = Array.isArray(raw) ? raw[0] : raw ?? "";
+  if (schema.type === "boolean") {
+    if (value === "true") return true;
+    if (value === "false") return false;
+    throw new Error("Invalid boolean MCP form value.");
+  }
+  if (schema.type === "number" || schema.type === "integer") {
+    const number = Number(value);
+    if (
+      !Number.isFinite(number) ||
+      (schema.type === "integer" && !Number.isInteger(number))
+    ) {
+      throw new Error("Invalid numeric MCP form value.");
+    }
+    return number;
+  }
+  return value;
+}
+
+function requestCodexApproval(
+  question: AskUserQuestion,
+  opts: RunAgentOpts,
+  signal: AbortSignal,
+): Promise<AskUserResponsePayload> {
+  return requestAnswer(
+    [question],
+    opts.webContents,
+    opts.nodeId,
+    signal,
+  );
+}
+
+function approvalChoice(response: AskUserResponsePayload): string | undefined {
+  if (response.cancelled) return undefined;
+  const value = response.answers.decision;
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function emitStartedItem(item: JsonObject, emit: (event: RunnerEvent) => void): void {
@@ -418,12 +904,18 @@ function emitCompletedItem(
   item: JsonObject,
   emit: (event: RunnerEvent) => void,
   agentDeltaItems: Set<string>,
+  planDeltaItems: Set<string>,
   reasoningDeltaItems: Set<string>,
   commandOutput: Map<string, string>,
 ): void {
   const id = stringField(item, "id") ?? `codex_${Math.random().toString(36).slice(2)}`;
   const type = stringField(item, "type");
   if (type === "agentMessage" && !agentDeltaItems.has(id)) {
+    const text = stringField(item, "text");
+    if (text) emit({ kind: "text_delta", text });
+    return;
+  }
+  if (type === "plan" && !planDeltaItems.has(id)) {
     const text = stringField(item, "text");
     if (text) emit({ kind: "text_delta", text });
     return;
@@ -447,6 +939,30 @@ function emitCompletedItem(
       toolUseId: id,
       content: output,
       isError: stringField(item, "status") === "failed" || (exitCode ?? 0) !== 0,
+    });
+    return;
+  }
+  if (type === "fileChange") {
+    const changes = Array.isArray(item.changes) ? item.changes : [];
+    emit({
+      kind: "tool_result",
+      toolUseId: id,
+      content:
+        changes.length > 0
+          ? JSON.stringify(changes, null, 2)
+          : stringField(item, "status") ?? "File change completed.",
+      isError:
+        stringField(item, "status") === "failed" ||
+        stringField(item, "status") === "declined",
+    });
+    return;
+  }
+  if (type === "webSearch") {
+    emit({
+      kind: "tool_result",
+      toolUseId: id,
+      content: JSON.stringify(item, null, 2),
+      isError: stringField(item, "status") === "failed",
     });
     return;
   }

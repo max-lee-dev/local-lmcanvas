@@ -20,19 +20,27 @@ export function AskUserPrompt({ request }: Props) {
 
   const [singleAnswers, setSingleAnswers] = useState<Record<number, string>>({});
   const [multiAnswers, setMultiAnswers] = useState<Record<number, Set<string>>>({});
+  const [freeAnswers, setFreeAnswers] = useState<Record<number, string>>({});
 
   const allAnswered = request.questions.every((q, i) => {
-    if (q.multiSelect) return (multiAnswers[i]?.size ?? 0) > 0;
-    return Boolean(singleAnswers[i]);
+    if (q.required === false) return true;
+    const hasFreeAnswer = Boolean(freeAnswers[i]?.trim());
+    if (q.multiSelect) return (multiAnswers[i]?.size ?? 0) > 0 || hasFreeAnswer;
+    return Boolean(singleAnswers[i]) || hasFreeAnswer;
   });
 
   const submit = () => {
     const answers: AskUserAnswers = {};
     request.questions.forEach((q, i) => {
+      const key = q.id ?? q.question;
+      const freeAnswer = freeAnswers[i]?.trim();
       if (q.multiSelect) {
-        answers[q.question] = Array.from(multiAnswers[i] ?? []);
+        answers[key] = [
+          ...Array.from(multiAnswers[i] ?? []),
+          ...(freeAnswer ? [freeAnswer] : []),
+        ];
       } else {
-        answers[q.question] = singleAnswers[i] ?? "";
+        answers[key] = singleAnswers[i] ?? freeAnswer ?? "";
       }
     });
     resolve(request.id, answers);
@@ -68,6 +76,10 @@ export function AskUserPrompt({ request }: Props) {
               setSingleAnswers((p) => ({ ...p, [idx]: label }))
             }
             onToggleMulti={(label) => toggleMulti(idx, label)}
+            freeAnswer={freeAnswers[idx] ?? ""}
+            onFreeAnswerChange={(value) =>
+              setFreeAnswers((previous) => ({ ...previous, [idx]: value }))
+            }
           />
         ))}
       </div>
@@ -100,6 +112,8 @@ type QuestionBlockProps = {
   multiAnswers: Set<string> | undefined;
   onPickSingle: (label: string) => void;
   onToggleMulti: (label: string) => void;
+  freeAnswer: string;
+  onFreeAnswerChange: (value: string) => void;
 };
 
 function QuestionBlock({
@@ -108,6 +122,8 @@ function QuestionBlock({
   multiAnswers,
   onPickSingle,
   onToggleMulti,
+  freeAnswer,
+  onFreeAnswerChange,
 }: QuestionBlockProps) {
   return (
     <div className="rounded border border-border overflow-hidden">
@@ -122,9 +138,10 @@ function QuestionBlock({
       <div className="px-2 py-1 text-[10px] text-foreground">{question.question}</div>
       <div className="flex flex-col gap-1 p-1.5 pt-0">
         {question.options.map((opt) => {
+          const optionValue = opt.value ?? opt.label;
           const selected = question.multiSelect
-            ? multiAnswers?.has(opt.label) ?? false
-            : singleAnswer === opt.label;
+            ? multiAnswers?.has(optionValue) ?? false
+            : singleAnswer === optionValue;
           return (
             <OptionButton
               key={opt.label}
@@ -133,12 +150,33 @@ function QuestionBlock({
               multi={question.multiSelect}
               onClick={() =>
                 question.multiSelect
-                  ? onToggleMulti(opt.label)
-                  : onPickSingle(opt.label)
+                  ? onToggleMulti(optionValue)
+                  : onPickSingle(optionValue)
               }
             />
           );
         })}
+        {question.allowFreeText &&
+          (question.secret ? (
+            <input
+              type="password"
+              value={freeAnswer}
+              onChange={(event) => onFreeAnswerChange(event.target.value)}
+              placeholder="Enter a private answer…"
+              aria-label={`${question.header} private answer`}
+              autoComplete="off"
+              className="nodrag w-full rounded border border-border bg-background px-2 py-1.5 text-[10px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/30"
+            />
+          ) : (
+            <textarea
+              value={freeAnswer}
+              onChange={(event) => onFreeAnswerChange(event.target.value)}
+              rows={2}
+              placeholder="Type another answer…"
+              aria-label={`${question.header} custom answer`}
+              className="nodrag w-full resize-y rounded border border-border bg-background px-2 py-1.5 text-[10px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/30"
+            />
+          ))}
       </div>
     </div>
   );
