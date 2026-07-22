@@ -196,6 +196,8 @@ function BranchRequestListener({ paneId }: { paneId: string }) {
     branch({
       prefill: pending.prefill,
       autoSubmit: true,
+      placeBelow: true,
+      addedContext: pending.addedContext,
       onCreated: (childId) => {
         // Move canvas selection onto the new child so the drawer
         // auto-switches to it and keeps streaming visible.

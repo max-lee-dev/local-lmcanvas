@@ -95,7 +95,11 @@ import type { WebContents } from "electron";
 import type { Attachment } from "@shared/ipc";
 import type { ProviderSessionRef } from "@shared/types";
 import { buildAskUserServer } from "./askUserMcp";
-import { isAuthError, type RunnerEvent } from "../agents/types";
+import {
+  isAuthError,
+  isPolicyRefusal,
+  type RunnerEvent,
+} from "../agents/types";
 import { normalizeUsage } from "../agents/usage";
 
 const ASK_USER_SYSTEM_NOTE = `\n\nWhen you need to ask the local user a structured multiple-choice question, use the \`mcp__lmc__ask_user_question\` tool. It renders an interactive picker inside the local-lmcanvas app. Do NOT use the built-in AskUserQuestion tool — it is disabled in this environment.`;
@@ -136,6 +140,7 @@ export type RunClaudeOpts = {
   /** When true, skip the claude_code preset and drop agent tools — fast pure-chat path. Ignored when planMode is also true. */
   chatOnly?: boolean;
   parentSession?: ProviderSessionRef;
+  currentSession?: ProviderSessionRef;
   webContents: WebContents;
   nodeId: string;
   onEvent: (ev: RunnerEvent) => void;
@@ -158,8 +163,21 @@ export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<vo
       opts.onEvent({ ...ev, code: "auth_required" });
       return;
     }
+    if (ev.kind === "error" && !ev.code && isPolicyRefusal(ev.message)) {
+      opts.onEvent({ ...ev, code: "policy_refusal" });
+      return;
+    }
     if (ev.kind === "done" && ev.isError && !ev.code && isAuthError(ev.result ?? "")) {
       opts.onEvent({ ...ev, code: "auth_required" });
+      return;
+    }
+    if (
+      ev.kind === "done" &&
+      ev.isError &&
+      !ev.code &&
+      isPolicyRefusal(ev.result ?? "")
+    ) {
+      opts.onEvent({ ...ev, code: "policy_refusal" });
       return;
     }
     opts.onEvent(ev);
@@ -200,10 +218,16 @@ export async function runClaude(prompt: string, opts: RunClaudeOpts): Promise<vo
         allowDangerouslySkipPermissions: !opts.planMode,
         model: opts.model,
         resume:
+          opts.currentSession?.provider === "claude"
+            ? opts.currentSession.id
+            : opts.parentSession?.provider === "claude"
+              ? opts.parentSession.id
+              : undefined,
+        forkSession:
+          opts.currentSession?.provider !== "claude" &&
           opts.parentSession?.provider === "claude"
-            ? opts.parentSession.id
+            ? true
             : undefined,
-        forkSession: opts.parentSession?.provider === "claude" || undefined,
         pathToClaudeCodeExecutable: CLAUDE_BIN_PATH,
         // chatOnly: raw system prompt (no claude_code preset) → drops ~10k
         // tokens of agentic tool instructions on every turn, big TTFT win.
@@ -282,6 +306,20 @@ function handleAssistant(
   emit: (ev: RunnerEvent) => void
 ): void {
   const content = msg.message.content as BetaContentBlock[];
+  if (msg.error) {
+    const message = content
+      .filter((block): block is BetaTextBlock => block.type === "text")
+      .map((block) => block.text)
+      .join("\n")
+      .trim();
+    emit({
+      kind: "error",
+      message: message || `Claude request failed: ${msg.error}`,
+    });
+    return;
+  }
+
+  let hasFinalText = false;
   for (const block of content) {
     if (block.type === "tool_use") {
       const tu = block as BetaToolUseBlock;
@@ -289,8 +327,14 @@ function handleAssistant(
       seenToolUseIds.add(tu.id);
       emit({ kind: "tool_use", toolUseId: tu.id, name: tu.name, input: tu.input });
     }
+    if (block.type === "text" && block.text.length > 0) {
+      hasFinalText = true;
+    }
     // text/thinking already arrived as deltas via stream_event
     void (block as BetaTextBlock | BetaThinkingBlock);
+  }
+  if (hasFinalText && msg.message.stop_reason === "end_turn") {
+    emit({ kind: "response_complete" });
   }
 }
 

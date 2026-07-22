@@ -24,7 +24,7 @@ export type ImageBlock = {
 
 export type ContentBlock = TextBlock | ToolUseBlock | ThinkingBlock | ImageBlock;
 
-export type ErrorCode = "auth_required";
+export type ErrorCode = "auth_required" | "policy_refusal";
 
 export type UsageSummary = {
   inputTokens?: number;
@@ -41,6 +41,12 @@ export type UsageSummary = {
  *  clicking creates a child node prefilled with `prompt` and auto-submits it. */
 export type Suggestion = { label: string; prompt: string };
 
+export type ModelFallback = {
+  fromModel: string;
+  toModel: string;
+  reason: "policy_refusal";
+};
+
 export type Message = {
   id: string;
   role: "user" | "assistant";
@@ -56,6 +62,8 @@ export type Message = {
   errorCode?: ErrorCode;
   /** Which provider produced the error (so the UI can guide re-auth). */
   errorProvider?: Provider;
+  /** Records a transparent automatic retry with a different model. */
+  modelFallback?: ModelFallback;
   /** Parsed from a trailing `<next-steps>` block in the model's response. */
   suggestions?: Suggestion[];
 };
@@ -78,6 +86,28 @@ export type CanvasNodeType = "custom" | "stickyNote";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
 
 export type CodexServiceTier = "standard" | "fast";
+
+export type CodexModelServiceTier = {
+  id: string;
+  name: string;
+  description: string;
+};
+
+export type CodexModelInfo = {
+  id: string;
+  displayName: string;
+  description: string;
+  isDefault: boolean;
+  supportedReasoningEfforts: ReasoningEffort[];
+  defaultReasoningEffort: ReasoningEffort;
+  serviceTiers: CodexModelServiceTier[];
+  defaultServiceTier?: string;
+};
+
+export type CodexRuntimeInfo = {
+  models: CodexModelInfo[];
+  defaultModelId?: string;
+};
 
 export type ProviderSessionRef = {
   provider: Provider;

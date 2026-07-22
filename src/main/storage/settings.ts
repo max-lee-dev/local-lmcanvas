@@ -18,12 +18,7 @@ const DEFAULTS: AppSettings = {
   defaultProvider: "claude",
   providers: {
     claude: { binPath: "claude" },
-    codex: {
-      binPath: "codex",
-      model: "gpt-5.6-sol",
-      reasoningEffort: "high",
-      serviceTier: "standard",
-    },
+    codex: { binPath: "codex" },
     cursor: { binPath: "cursor-agent" },
   },
   onboardingCompleted: false,

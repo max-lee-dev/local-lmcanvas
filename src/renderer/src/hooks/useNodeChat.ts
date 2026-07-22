@@ -99,6 +99,7 @@ export function useNodeChat(nodeId: NodeId) {
 
       const fullHistory = storeApi.getState().getHistoryForNode(nodeId);
       const history = fullHistory.slice(0, -2);
+      const currentSession = nodeBeforeSubmit?.data.chat.providerSession;
       const parentId =
         nodeBeforeSubmit?.data.chat.parentIds.length === 1
           ? nodeBeforeSubmit.data.chat.parentIds[0]
@@ -166,6 +167,17 @@ export function useNodeChat(nodeId: NodeId) {
       });
 
       let off: (() => void) | null = null;
+      let responseComplete = false;
+      const completeVisibleResponse = () => {
+        if (responseComplete) return;
+        responseComplete = true;
+        nextStepsStreamer.flush();
+        flushThinking();
+        flushText();
+        storeApi.getState().finalizeMessage(nodeId, asstMsgId);
+        setStreaming(false);
+        void storeApi.getState().save();
+      };
       const cleanup = () => {
         // Flush any remaining buffered text (e.g. an unterminated <next-steps>
         // block) so we don't silently swallow it.
@@ -186,6 +198,21 @@ export function useNodeChat(nodeId: NodeId) {
         const s = storeApi.getState();
         switch (ev.type) {
           case "start":
+            return;
+          case "response_complete":
+            completeVisibleResponse();
+            return;
+          case "model_fallback":
+            nextStepsStreamer.flush();
+            flushThinking();
+            flushText();
+            responseComplete = false;
+            setStreaming(true);
+            s.setMessageModelFallback(nodeId, asstMsgId, {
+              fromModel: ev.fromModel,
+              toModel: ev.toModel,
+              reason: ev.reason,
+            });
             return;
           case "text_delta":
             flushThinking();
@@ -285,6 +312,7 @@ export function useNodeChat(nodeId: NodeId) {
           planMode: inlinePlanMode || undefined,
           chatOnly: inlineChatOnly || undefined,
           parentSession,
+          currentSession,
         });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);

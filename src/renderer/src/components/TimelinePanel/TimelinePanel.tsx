@@ -108,13 +108,13 @@ function bucketize(entries: TimelineEntry[], now: number): Bucket[] {
 function StatusIcon({ status }: { status: EntryStatus }) {
   if (status === "streaming") {
     return (
-      <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent-brand" />
+      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent-brand" />
     );
   }
   if (status === "error") {
-    return <AlertCircle className="h-3 w-3 shrink-0 text-destructive" />;
+    return <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />;
   }
-  return <Check className="h-3 w-3 shrink-0 text-muted-foreground/70" />;
+  return <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />;
 }
 
 export function TimelinePanel() {
@@ -152,10 +152,10 @@ export function TimelinePanel() {
 function TimelinePanelHeader({ onClose }: { onClose: () => void }) {
   return (
     <div className="flex h-12 items-center gap-2 px-3 border-b border-border no-drag">
-      <Clock size={14} className="text-foreground/70" />
+      <Clock size={15} className="text-foreground/70" />
       <div className="flex-1 min-w-0">
         <div
-          className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70 leading-none"
+          className="text-xs uppercase tracking-[0.18em] text-muted-foreground/70 leading-none"
           style={{ fontFamily: "var(--font-geist-mono)" }}
         >
           timeline
@@ -236,7 +236,7 @@ function TimelinePanelBodyInner({
   return (
     <>
       <div className="px-3 pt-2 pb-2 border-b border-border space-y-2">
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground tabular-nums">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground tabular-nums">
           <span>
             <span className="text-foreground/80 font-medium">
               {entries.length}
@@ -266,7 +266,7 @@ function TimelinePanelBodyInner({
           spellCheck={false}
           autoCorrect="off"
           autoCapitalize="off"
-          className="w-full h-7 rounded-md border border-border bg-muted px-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="w-full h-8 rounded-md border border-border bg-muted px-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </div>
 
@@ -306,7 +306,7 @@ function TimelineBucket({
   return (
     <div className="py-1">
       <div
-        className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60"
+        className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60"
         style={{ fontFamily: "var(--font-geist-mono)" }}
       >
         {bucket.label}
@@ -326,10 +326,10 @@ function TimelineBucket({
                 <StatusIcon status={entry.status} />
               </span>
               <span className="flex-1 min-w-0">
-                <span className="block line-clamp-2 whitespace-pre-wrap break-words text-xs leading-snug text-foreground">
+                <span className="block line-clamp-2 whitespace-pre-wrap break-words text-sm leading-snug text-foreground">
                   {entry.label}
                 </span>
-                <span className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground/70 tabular-nums">
+                <span className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground/70 tabular-nums">
                   <span>
                     {entry.status === "streaming"
                       ? "now"

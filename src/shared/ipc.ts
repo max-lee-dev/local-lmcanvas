@@ -2,9 +2,11 @@ import type {
   AppSettings,
   Canvas,
   CanvasSummary,
+  CodexRuntimeInfo,
   ErrorCode,
   ImageMediaType,
   Message,
+  ModelFallback,
   NodeSettings,
   Provider,
   ProviderSessionRef,
@@ -79,10 +81,14 @@ export type ChatStartArgs = {
   chatOnly?: boolean;
   /** Native session belonging to this node's primary parent, when available. */
   parentSession?: ProviderSessionRef;
+  /** Native session already owned by this node, when continuing it. */
+  currentSession?: ProviderSessionRef;
 };
 
 export type ChatEvent =
   | { chatId: string; type: "start" }
+  | { chatId: string; type: "response_complete" }
+  | ({ chatId: string; type: "model_fallback" } & ModelFallback)
   | { chatId: string; type: "session"; session: ProviderSessionRef }
   | { chatId: string; type: "text_delta"; text: string }
   | {
@@ -215,6 +221,8 @@ export type LmcApi = {
     authStatus(provider: Provider): Promise<ProviderAuthStatus>;
     /** Open a shell session to run `<bin> login` for the given provider, in the user's terminal. */
     openLoginTerminal(provider: Provider): Promise<void>;
+    /** Runtime model capabilities advertised by the installed Codex CLI. */
+    codexRuntime(): Promise<CodexRuntimeInfo>;
   };
   askUser: {
     /** Subscribe to incoming ask-user requests from the agent. Returns an unsubscribe function. */

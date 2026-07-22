@@ -1,7 +1,9 @@
 import type {
   CanvasNode,
   ContentBlock,
+  ErrorCode,
   Message,
+  ModelFallback,
   NodeId,
   Provider,
   TextBlock,
@@ -125,6 +127,9 @@ export function migrateMessage(raw: unknown): Message | null {
       ? obj.status
       : undefined;
   const provider = isProvider(obj.provider) ? obj.provider : undefined;
+  const errorCode = isErrorCode(obj.errorCode) ? obj.errorCode : undefined;
+  const errorProvider = isProvider(obj.errorProvider) ? obj.errorProvider : undefined;
+  const modelFallback = parseModelFallback(obj.modelFallback);
   const usage = parseUsage(obj.usage);
   return {
     id: obj.id,
@@ -135,11 +140,35 @@ export function migrateMessage(raw: unknown): Message | null {
     usage,
     status,
     error: typeof obj.error === "string" ? obj.error : undefined,
+    errorCode,
+    errorProvider,
+    modelFallback,
   };
 }
 
 function isProvider(value: unknown): value is Provider {
   return value === "claude" || value === "codex" || value === "cursor";
+}
+
+function isErrorCode(value: unknown): value is ErrorCode {
+  return value === "auth_required" || value === "policy_refusal";
+}
+
+function parseModelFallback(value: unknown): ModelFallback | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const fallback = value as Record<string, unknown>;
+  if (
+    typeof fallback.fromModel !== "string" ||
+    typeof fallback.toModel !== "string" ||
+    fallback.reason !== "policy_refusal"
+  ) {
+    return undefined;
+  }
+  return {
+    fromModel: fallback.fromModel,
+    toModel: fallback.toModel,
+    reason: fallback.reason,
+  };
 }
 
 function parseUsage(raw: unknown): UsageSummary | undefined {

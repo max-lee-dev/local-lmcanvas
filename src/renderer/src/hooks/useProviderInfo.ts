@@ -61,6 +61,7 @@ function prettyModelLabel(provider: Provider, modelId?: string): string {
       return "Fable";
     }
     if (modelId.includes("opus")) {
+      if (modelId.includes("4-8")) return "Opus 4.8";
       if (modelId.includes("4-7")) return "Opus 4.7";
       if (modelId.includes("4-6")) return "Opus 4.6";
       if (modelId.includes("4-5")) return "Opus 4.5";

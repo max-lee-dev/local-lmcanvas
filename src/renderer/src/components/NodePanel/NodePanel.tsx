@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { useStore } from "zustand";
@@ -11,6 +11,8 @@ import { useActivePaneStore } from "@/hooks/useActivePane";
 import { useActiveSelectedNodeId } from "@/hooks/useActiveSelectedNode";
 import { getMessageHistoryForNode } from "@shared/history";
 import { NodeResponse } from "@/components/Canvas/NodeResponse";
+import { SelectionActionButton } from "@/components/Canvas/SelectionActionButton";
+import { useSelection } from "@/hooks/useSelection";
 import { NodePanelComposer } from "./NodePanelComposer";
 
 /**
@@ -36,6 +38,7 @@ export function NodePanel({ rightOffset = 0 }: { rightOffset?: number } = {}) {
       {open && (
         <motion.div
           key={`node-panel-${activePaneId}-${selectedId}`}
+          data-node-panel
           initial={{ x: "100%" }}
           animate={{ x: 0 }}
           exit={{ x: "100%" }}
@@ -72,12 +75,26 @@ function NodePanelBody({
     () => getMessageHistoryForNode(nodeId, nodes),
     [nodeId, nodes],
   );
+  const messageOwnerIds = useMemo(() => {
+    const owners = new Map<string, string>();
+    for (const historyNode of Object.values(nodes)) {
+      for (const message of historyNode.data.chat.messages) {
+        owners.set(message.id, historyNode.id);
+      }
+    }
+    return owners;
+  }, [nodes]);
 
   const node = nodes[nodeId];
   const title = node?.data.title?.trim() || titleFromFirstUserMessage(messages);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastSignatureRef = useRef<string>("");
+  const [selectedContext, setSelectedContext] = useState<{
+    text: string;
+    parentId: string;
+  }>();
+  const selection = useSelection(scrollRef, { placement: "inside-right" });
 
   // Autoscroll to bottom whenever the visible message tail grows or streams.
   useEffect(() => {
@@ -103,21 +120,21 @@ function NodePanelBody({
 
   return (
     <>
-      <div className="flex h-12 items-center gap-2 px-3 border-b border-border no-drag">
+      <div className="flex min-h-14 items-start gap-2 border-b border-border px-5 pb-3 pt-6 no-drag">
         <div className="flex-1 min-w-0">
           <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70 leading-none mb-0.5"
             style={{ fontFamily: "var(--font-geist-mono)" }}
           >
             node
           </div>
-          <div className="truncate text-sm text-foreground/90">
+          <div className="truncate text-base text-foreground/90">
             {title || "untitled"}
           </div>
         </div>
         <button
           onClick={() => setSelectedNodeId(null)}
           title="Close"
-          className="flex h-7 w-7 items-center justify-center rounded-md text-foreground/70 hover:text-foreground hover:bg-muted cursor-pointer"
+          className="-mt-0.5 flex h-7 w-7 items-center justify-center rounded-md text-foreground/70 hover:text-foreground hover:bg-muted cursor-pointer"
         >
           <X size={14} />
         </button>
@@ -125,23 +142,24 @@ function NodePanelBody({
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+        className="node-panel-messages flex-1 overflow-y-auto px-5 py-5 space-y-5"
       >
         {messages.length === 0 && (
-          <div className="text-xs text-muted-foreground/70">
+          <div className="text-sm text-muted-foreground/70">
             no messages yet — type below to start the conversation.
           </div>
         )}
         {messages.map((m) => (
           <div
             key={m.id}
+            data-history-node-id={messageOwnerIds.get(m.id) ?? nodeId}
             className={m.role === "user" ? "flex justify-end" : "flex justify-start"}
           >
             <div
               className={
                 m.role === "user"
-                  ? "max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm"
-                  : "max-w-[95%] text-sm"
+                  ? "node-panel-message max-w-[85%] rounded-lg bg-muted px-3.5 py-2.5"
+                  : "node-panel-message max-w-[95%]"
               }
             >
               <NodeResponse message={m} />
@@ -150,7 +168,30 @@ function NodePanelBody({
         ))}
       </div>
 
-      <NodePanelComposer paneId={paneId} parentId={nodeId} />
+      {selection && (
+        <SelectionActionButton
+          isVisible
+          relativeTop={selection.relativeTop}
+          absolutePosition={selection.position}
+          onClick={() => {
+            const historyMessage = selection.sourceElement?.closest<HTMLElement>(
+              "[data-history-node-id]",
+            );
+            setSelectedContext({
+              text: selection.text.trim(),
+              parentId: historyMessage?.dataset.historyNodeId ?? nodeId,
+            });
+            selection.clear({ removeRange: true });
+          }}
+        />
+      )}
+
+      <NodePanelComposer
+        paneId={paneId}
+        parentId={selectedContext?.parentId ?? nodeId}
+        selectedContext={selectedContext?.text}
+        onClearSelectedContext={() => setSelectedContext(undefined)}
+      />
     </>
   );
 }

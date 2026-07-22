@@ -12,6 +12,7 @@ import {
   type Node,
   type NodeChange,
   type EdgeChange,
+  type OnSelectionChangeParams,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
@@ -37,6 +38,8 @@ import {
   type GeneratedNodeSummary,
 } from "@/lib/groupSummary";
 import { useGroupSummaries } from "@/hooks/useGroupSummaries";
+import { useCenterOnNode } from "@/hooks/useCenterOnNode";
+import { FALLBACK_NODE_HEIGHT, NODE_WIDTH } from "@/lib/canvasConstants";
 import type { ChatData } from "@shared/types";
 
 const nodeTypes = { custom: CustomNode };
@@ -59,6 +62,8 @@ function CanvasInner() {
   const connectEdge = useCanvasStore((s) => s.connectEdge);
   const movePosition = useCanvasStore((s) => s.movePosition);
   const removeNode = useCanvasStore((s) => s.removeNode);
+  const setSelectedNodeIds = useCanvasStore((s) => s.setSelectedNodeIds);
+  const centerOnNode = useCenterOnNode();
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
@@ -275,6 +280,27 @@ function CanvasInner() {
     // edges are fully owned by the store; selection/remove handled via store only
   }, []);
 
+  const onSelectionChange = useCallback(
+    ({ nodes }: OnSelectionChangeParams) => {
+      setSelectedNodeIds(nodes.map((node) => node.id));
+      const selected = nodes.length === 1 && nodes[0]?.type === "custom"
+        ? nodes[0]
+        : null;
+      if (!selected) return;
+
+      requestAnimationFrame(() => {
+        const data = selected.data as { width?: number };
+        centerOnNode(
+          selected.position.x,
+          selected.position.y,
+          data.width ?? NODE_WIDTH,
+          selected.measured?.height ?? FALLBACK_NODE_HEIGHT,
+        );
+      });
+    },
+    [centerOnNode, setSelectedNodeIds],
+  );
+
   const onConnect = useCallback(
     (conn: Connection) => {
       if (!conn.source || !conn.target) return;
@@ -325,6 +351,7 @@ function CanvasInner() {
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onSelectionChange={onSelectionChange}
         onConnect={onConnect}
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}

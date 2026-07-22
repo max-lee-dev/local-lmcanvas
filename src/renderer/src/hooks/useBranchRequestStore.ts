@@ -5,6 +5,7 @@ export type BranchRequest = {
   paneId: string;
   parentId: string;
   prefill: string;
+  addedContext?: string;
   /** Unique id per emit so consumers can detect new requests via id change. */
   requestId: string;
 };

@@ -539,6 +539,51 @@ header.app-drag {
   color: var(--foreground);
 }
 
+/* The node drawer is a reading surface, not a zoomable canvas card. */
+.node-panel-message .node-md {
+  font-size: 15px;
+  line-height: 1.6;
+  font-weight: 450;
+}
+.node-panel-message .node-md p {
+  line-height: 1.6;
+}
+.node-panel-message .node-md li,
+.node-panel-message .node-md table {
+  font-size: 15px;
+}
+.node-panel-message .node-md h1 {
+  font-size: 20px;
+}
+.node-panel-message .node-md h2 {
+  font-size: 18px;
+}
+.node-panel-message .node-md h3 {
+  font-size: 16px;
+}
+.node-panel-message .node-md blockquote {
+  font-size: 15px;
+}
+.node-panel-message .node-md code:not(pre code) {
+  font-size: 13px;
+}
+.node-panel-message .node-md th {
+  font-size: 12px;
+}
+.node-panel-message .whitespace-pre-wrap.break-words {
+  font-size: 15px;
+  line-height: 1.55;
+}
+.node-panel-message button,
+.node-panel-message button span,
+.node-panel-message .node-shimmer {
+  font-size: 13px;
+}
+.node-panel-message pre.whitespace-pre-wrap.break-words {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 /* shimmer for the streaming label (avera) */
 @keyframes shimmer {
   0% {

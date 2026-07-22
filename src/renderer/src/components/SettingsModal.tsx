@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, MessageSquareDashed, Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { AppSettings, Provider, ProviderConfig } from "@shared/types";
+import type {
+  AppSettings,
+  CodexRuntimeInfo,
+  Provider,
+  ProviderConfig,
+} from "@shared/types";
 import { PROVIDERS } from "@shared/types";
 import {
   MinimapSetting,
@@ -26,10 +31,15 @@ export function SettingsModal({ open, onClose }: Props) {
   const [saving, setSaving] = useState(false);
   const [showLegacy, setShowLegacy] = useState(false);
   const [view, setView] = useState<View>("main");
+  const [codexRuntime, setCodexRuntime] = useState<CodexRuntimeInfo | null>(null);
 
   useEffect(() => {
     if (!open) return;
     void window.api.settings.read().then(setSettings);
+    void window.api.providers
+      .codexRuntime()
+      .then(setCodexRuntime)
+      .catch(() => setCodexRuntime(null));
   }, [open]);
 
   useEffect(() => {
@@ -76,6 +86,17 @@ export function SettingsModal({ open, onClose }: Props) {
       },
     }));
   };
+
+  const configuredCodexModel = settings.providers?.codex?.model;
+  const codexModel = codexRuntime?.models.find(
+    (model) => model.id === (configuredCodexModel ?? codexRuntime.defaultModelId),
+  );
+  const codexEfforts = codexModel?.supportedReasoningEfforts ?? ["low"];
+  const codexFastAvailable =
+    !codexModel ||
+    codexModel.serviceTiers.some(
+      (tier) => tier.id === "priority" || tier.id === "fast",
+    );
 
   return (
     <AnimatePresence mode="wait">
@@ -258,32 +279,79 @@ export function SettingsModal({ open, onClose }: Props) {
                                     className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
                                     placeholder={
                                       provider === "codex"
-                                        ? "gpt-5.6-sol"
+                                        ? (codexRuntime?.defaultModelId ?? "Codex default")
                                         : provider === "cursor"
                                         ? "auto"
                                         : "claude-fable-5"
                                     }
+                                    {...(provider === "codex"
+                                      ? { list: "codex-models" }
+                                      : {})}
                                   />
+                                  {provider === "codex" &&
+                                    codexRuntime &&
+                                    codexRuntime.models.length > 0 && (
+                                      <datalist id="codex-models">
+                                        {codexRuntime.models.map((model) => (
+                                          <option key={model.id} value={model.id}>
+                                            {model.displayName}
+                                          </option>
+                                        ))}
+                                      </datalist>
+                                    )}
                                 </div>
                                 {provider === "codex" && (
-                                  <div>
-                                    <label className="text-xs font-medium text-muted-foreground">
-                                      processing speed
-                                    </label>
-                                    <select
-                                      value={settings.providers?.codex?.serviceTier ?? "standard"}
-                                      onChange={(e) =>
-                                        updateProviderConfig("codex", {
-                                          serviceTier:
-                                            e.target.value === "fast" ? "fast" : "standard",
-                                        })
-                                      }
-                                      className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                                    >
-                                      <option value="standard">standard</option>
-                                      <option value="fast">fast</option>
-                                    </select>
-                                  </div>
+                                  <>
+                                    <div>
+                                      <label className="text-xs font-medium text-muted-foreground">
+                                        thinking effort
+                                      </label>
+                                      <select
+                                        value={
+                                          settings.providers?.codex?.reasoningEffort ??
+                                          codexModel?.defaultReasoningEffort ??
+                                          "low"
+                                        }
+                                        onChange={(e) =>
+                                          updateProviderConfig("codex", {
+                                            reasoningEffort: e.target.value as ProviderConfig["reasoningEffort"],
+                                          })
+                                        }
+                                        className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                                      >
+                                        {codexEfforts.map((effort) => (
+                                          <option key={effort} value={effort}>
+                                            {effort}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="text-xs font-medium text-muted-foreground">
+                                        processing speed
+                                      </label>
+                                      <select
+                                        value={
+                                          settings.providers?.codex?.serviceTier === "fast" &&
+                                          codexFastAvailable
+                                            ? "fast"
+                                            : "standard"
+                                        }
+                                        onChange={(e) =>
+                                          updateProviderConfig("codex", {
+                                            serviceTier:
+                                              e.target.value === "fast" ? "fast" : "standard",
+                                          })
+                                        }
+                                        className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                                      >
+                                        <option value="standard">standard</option>
+                                        {codexFastAvailable && (
+                                          <option value="fast">fast (uses more credits)</option>
+                                        )}
+                                      </select>
+                                    </div>
+                                  </>
                                 )}
                               </div>
                             </div>

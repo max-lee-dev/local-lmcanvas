@@ -16,19 +16,25 @@ export type SelectionSnapshot = {
   text: string;
   position: SelectionPosition;
   relativeTop: number;
+  sourceElement: Element | null;
   clear: (options?: { removeRange?: boolean }) => void;
 };
 
 type UseSelectionOptions = {
   disabled?: boolean;
   offset?: number;
+  placement?: "outside-right" | "inside-right";
 };
 
 const DEFAULT_OFFSET = 8;
 
 export function useSelection(
   containerRef: RefObject<HTMLElement | null>,
-  { disabled = false, offset = DEFAULT_OFFSET }: UseSelectionOptions = {},
+  {
+    disabled = false,
+    offset = DEFAULT_OFFSET,
+    placement = "outside-right",
+  }: UseSelectionOptions = {},
 ): SelectionSnapshot | null {
   const [selectedText, setSelectedText] = useState("");
   const [selectionPosition, setSelectionPosition] = useState<SelectionPosition>(
@@ -36,12 +42,14 @@ export function useSelection(
   );
   const [relativeTop, setRelativeTop] = useState(0);
   const [showSelection, setShowSelection] = useState(false);
+  const [sourceElement, setSourceElement] = useState<Element | null>(null);
 
   const selectionRangeRef = useRef<Range | null>(null);
 
   const hideSelection = useCallback(() => {
     setShowSelection(false);
     selectionRangeRef.current = null;
+    setSourceElement(null);
   }, []);
 
   const clearSelection = useCallback(
@@ -78,13 +86,17 @@ export function useSelection(
 
       const relative = endMidY - containerRect.top;
       const position = {
-        x: Math.round(containerRect.right + offset),
+        x: Math.round(
+          placement === "inside-right"
+            ? containerRect.right - offset - 32
+            : containerRect.right + offset,
+        ),
         y: endMidY,
       };
 
       return { relativeTop: relative, position };
     },
-    [offset],
+    [offset, placement],
   );
 
   useEffect(() => {
@@ -131,8 +143,14 @@ export function useSelection(
 
       const boxRect = container.getBoundingClientRect();
       const metrics = computeSelectionMetrics(range, boxRect);
+      const commonAncestor = range.commonAncestorContainer;
+      const nextSourceElement =
+        commonAncestor.nodeType === globalThis.Node.ELEMENT_NODE
+          ? (commonAncestor as Element)
+          : commonAncestor.parentElement;
 
       selectionRangeRef.current = range;
+      setSourceElement(nextSourceElement);
       setSelectedText(rawText);
       setRelativeTop(metrics.relativeTop);
       setSelectionPosition(metrics.position);
@@ -208,7 +226,15 @@ export function useSelection(
       text: selectedText,
       position: selectionPosition,
       relativeTop,
+      sourceElement,
       clear: clearSelection,
     };
-  }, [showSelection, selectedText, selectionPosition, relativeTop, clearSelection]);
+  }, [
+    showSelection,
+    selectedText,
+    selectionPosition,
+    relativeTop,
+    sourceElement,
+    clearSelection,
+  ]);
 }

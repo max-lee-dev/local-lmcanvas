@@ -11,8 +11,12 @@ import {
 } from "./storage/canvases";
 import { readSettings, writeSettings } from "./storage/settings";
 import { buildPromptWithHistory } from "./claude/history";
-import { runAgent } from "./agents";
-import { shutdownCodexAppServers } from "./agents/codexAppServer";
+import { runAgent, type RunnerEvent } from "./agents";
+import {
+  getCodexRuntimeInfo,
+  prewarmCodexAppServer,
+  shutdownCodexAppServers,
+} from "./agents/codexAppServer";
 import { generateGroupSummaries } from "./groupSummary/generate";
 import { generateCanvasName } from "./canvasName/generate";
 import { getProviderAuthStatus, openLoginTerminal } from "./auth/providerAuth";
@@ -94,6 +98,20 @@ function createWindow(hash?: string): BrowserWindow {
 
 type ActiveChat = { controller: AbortController; nodeId: string };
 const activeChats = new Map<string, ActiveChat>();
+
+const CLAUDE_FABLE_POLICY_FALLBACK_MODEL = "claude-opus-4-8";
+
+function isFableModel(model: string | undefined): model is string {
+  return model?.toLowerCase().includes("fable") === true;
+}
+
+function isPolicyRefusalEvent(event: RunnerEvent): boolean {
+  return (
+    (event.kind === "error" ||
+      (event.kind === "done" && event.isError === true)) &&
+    event.code === "policy_refusal"
+  );
+}
 
 const TERSE_NARRATION_INSTRUCTION =
   "RESPONSE STYLE: Before each batch of tool calls (typically 1–5 parallel calls), write ONE very short action-form label as a single line — 3 to 8 words, MAX 10, gerund form. Examples: 'Reading the canvas store', 'Searching for tool handlers', 'Editing the badge component', 'Building the calculator UI'. Strict rules: (1) State ONLY the next action — never two sentences, never an acknowledgment followed by an action. (2) NEVER start with a reaction or judgment word: no 'Good', 'Great', 'Perfect', 'Nice', 'Cool', 'Awesome', 'Excellent', 'Got it', 'Done', 'OK', 'Okay', 'Alright', 'Hmm'. (3) NEVER describe what just happened or summarize a prior result — no 'X created.', 'X done.', 'X works.' Skip straight to the next action. (4) NEVER use first-person prefixes like 'I'll', 'Let me', 'I'm going to', 'Now I will'. (5) No trailing ellipsis. When you fire a long sequence of tool calls, insert a fresh action-form label every ~5 calls. Save longer prose for your final answer to the user.";
@@ -190,6 +208,7 @@ function registerIpc(): void {
       planMode: inlinePlanMode,
       chatOnly: inlineChatOnly,
       parentSession,
+      currentSession,
     } = args;
     const sender = e.sender;
 
@@ -230,7 +249,10 @@ function registerIpc(): void {
     const serviceTier = nodeSettings?.serviceTier ?? providerCfg?.serviceTier;
     const compatibleParentSession =
       parentSession?.provider === provider ? parentSession : undefined;
-    const agentPrompt = compatibleParentSession ? prompt : combinedPrompt;
+    const compatibleCurrentSession =
+      currentSession?.provider === provider ? currentSession : undefined;
+    const agentPrompt =
+      compatibleCurrentSession || compatibleParentSession ? prompt : combinedPrompt;
 
     // Effective cwd: node override → canvas → user home (least-invasive fallback so
     // every provider runner — which require a string cwd — always has one).
@@ -249,93 +271,146 @@ function registerIpc(): void {
     let firstProviderEventSeen = false;
     console.info("[lmcanvas:latency]", { chatId, provider, phase: "start", elapsedMs: 0 });
 
+    const forwardEvent = (ev: RunnerEvent): void => {
+      if (
+        !firstProviderEventSeen &&
+        (ev.kind === "text_delta" ||
+          ev.kind === "thinking_delta" ||
+          ev.kind === "tool_use")
+      ) {
+        firstProviderEventSeen = true;
+        console.info("[lmcanvas:latency]", {
+          chatId,
+          provider,
+          phase: "first_provider_event",
+          elapsedMs: Date.now() - startedAt,
+        });
+      }
+      switch (ev.kind) {
+        case "session":
+          send({ chatId, type: "session", session: ev.session });
+          return;
+        case "response_complete":
+          send({ chatId, type: "response_complete" });
+          return;
+        case "text_delta":
+          send({ chatId, type: "text_delta", text: ev.text });
+          return;
+        case "thinking_delta":
+          send({ chatId, type: "thinking_delta", text: ev.text });
+          return;
+        case "tool_use":
+          send({
+            chatId,
+            type: "tool_use",
+            toolUseId: ev.toolUseId,
+            name: ev.name,
+            input: ev.input,
+          });
+          return;
+        case "tool_result":
+          send({
+            chatId,
+            type: "tool_result",
+            toolUseId: ev.toolUseId,
+            content: ev.content,
+            isError: ev.isError,
+          });
+          return;
+        case "error":
+          send({
+            chatId,
+            type: "error",
+            message: ev.message,
+            code: ev.code,
+            provider,
+          });
+          return;
+        case "done":
+          console.info("[lmcanvas:latency]", {
+            chatId,
+            provider,
+            phase: "done",
+            elapsedMs: Date.now() - startedAt,
+          });
+          send({
+            chatId,
+            type: "done",
+            isError: ev.isError,
+            result: ev.result,
+            code: ev.code,
+            usage: ev.usage,
+            provider: ev.isError ? provider : undefined,
+          });
+          return;
+      }
+    };
+
+    const runAttempt = async (
+      attemptModel: string | undefined,
+      allowPolicyFallback: boolean,
+    ): Promise<boolean> => {
+      const attemptController = new AbortController();
+      const abortAttempt = () => attemptController.abort(controller.signal.reason);
+      if (controller.signal.aborted) abortAttempt();
+      else controller.signal.addEventListener("abort", abortAttempt, { once: true });
+
+      let policyRefused = false;
+      try {
+        await runAgent(provider, agentPrompt, {
+          cwd: effectiveCwd,
+          model: attemptModel,
+          reasoningEffort,
+          serviceTier,
+          parentSession: compatibleParentSession,
+          currentSession: compatibleCurrentSession,
+          binPath,
+          systemPrompt,
+          attachments,
+          signal: attemptController.signal,
+          planMode,
+          chatOnly,
+          webContents: sender,
+          nodeId,
+          onEvent: (ev) => {
+            if (policyRefused) return;
+            if (allowPolicyFallback && isPolicyRefusalEvent(ev)) {
+              policyRefused = true;
+              attemptController.abort(new Error("Retrying policy refusal with Opus 4.8."));
+              return;
+            }
+            forwardEvent(ev);
+          },
+        });
+      } finally {
+        controller.signal.removeEventListener("abort", abortAttempt);
+      }
+      return policyRefused;
+    };
+
     try {
-      await runAgent(provider, agentPrompt, {
-        cwd: effectiveCwd,
+      const policyRefused = await runAttempt(
         model,
-        reasoningEffort,
-        serviceTier,
-        parentSession: compatibleParentSession,
-        binPath,
-        systemPrompt,
-        attachments,
-        signal: controller.signal,
-        planMode,
-        chatOnly,
-        webContents: sender,
-        nodeId,
-        onEvent: (ev) => {
-          if (
-            !firstProviderEventSeen &&
-            (ev.kind === "text_delta" ||
-              ev.kind === "thinking_delta" ||
-              ev.kind === "tool_use")
-          ) {
-            firstProviderEventSeen = true;
-            console.info("[lmcanvas:latency]", {
-              chatId,
-              provider,
-              phase: "first_provider_event",
-              elapsedMs: Date.now() - startedAt,
-            });
-          }
-          switch (ev.kind) {
-            case "session":
-              send({ chatId, type: "session", session: ev.session });
-              return;
-            case "text_delta":
-              send({ chatId, type: "text_delta", text: ev.text });
-              return;
-            case "thinking_delta":
-              send({ chatId, type: "thinking_delta", text: ev.text });
-              return;
-            case "tool_use":
-              send({
-                chatId,
-                type: "tool_use",
-                toolUseId: ev.toolUseId,
-                name: ev.name,
-                input: ev.input,
-              });
-              return;
-            case "tool_result":
-              send({
-                chatId,
-                type: "tool_result",
-                toolUseId: ev.toolUseId,
-                content: ev.content,
-                isError: ev.isError,
-              });
-              return;
-            case "error":
-              send({
-                chatId,
-                type: "error",
-                message: ev.message,
-                code: ev.code,
-                provider,
-              });
-              return;
-            case "done":
-              console.info("[lmcanvas:latency]", {
-                chatId,
-                provider,
-                phase: "done",
-                elapsedMs: Date.now() - startedAt,
-              });
-              send({
-                chatId,
-                type: "done",
-                isError: ev.isError,
-                result: ev.result,
-                code: ev.code,
-                usage: ev.usage,
-                provider: ev.isError ? provider : undefined,
-              });
-              return;
-          }
-        },
-      });
+        provider === "claude" && isFableModel(model),
+      );
+      if (policyRefused && !controller.signal.aborted) {
+        send({
+          chatId,
+          type: "model_fallback",
+          fromModel: model ?? "claude-fable-5",
+          toModel: CLAUDE_FABLE_POLICY_FALLBACK_MODEL,
+          reason: "policy_refusal",
+        });
+        console.info("[lmcanvas:latency]", {
+          chatId,
+          provider,
+          phase: "model_fallback",
+          fromModel: model ?? "claude-fable-5",
+          toModel: CLAUDE_FABLE_POLICY_FALLBACK_MODEL,
+          elapsedMs: Date.now() - startedAt,
+        });
+        await runAttempt(CLAUDE_FABLE_POLICY_FALLBACK_MODEL, false);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       send({ chatId, type: "error", message, provider });
@@ -377,6 +452,11 @@ function registerIpc(): void {
       settings.providers?.[provider]?.binPath ??
       (provider === "claude" ? settings.claudeBinPath : undefined);
     await openLoginTerminal(provider, binPath);
+  });
+
+  ipcMain.handle("providers:codexRuntime", async () => {
+    const settings = await readSettings();
+    return getCodexRuntimeInfo(settings.providers?.codex?.binPath ?? "codex");
   });
 
   ipcMain.handle("window:openCanvas", async (_e, canvasId?: string) => {
@@ -473,6 +553,12 @@ app.whenReady().then(async () => {
   createWindow();
   initAutoUpdate();
   installUpdateMenuItem();
+
+  void readSettings()
+    .then((settings) =>
+      prewarmCodexAppServer(settings.providers?.codex?.binPath ?? "codex"),
+    )
+    .catch((error) => console.warn("[codex] prewarm skipped:", error));
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

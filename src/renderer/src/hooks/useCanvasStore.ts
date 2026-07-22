@@ -11,6 +11,7 @@ import type {
   AppSettings,
   ErrorCode,
   Message,
+  ModelFallback,
   NodeId,
   NodeSettings,
   Provider,
@@ -82,6 +83,7 @@ export type CanvasStoreState = {
   /** Programmatically set the canvas selection to exactly one node, or clear
    *  it. Drives the right-side node drawer's auto-switch behavior. */
   setSelectedNodeId: (id: NodeId | null) => void;
+  setSelectedNodeIds: (ids: NodeId[]) => void;
   removeNode: (id: NodeId) => void;
   connectEdge: (source: NodeId, target: NodeId, opts?: { sourceYOffset?: number }) => void;
   appendMessage: (nodeId: NodeId, msg: Message) => void;
@@ -96,6 +98,11 @@ export type CanvasStoreState = {
     isError: boolean
   ) => void;
   setMessageUsage: (nodeId: NodeId, messageId: string, usage?: UsageSummary) => void;
+  setMessageModelFallback: (
+    nodeId: NodeId,
+    messageId: string,
+    fallback: ModelFallback,
+  ) => void;
   setProviderSession: (nodeId: NodeId, session: ProviderSessionRef) => void;
   finalizeMessage: (nodeId: NodeId, messageId: string) => void;
   errorMessage: (
@@ -294,10 +301,21 @@ export function createCanvasStoreApi(): CanvasStoreApi {
 
       loadCanvas: async (id: string) => {
         set({ loaded: false, error: null });
-        const [canvas, settings] = await Promise.all([
-          window.api.canvases.read(id),
-          window.api.settings.read(),
-        ]);
+        let canvas: Canvas | null;
+        let settings: AppSettings;
+        try {
+          [canvas, settings] = await Promise.all([
+            window.api.canvases.read(id),
+            window.api.settings.read(),
+          ]);
+        } catch (error) {
+          console.error(`[canvases] failed to load ${id}:`, error);
+          set({
+            error: "Unable to load this canvas. Its saved file may be damaged.",
+            loaded: true,
+          });
+          return;
+        }
         if (!canvas) {
           set({ error: `Failed to load canvas ${id}`, loaded: true });
           return;
@@ -532,15 +550,20 @@ export function createCanvasStoreApi(): CanvasStoreApi {
       },
 
       setSelectedNodeId: (id) => {
+        get().setSelectedNodeIds(id === null ? [] : [id]);
+      },
+
+      setSelectedNodeIds: (ids) => {
         // xyflow attaches `selected` at runtime on the CanvasNode shape, even
         // though our static type omits it. Widen locally to read/write it.
         type WithSelected = CanvasNode & { selected?: boolean };
+        const selectedIds = new Set(ids);
         set((s) => {
           let changed = false;
           const nextById: Record<NodeId, CanvasNode> = {};
           for (const key of Object.keys(s.nodes)) {
             const n = s.nodes[key] as WithSelected;
-            const shouldBeSelected = id !== null && n.id === id;
+            const shouldBeSelected = selectedIds.has(n.id);
             if (Boolean(n.selected) === shouldBeSelected) {
               nextById[key] = n;
               continue;
@@ -725,6 +748,25 @@ export function createCanvasStoreApi(): CanvasStoreApi {
         set((s) => {
           const nodes = updateMessages(s.nodes, nodeId, (messages) =>
             mapMessage(messages, messageId, (m) => ({ ...m, usage })),
+          );
+          return nodes ? { nodes } : s;
+        });
+        get().markDirty();
+      },
+
+      setMessageModelFallback: (nodeId, messageId, modelFallback) => {
+        set((s) => {
+          const nodes = updateMessages(s.nodes, nodeId, (messages) =>
+            mapMessage(messages, messageId, (m) => ({
+              ...m,
+              blocks: [],
+              status: "streaming",
+              error: undefined,
+              errorCode: undefined,
+              errorProvider: undefined,
+              suggestions: undefined,
+              modelFallback,
+            })),
           );
           return nodes ? { nodes } : s;
         });

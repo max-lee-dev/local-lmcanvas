@@ -1,6 +1,12 @@
+import { randomUUID } from "node:crypto";
 import { writeAttachmentsToTemp } from "./attachmentTempFiles";
 import { CodexAppServerClient } from "./codexAppServer";
-import type { UsageSummary } from "@shared/types";
+import type {
+  CodexModelInfo,
+  CodexRuntimeInfo,
+  ReasoningEffort,
+  UsageSummary,
+} from "@shared/types";
 import {
   errorMessage,
   isAuthError,
@@ -26,8 +32,16 @@ function numberField(value: unknown, key: string): number | undefined {
   return typeof obj?.[key] === "number" ? obj[key] : undefined;
 }
 
-function serviceTier(value: RunAgentOpts["serviceTier"]): string | null | undefined {
-  if (value === "fast") return "fast";
+function serviceTier(
+  value: RunAgentOpts["serviceTier"],
+  model: CodexModelInfo | undefined,
+): string | null | undefined {
+  if (value === "fast") {
+    if (!model) return "priority";
+    return model.serviceTiers.find(
+      (tier) => tier.id === "priority" || tier.id === "fast",
+    )?.id;
+  }
   if (value === "standard") return null;
   return undefined;
 }
@@ -61,180 +75,90 @@ export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void
       attachmentCleanup = written.cleanup;
     }
 
+    const connectStartedAt = Date.now();
     const client = await CodexAppServerClient.connect(opts.binPath || "codex");
+    const runtimeInfo: CodexRuntimeInfo = await client.getRuntimeInfo().catch((error) => {
+      console.warn("[codex] model catalog unavailable:", error);
+      return { models: [] };
+    });
+    const modelId = opts.model ?? runtimeInfo.defaultModelId;
+    const modelInfo = runtimeInfo.models.find((model) => model.id === modelId);
+    const reasoningEffort =
+      opts.reasoningEffort ?? modelInfo?.defaultReasoningEffort;
+    const resolvedServiceTier = serviceTier(opts.serviceTier, modelInfo);
+    console.info("[codex:latency]", {
+      nodeId: opts.nodeId,
+      phase: "connected",
+      elapsedMs: Date.now() - connectStartedAt,
+    });
+
     const threadConfig: JsonObject = {
       cwd: opts.cwd,
       approvalPolicy: "never",
       sandbox: "danger-full-access",
-      ...(opts.model ? { model: opts.model } : {}),
+      ...(modelId ? { model: modelId } : {}),
       ...(opts.systemPrompt ? { developerInstructions: opts.systemPrompt } : {}),
-      ...(serviceTier(opts.serviceTier) !== undefined
-        ? { serviceTier: serviceTier(opts.serviceTier) }
+      ...(resolvedServiceTier !== undefined
+        ? { serviceTier: resolvedServiceTier }
         : {}),
     };
 
+    const currentThreadId =
+      opts.currentSession?.provider === "codex"
+        ? opts.currentSession.id
+        : undefined;
     const parentThreadId =
       opts.parentSession?.provider === "codex" ? opts.parentSession.id : undefined;
-    const threadResult = await client.request(
-      parentThreadId ? "thread/fork" : "thread/start",
-      parentThreadId ? { threadId: parentThreadId, ...threadConfig } : threadConfig,
-    );
-    const thread = asObject(asObject(threadResult)?.thread);
-    const threadId = typeof thread?.id === "string" ? thread.id : undefined;
+    const lifecycleStartedAt = Date.now();
+    let lifecycle = "continue";
+    let threadId = currentThreadId;
+    if (currentThreadId && !client.isThreadLoaded(currentThreadId)) {
+      lifecycle = "resume";
+      const result = await client.requestWithOverloadRetry("thread/resume", {
+        threadId: currentThreadId,
+        excludeTurns: true,
+        ...threadConfig,
+      });
+      threadId = stringField(asObject(asObject(result)?.thread), "id");
+    } else if (!currentThreadId && parentThreadId) {
+      lifecycle = "fork";
+      const result = await client.requestWithOverloadRetry("thread/fork", {
+        threadId: parentThreadId,
+        excludeTurns: true,
+        ...threadConfig,
+      });
+      threadId = stringField(asObject(asObject(result)?.thread), "id");
+    } else if (!currentThreadId) {
+      lifecycle = "start";
+      const result = await client.requestWithOverloadRetry(
+        "thread/start",
+        threadConfig,
+      );
+      threadId = stringField(asObject(asObject(result)?.thread), "id");
+    }
     if (!threadId) throw new Error("Codex app-server did not return a thread ID.");
+    client.markThreadLoaded(threadId);
+    console.info("[codex:latency]", {
+      nodeId: opts.nodeId,
+      phase: "thread_ready",
+      lifecycle,
+      elapsedMs: Date.now() - lifecycleStartedAt,
+    });
 
     emit({ kind: "session", session: { provider: "codex", id: threadId } });
-
-    let turnId: string | null = null;
-    let settled = false;
-    let lastUsage: JsonObject | undefined;
-    const agentDeltaItems = new Set<string>();
-    const reasoningDeltaItems = new Set<string>();
-    const commandOutput = new Map<string, string>();
-
-    const completion = new Promise<void>((resolve, reject) => {
-      const finish = (error?: Error) => {
-        if (settled) return;
-        settled = true;
-        off();
-        if (error) reject(error);
-        else resolve();
-      };
-
-      const off = client.onNotification((method, params) => {
-        if (method === "transport/error") {
-          finish(new Error(stringField(params, "message") ?? "Codex app-server stopped."));
-          return;
-        }
-        if (params.threadId !== threadId) return;
-        const notificationTurnId =
-          typeof params.turnId === "string"
-            ? params.turnId
-            : stringField(params.turn, "id");
-        if (turnId && notificationTurnId && notificationTurnId !== turnId) return;
-
-        if (method === "item/agentMessage/delta") {
-          const itemId = stringField(params, "itemId") ?? "agent";
-          const delta = stringField(params, "delta");
-          if (delta) {
-            agentDeltaItems.add(itemId);
-            emit({ kind: "text_delta", text: delta });
-          }
-          return;
-        }
-
-        if (
-          method === "item/reasoning/summaryTextDelta" ||
-          method === "item/reasoning/textDelta"
-        ) {
-          const itemId = stringField(params, "itemId") ?? "reasoning";
-          const delta = stringField(params, "delta");
-          if (delta) {
-            reasoningDeltaItems.add(itemId);
-            emit({ kind: "thinking_delta", text: delta });
-          }
-          return;
-        }
-
-        if (method === "item/commandExecution/outputDelta") {
-          const itemId = stringField(params, "itemId");
-          const delta = stringField(params, "delta");
-          if (itemId && delta) {
-            const output = (commandOutput.get(itemId) ?? "") + delta;
-            commandOutput.set(itemId, output);
-            emit({
-              kind: "tool_result",
-              toolUseId: itemId,
-              content: output,
-              isError: false,
-            });
-          }
-          return;
-        }
-
-        if (method === "item/started") {
-          const item = asObject(params.item);
-          if (item) emitStartedItem(item, emit);
-          return;
-        }
-
-        if (method === "item/completed") {
-          const item = asObject(params.item);
-          if (item) {
-            emitCompletedItem(
-              item,
-              emit,
-              agentDeltaItems,
-              reasoningDeltaItems,
-              commandOutput,
-            );
-          }
-          return;
-        }
-
-        if (method === "thread/tokenUsage/updated") {
-          const usage = asObject(asObject(params.tokenUsage)?.last);
-          if (usage) lastUsage = usage;
-          return;
-        }
-
-        if (method === "turn/completed") {
-          const turn = asObject(params.turn);
-          const status = stringField(turn, "status");
-          if (status === "failed") {
-            const error = asObject(turn?.error);
-            const message =
-              stringField(error, "message") ?? "Codex app-server turn failed.";
-            emit({ kind: "error", message });
-            emit({ kind: "done", isError: true, result: message });
-          } else {
-            emit({ kind: "done", isError: status === "interrupted", usage: usage(lastUsage) });
-          }
-          finish();
-          return;
-        }
-
-        if (method === "error") {
-          const message = stringField(params, "message") ?? "Codex app-server error.";
-          finish(new Error(message));
-        }
-      });
-
-      const onAbort = () => {
-        if (!turnId) return;
-        void client
-          .request("turn/interrupt", { threadId, turnId })
-          .catch((error) => console.warn("[codex] interrupt failed:", error));
-      };
-      if (opts.signal) {
-        if (opts.signal.aborted) onAbort();
-        else opts.signal.addEventListener("abort", onAbort, { once: true });
-      }
-    });
-
-    const input: JsonObject[] = [
-      { type: "text", text: prompt, text_elements: [] },
-      ...imagePaths.map((path) => ({ type: "localImage", path })),
-    ];
-    const turnResult = await client.request("turn/start", {
-      threadId,
-      input,
-      cwd: opts.cwd,
-      approvalPolicy: "never",
-      sandboxPolicy: { type: "dangerFullAccess" },
-      ...(opts.model ? { model: opts.model } : {}),
-      ...(opts.reasoningEffort ? { effort: opts.reasoningEffort } : {}),
-      ...(serviceTier(opts.serviceTier) !== undefined
-        ? { serviceTier: serviceTier(opts.serviceTier) }
-        : {}),
-    });
-    turnId = stringField(asObject(turnResult)?.turn, "id") ?? null;
-    if (!turnId) throw new Error("Codex app-server did not return a turn ID.");
-    if (opts.signal?.aborted) {
-      await client.request("turn/interrupt", { threadId, turnId });
-    }
-
-    await completion;
+    await client.runThreadExclusive(threadId, () =>
+      runCodexTurn({
+        client,
+        threadId,
+        prompt,
+        imagePaths,
+        opts,
+        emit,
+        modelId,
+        reasoningEffort,
+        serviceTier: resolvedServiceTier,
+      }),
+    );
   } catch (error) {
     const message = errorMessage(error);
     emit({ kind: "error", message });
@@ -248,6 +172,231 @@ export async function runCodex(prompt: string, opts: RunAgentOpts): Promise<void
       }
     }
   }
+}
+
+type RunCodexTurnArgs = {
+  client: CodexAppServerClient;
+  threadId: string;
+  prompt: string;
+  imagePaths: string[];
+  opts: RunAgentOpts;
+  emit: (event: RunnerEvent) => void;
+  modelId?: string;
+  reasoningEffort?: ReasoningEffort;
+  serviceTier?: string | null;
+};
+
+async function runCodexTurn({
+  client,
+  threadId,
+  prompt,
+  imagePaths,
+  opts,
+  emit,
+  modelId,
+  reasoningEffort,
+  serviceTier: resolvedServiceTier,
+}: RunCodexTurnArgs): Promise<void> {
+  const startedAt = Date.now();
+  let turnId: string | null = null;
+  let settled = false;
+  let firstDeltaSeen = false;
+  let lastUsage: JsonObject | undefined;
+  const agentDeltaItems = new Set<string>();
+  const reasoningDeltaItems = new Set<string>();
+  const commandOutput = new Map<string, string>();
+
+  const markFirstDelta = (): void => {
+    if (firstDeltaSeen) return;
+    firstDeltaSeen = true;
+    console.info("[codex:latency]", {
+      nodeId: opts.nodeId,
+      phase: "first_delta",
+      elapsedMs: Date.now() - startedAt,
+    });
+  };
+
+  let removeAbortListener = (): void => {};
+  let cancelCompletion = (): void => {};
+  const completion = new Promise<void>((resolve, reject) => {
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      off();
+      removeAbortListener();
+      if (error) reject(error);
+      else resolve();
+    };
+    cancelCompletion = () => finish();
+
+    const off = client.onNotification((method, params) => {
+      if (method === "transport/error") {
+        finish(new Error(stringField(params, "message") ?? "Codex app-server stopped."));
+        return;
+      }
+      if (params.threadId !== threadId) return;
+      const notificationTurnId =
+        typeof params.turnId === "string"
+          ? params.turnId
+          : stringField(params.turn, "id");
+      if (turnId && notificationTurnId && notificationTurnId !== turnId) return;
+
+      if (method === "item/agentMessage/delta") {
+        const itemId = stringField(params, "itemId") ?? "agent";
+        const delta = stringField(params, "delta");
+        if (delta) {
+          markFirstDelta();
+          agentDeltaItems.add(itemId);
+          emit({ kind: "text_delta", text: delta });
+        }
+        return;
+      }
+
+      if (
+        method === "item/reasoning/summaryTextDelta" ||
+        method === "item/reasoning/textDelta"
+      ) {
+        const itemId = stringField(params, "itemId") ?? "reasoning";
+        const delta = stringField(params, "delta");
+        if (delta) {
+          markFirstDelta();
+          reasoningDeltaItems.add(itemId);
+          emit({ kind: "thinking_delta", text: delta });
+        }
+        return;
+      }
+
+      if (method === "item/commandExecution/outputDelta") {
+        const itemId = stringField(params, "itemId");
+        const delta = stringField(params, "delta");
+        if (itemId && delta) {
+          markFirstDelta();
+          const output = (commandOutput.get(itemId) ?? "") + delta;
+          commandOutput.set(itemId, output);
+          emit({
+            kind: "tool_result",
+            toolUseId: itemId,
+            content: output,
+            isError: false,
+          });
+        }
+        return;
+      }
+
+      if (method === "item/started") {
+        const item = asObject(params.item);
+        if (item) {
+          markFirstDelta();
+          emitStartedItem(item, emit);
+        }
+        return;
+      }
+
+      if (method === "item/completed") {
+        const item = asObject(params.item);
+        if (item) {
+          emitCompletedItem(
+            item,
+            emit,
+            agentDeltaItems,
+            reasoningDeltaItems,
+            commandOutput,
+          );
+        }
+        return;
+      }
+
+      if (method === "thread/tokenUsage/updated") {
+        const usageValue = asObject(asObject(params.tokenUsage)?.last);
+        if (usageValue) lastUsage = usageValue;
+        return;
+      }
+
+      if (method === "turn/completed") {
+        const turn = asObject(params.turn);
+        const status = stringField(turn, "status");
+        console.info("[codex:latency]", {
+          nodeId: opts.nodeId,
+          phase: "turn_complete",
+          status,
+          elapsedMs: Date.now() - startedAt,
+        });
+        if (status === "failed") {
+          const error = asObject(turn?.error);
+          const message =
+            stringField(error, "message") ?? "Codex app-server turn failed.";
+          emit({ kind: "error", message });
+          emit({ kind: "done", isError: true, result: message });
+        } else {
+          emit({
+            kind: "done",
+            isError: status === "interrupted",
+            usage: usage(lastUsage),
+          });
+        }
+        finish();
+        return;
+      }
+
+      if (method === "error") {
+        const message = stringField(params, "message") ?? "Codex app-server error.";
+        finish(new Error(message));
+      }
+    });
+
+    const onAbort = () => {
+      if (!turnId) return;
+      void client
+        .request("turn/interrupt", { threadId, turnId })
+        .catch((error) => console.warn("[codex] interrupt failed:", error));
+    };
+    if (opts.signal) {
+      if (opts.signal.aborted) onAbort();
+      else {
+        opts.signal.addEventListener("abort", onAbort, { once: true });
+        removeAbortListener = () => opts.signal?.removeEventListener("abort", onAbort);
+      }
+    }
+  });
+
+  const input: JsonObject[] = [
+    { type: "text", text: prompt, textElements: [] },
+    ...imagePaths.map((path) => ({ type: "localImage", path })),
+  ];
+  let turnResult: unknown;
+  try {
+    turnResult = await client.requestWithOverloadRetry("turn/start", {
+      threadId,
+      input,
+      clientUserMessageId: randomUUID(),
+      cwd: opts.cwd,
+      approvalPolicy: "never",
+      sandboxPolicy: { type: "dangerFullAccess" },
+      ...(modelId ? { model: modelId } : {}),
+      ...(reasoningEffort ? { effort: reasoningEffort } : {}),
+      ...(resolvedServiceTier !== undefined
+        ? { serviceTier: resolvedServiceTier }
+        : {}),
+    });
+  } catch (error) {
+    cancelCompletion();
+    throw error;
+  }
+  turnId = stringField(asObject(turnResult)?.turn, "id") ?? null;
+  if (!turnId) {
+    cancelCompletion();
+    throw new Error("Codex app-server did not return a turn ID.");
+  }
+  console.info("[codex:latency]", {
+    nodeId: opts.nodeId,
+    phase: "turn_started",
+    elapsedMs: Date.now() - startedAt,
+  });
+  if (opts.signal?.aborted) {
+    await client.request("turn/interrupt", { threadId, turnId });
+  }
+
+  await completion;
 }
 
 function emitStartedItem(item: JsonObject, emit: (event: RunnerEvent) => void): void {

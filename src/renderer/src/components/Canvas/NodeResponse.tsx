@@ -1,8 +1,14 @@
-import { CircleStop, Loader2 } from "lucide-react";
+import { CircleStop, Loader2, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import { useState } from "react";
-import type { ContentBlock, ImageBlock, Message, ToolUseBlock } from "@shared/types";
+import type {
+  ContentBlock,
+  ImageBlock,
+  Message,
+  ModelFallback,
+  ToolUseBlock,
+} from "@shared/types";
 import { TextBlockView } from "./blocks/TextBlockView";
 import { ToolGroupView } from "./blocks/ToolGroupView";
 import { ThinkingView } from "./blocks/ThinkingView";
@@ -117,6 +123,10 @@ export function NodeResponse({ message, onStop, nodeId, onSuggestionClick }: Pro
         isError && "rounded-[8px] border border-destructive/30 bg-destructive/5 px-2 py-1.5"
       )}
     >
+      {message.modelFallback && (
+        <ModelFallbackNotice fallback={message.modelFallback} />
+      )}
+
       {isStreaming && !hasAnyContent && <GeneratingIndicator onStop={onStop} />}
 
       {(() => {
@@ -167,6 +177,24 @@ export function NodeResponse({ message, onStop, nodeId, onSuggestionClick }: Pro
       )}
     </div>
   );
+}
+
+function ModelFallbackNotice({ fallback }: { fallback: ModelFallback }) {
+  return (
+    <div className="mb-1.5 flex items-start gap-1.5 rounded-[6px] border border-amber-500/30 bg-amber-500/5 px-2 py-1.5 text-[10px] text-amber-600 dark:text-amber-400">
+      <RefreshCw className="mt-0.5 h-3 w-3 shrink-0" />
+      <span>
+        {modelLabel(fallback.fromModel)} was blocked by Claude policy checks.
+        Retried automatically with {modelLabel(fallback.toModel)}.
+      </span>
+    </div>
+  );
+}
+
+function modelLabel(model: string): string {
+  if (model === "claude-fable-5") return "Fable 5";
+  if (model === "claude-opus-4-8") return "Opus 4.8";
+  return model;
 }
 
 function SuggestionButtons({

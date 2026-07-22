@@ -1,4 +1,4 @@
-import { KeyRound } from "lucide-react";
+import { KeyRound, Settings } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Message } from "@shared/types";
 import { openSettings } from "@/lib/openSettings";
@@ -9,6 +9,7 @@ type Props = { message: Message };
 export function ErrorBlock({ message }: Props) {
   if (!message.error) return null;
   const authRequired = message.errorCode === "auth_required";
+  const policyRefusal = message.errorCode === "policy_refusal";
   const providerName = message.errorProvider
     ? PROVIDER_INFO[message.errorProvider]?.name ?? message.errorProvider
     : null;
@@ -18,7 +19,9 @@ export function ErrorBlock({ message }: Props) {
       <div className="text-[10px] text-destructive whitespace-pre-wrap">
         {authRequired && providerName
           ? `${providerName} authentication required. Sign in again to continue.`
-          : message.error}
+          : policyRefusal
+            ? "Claude blocked this request at the provider. This can be a false positive; try a more specific prompt or switch the Claude model."
+            : message.error}
       </div>
       {authRequired && (
         <motion.button
@@ -32,7 +35,19 @@ export function ErrorBlock({ message }: Props) {
           Re-authenticate in Settings
         </motion.button>
       )}
-      {authRequired && (
+      {policyRefusal && (
+        <motion.button
+          type="button"
+          onClick={() => openSettings()}
+          className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-destructive/40 bg-background px-2 py-1 text-[10px] font-medium text-destructive hover:bg-destructive/10 cursor-pointer"
+          whileTap={{ scale: 0.96 }}
+          whileHover={{ scale: 1.02 }}
+        >
+          <Settings className="h-3 w-3" />
+          Change Claude model
+        </motion.button>
+      )}
+      {(authRequired || policyRefusal) && (
         <details className="mt-1">
           <summary className="cursor-pointer text-[10px] text-destructive/70 hover:text-destructive">
             details

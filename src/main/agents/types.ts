@@ -10,6 +10,7 @@ import type {
 
 export type RunnerEvent =
   | { kind: "text_delta"; text: string }
+  | { kind: "response_complete" }
   | { kind: "session"; session: ProviderSessionRef }
   | { kind: "tool_use"; toolUseId: string; name: string; input: unknown }
   | { kind: "tool_result"; toolUseId: string; content: string; isError: boolean }
@@ -39,6 +40,17 @@ export function isAuthError(message: string): boolean {
   return AUTH_PATTERNS.some((re) => re.test(message));
 }
 
+const POLICY_REFUSAL_PATTERNS: RegExp[] = [
+  /unable to respond to this request.*usage policy/is,
+  /request was blocked.*terms of service/is,
+  /restrictions on reverse engineering or duplicating model outputs/i,
+];
+
+export function isPolicyRefusal(message: string): boolean {
+  if (!message) return false;
+  return POLICY_REFUSAL_PATTERNS.some((re) => re.test(message));
+}
+
 export type RunAgentOpts = {
   cwd: string;
   model?: string;
@@ -52,6 +64,8 @@ export type RunAgentOpts = {
   serviceTier?: CodexServiceTier;
   /** Provider-native state from the primary parent node. */
   parentSession?: ProviderSessionRef;
+  /** Provider-native state already owned by this node. */
+  currentSession?: ProviderSessionRef;
   /** Claude-only; ignored by codex/cursor runners. */
   planMode?: boolean;
   /** Claude-only; skip the claude_code preset for a fast pure-chat path. Ignored when planMode is also true. */

@@ -57,6 +57,7 @@ const api: LmcApi = {
       ipcRenderer.invoke("providers:authStatus", provider),
     openLoginTerminal: (provider: Provider) =>
       ipcRenderer.invoke("providers:openLogin", provider),
+    codexRuntime: () => ipcRenderer.invoke("providers:codexRuntime"),
   },
   askUser: {
     onRequest: (handler: (req: AskUserRequest) => void) => {
