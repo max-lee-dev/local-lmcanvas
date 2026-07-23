@@ -17,9 +17,11 @@ import {
   useCanvasStoreApi,
 } from "@/hooks/useCanvasStore";
 import { useCenterOnNode } from "@/hooks/useCenterOnNode";
+import type { Attachment } from "@shared/ipc";
 
 export type BranchOptions = {
   prefill?: string;
+  attachments?: Attachment[];
   /** If true, the prefill is submitted immediately instead of populating the
    *  child's textarea — used by next-step suggestion buttons. */
   autoSubmit?: boolean;
@@ -28,6 +30,10 @@ export type BranchOptions = {
   placeBelow?: boolean;
   /** If false, create the child without moving or zooming the viewport. */
   focusViewport?: boolean;
+  /** Pan to the child without changing the current viewport zoom. */
+  preserveZoom?: boolean;
+  /** If false, leave keyboard focus where the branch was initiated. */
+  focusInput?: boolean;
   addedContext?: string;
   selectionViewportY?: number;
   /** Called synchronously with the new child's id right after it's added to
@@ -56,16 +62,21 @@ export function useBranchFromNode(parentId: string): BranchFn {
     (opts) => {
       const {
         prefill,
+        attachments,
         autoSubmit,
         placeBelow,
         focusViewport = true,
+        preserveZoom = false,
+        focusInput = true,
         addedContext,
         selectionViewportY,
         onCreated,
         isTemporary,
       } = opts ?? {};
       const parentPos = parentNode?.position ?? { x: 0, y: 0 };
-      const isRightLane = !placeBelow && (Boolean(prefill) || Boolean(addedContext));
+      const isRightLane =
+        !placeBelow &&
+        (Boolean(prefill) || Boolean(attachments?.length) || Boolean(addedContext));
       let position: { x: number; y: number };
       let sourceYOffset: number | undefined;
       if (isRightLane) {
@@ -93,7 +104,9 @@ export function useBranchFromNode(parentId: string): BranchFn {
       }
       const child = makeBlankNode(position, parentId, addedContext);
       if (isTemporary) child.data.chat.isTemporary = true;
-      if (prefill) setPrefill(child.id, prefill, { autoSubmit });
+      if (prefill || attachments?.length) {
+        setPrefill(child.id, prefill ?? "", { autoSubmit, attachments });
+      }
       addNode(child);
       connectEdge(parentId, child.id, sourceYOffset != null ? { sourceYOffset } : undefined);
       onCreated?.(child.id);
@@ -119,10 +132,11 @@ export function useBranchFromNode(parentId: string): BranchFn {
             fresh.position.y,
             NODE_WIDTH,
             h || FALLBACK_NODE_HEIGHT,
+            preserveZoom ? zoom : undefined,
           );
         }
 
-        focusNodeTextarea(child.id);
+        if (focusInput) focusNodeTextarea(child.id);
       });
     },
     [

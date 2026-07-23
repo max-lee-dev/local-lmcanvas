@@ -47,6 +47,12 @@ function CustomNodeImpl(props: NodeProps) {
   const toggleMergeNode = useCanvasStore((s) => s.toggleMergeNode);
   const askUserRequest = useAskUserStore((s) => s.byNode[id]);
   const totalNodeCount = useCanvasStore((s) => Object.keys(s.nodes).length);
+  // A node created with a pending auto-submit prefill (e.g. from the linear
+  // chat drawer) fires immediately and unmounts its input, so auto-focusing it
+  // would only steal focus from wherever the send was initiated.
+  const pendingAutoSubmit = useCanvasStore(
+    (s) => s.pendingPrefills[id]?.autoSubmit ?? false,
+  );
 
   const [hovered, setHovered] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -169,7 +175,7 @@ function CustomNodeImpl(props: NodeProps) {
             : fileDrop.dragOver
             ? "border-accent bg-muted"
             : selected
-            ? "border-accent bg-accent/10"
+            ? "border-accent/70 bg-accent/5"
             : isTemporary
             ? "border-amber-500/60"
             : "border-border",
@@ -275,11 +281,12 @@ function CustomNodeImpl(props: NodeProps) {
               onSubmit={submit}
               onStop={stop}
               streaming={streaming}
-              autoFocus
+              autoFocus={!pendingAutoSubmit}
             />
           )}
           {userMessage && !promptEdit.isEditing && (
             <div
+              data-canvas-message-id={userMessage.id}
               onClick={promptEdit.begin}
               className={clsx(canEditPrompt ? "cursor-text" : "cursor-default")}
               title={canEditPrompt ? "Click to edit prompt" : undefined}
@@ -311,19 +318,21 @@ function CustomNodeImpl(props: NodeProps) {
             </div>
           )}
           {assistantMessage && (
-            <NodeResponse
-              message={assistantMessage}
-              onStop={stop}
-              nodeId={id}
-              onSuggestionClick={(prompt) =>
-                branch({
-                  prefill: prompt,
-                  autoSubmit: true,
-                  placeBelow: true,
-                  focusViewport: false,
-                })
-              }
-            />
+            <div data-canvas-message-id={assistantMessage.id}>
+              <NodeResponse
+                message={assistantMessage}
+                onStop={stop}
+                nodeId={id}
+                onSuggestionClick={(prompt) =>
+                  branch({
+                    prefill: prompt,
+                    autoSubmit: true,
+                    placeBelow: true,
+                    focusViewport: false,
+                  })
+                }
+              />
+            </div>
           )}
           {askUserRequest && <AskUserPrompt request={askUserRequest} />}
         </div>
@@ -377,7 +386,10 @@ function CustomNodeImpl(props: NodeProps) {
           )}
           <button
             type="button"
-            onClick={() => branch()}
+            onClick={(e) => {
+              e.stopPropagation();
+              branch();
+            }}
             onMouseDown={(e) => e.stopPropagation()}
             disabled={!showFollowUp}
             className={clsx(

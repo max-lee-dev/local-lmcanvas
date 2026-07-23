@@ -285,12 +285,13 @@ header.app-drag {
 .group-summary-overlay,
 .group-summary-overlay * {
   font-family:
-    var(--font-geist-sans),
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    sans-serif !important;
+    var(--font-geist-mono),
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace !important;
 }
 
 /* Settings modal: pin Geist everywhere except explicit mono spans. */

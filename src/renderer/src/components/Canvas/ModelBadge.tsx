@@ -8,7 +8,7 @@ import { PROVIDER_INFO } from "@/components/Onboarding/providerInfo";
 import { ProviderLogo } from "./ProviderLogo";
 import { BadgePopover } from "./BadgePopover";
 
-type Props = { nodeId: NodeId };
+type Props = { nodeId: NodeId; popoverSide?: "top" | "bottom" };
 type ProviderUsageTotals = Record<
   Provider,
   {
@@ -20,7 +20,7 @@ type ProviderUsageTotals = Record<
   }
 >;
 
-export function ModelBadge({ nodeId }: Props) {
+export function ModelBadge({ nodeId, popoverSide }: Props) {
   const effectiveProvider = useCanvasStore((s) => s.getEffectiveProvider(nodeId));
   const overrideProvider = useCanvasStore(
     (s) => s.nodes[nodeId]?.data.nodeSettings?.provider,
@@ -34,6 +34,7 @@ export function ModelBadge({ nodeId }: Props) {
 
   return (
     <BadgePopover
+      side={popoverSide}
       title={`Provider: ${PROVIDER_INFO[provider].name}${overridden ? " (node override)" : " (canvas)"} · click to switch`}
       overridden={overridden}
       ariaHasPopup="listbox"

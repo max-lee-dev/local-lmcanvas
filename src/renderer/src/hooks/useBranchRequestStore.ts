@@ -1,11 +1,14 @@
 import { create } from "zustand";
+import type { Attachment } from "@shared/ipc";
 
 export type BranchRequest = {
   /** Pane that owns the parent node — only that pane consumes the request. */
   paneId: string;
   parentId: string;
-  prefill: string;
+  prefill?: string;
+  attachments?: Attachment[];
   addedContext?: string;
+  selectionMessageId?: string;
   /** Unique id per emit so consumers can detect new requests via id change. */
   requestId: string;
 };

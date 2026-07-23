@@ -11,7 +11,7 @@ import { REASONING_EFFORTS } from "@shared/types";
 import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { BadgePopover } from "./BadgePopover";
 
-type Props = { nodeId: NodeId };
+type Props = { nodeId: NodeId; popoverSide?: "top" | "bottom" };
 
 const FALLBACK_CODEX_REASONING_EFFORT: ReasoningEffort = "low";
 
@@ -33,7 +33,7 @@ const SHORT_LABEL_BY_EFFORT: Record<ReasoningEffort, string> = {
   ultra: "ultra",
 };
 
-export function PowerBadge({ nodeId }: Props) {
+export function PowerBadge({ nodeId, popoverSide }: Props) {
   const provider = useCanvasStore((s) => s.getEffectiveProvider(nodeId));
   const overrideEffort = useCanvasStore(
     (s) => s.nodes[nodeId]?.data.nodeSettings?.reasoningEffort,
@@ -96,14 +96,13 @@ export function PowerBadge({ nodeId }: Props) {
 
   return (
     <BadgePopover
+      side={popoverSide}
       title={`Thinking: ${LABEL_BY_EFFORT[effort]} · speed: ${tier}${overridden ? " (node override)" : ""}`}
-      overridden={overridden}
       panelClassName="w-[216px]"
-      triggerStyle={{ fontFamily: "var(--font-geist-sans)" }}
       label={
         <>
           <Gauge className="w-[10px] h-[10px] text-muted-foreground" />
-          <span className="text-[9px] capitalize">
+          <span className="text-[8px] tracking-tight capitalize">
             {SHORT_LABEL_BY_EFFORT[effort]}
           </span>
           {tier === "fast" && (

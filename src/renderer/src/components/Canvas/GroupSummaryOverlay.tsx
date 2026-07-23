@@ -13,8 +13,8 @@ const VIEWPORT_VISIBILITY_TOLERANCE = 8;
 const VISIBILITY_DEBOUNCE_MS = 10;
 const NEAR_MAX_ZOOM_OUT_THRESHOLD = 0.15;
 const TOO_ZOOMED_IN_THRESHOLD = 3.0;
-const GEIST_SANS_FONT_STACK =
-  "var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+const GEIST_MONO_FONT_STACK =
+  "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 
 const OVERLAY_PALETTE = [
   { border: "rgba(59, 130, 246, 0.88)", fill: "rgba(59, 130, 246, 0.06)" },
@@ -347,7 +347,7 @@ export function GroupSummaryOverlay({
   return (
     <div
       className="group-summary-overlay pointer-events-none absolute inset-0 z-[5] overflow-hidden"
-      style={{ fontFamily: GEIST_SANS_FONT_STACK }}
+      style={{ fontFamily: GEIST_MONO_FONT_STACK }}
     >
       <div ref={transformRef} style={{ transformOrigin: "0 0" }}>
         <AnimatePresence mode="sync">
@@ -384,7 +384,7 @@ export function GroupSummaryOverlay({
                       <span
                         className="block whitespace-nowrap font-semibold tracking-tight text-foreground/90"
                         style={{
-                          fontFamily: GEIST_SANS_FONT_STACK,
+                          fontFamily: GEIST_MONO_FONT_STACK,
                           fontSize: "var(--group-font-size, 12px)",
                           lineHeight: 1.05,
                           opacity: 0.96,
@@ -421,7 +421,7 @@ export function GroupSummaryOverlay({
                   <span
                     className="block whitespace-nowrap font-semibold tracking-tight text-foreground/90"
                     style={{
-                      fontFamily: GEIST_SANS_FONT_STACK,
+                      fontFamily: GEIST_MONO_FONT_STACK,
                       opacity: 0.96,
                     }}
                   >

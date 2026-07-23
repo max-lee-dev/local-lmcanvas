@@ -31,6 +31,7 @@ export function CanvasPage({ ids }: CanvasPageProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showSplitPicker, setShowSplitPicker] = useState(false);
   const [splitFraction, setSplitFraction] = useState(0.5);
+  const [nodePanelWidth, setNodePanelWidth] = useState<number | null>(null);
   const splitContainerRef = useRef<HTMLDivElement>(null);
   const activePaneId = useActivePaneStore((s) => s.activePaneId);
   const browserOpen = useBrowserPanelStore((s) => s.open);
@@ -86,8 +87,12 @@ export function CanvasPage({ ids }: CanvasPageProps) {
       <div
         className="absolute top-3 z-50 no-drag flex items-center gap-1"
         style={{
-          right: rightDrawerOpen
-            ? `calc(33.333% + 12px + ${timelineOffset}px)`
+          right: nodeDrawerOpen
+            ? nodePanelWidth !== null
+              ? nodePanelWidth + 12 + timelineOffset
+              : `calc(50% + 12px + ${timelineOffset}px)`
+            : rightDrawerOpen
+              ? `calc(33.333% + 12px + ${timelineOffset}px)`
             : (isSplit ? 48 : 12) + timelineOffset,
         }}
       >
@@ -144,7 +149,11 @@ export function CanvasPage({ ids }: CanvasPageProps) {
           Both drawers shift inward by the timeline panel's width when it's
           open, so all three (drawer + timeline + canvas) coexist cleanly. */}
       {nodeDrawerOpen ? (
-        <NodePanel rightOffset={timelineOffset} />
+        <NodePanel
+          rightOffset={timelineOffset}
+          width={nodePanelWidth}
+          onWidthChange={setNodePanelWidth}
+        />
       ) : (
         <BrowserPanel rightOffset={timelineOffset} />
       )}

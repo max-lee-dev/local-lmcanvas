@@ -6,7 +6,7 @@ import { useCanvasStore } from "@/hooks/useCanvasStore";
 import { useRecentsStore } from "@/hooks/useRecentsStore";
 import { BadgePopover } from "./BadgePopover";
 
-type Props = { nodeId: NodeId };
+type Props = { nodeId: NodeId; popoverSide?: "top" | "bottom" };
 
 function splitPath(p: string): { name: string; parent: string } {
   const cleaned = p.replace(/[/\\]+$/u, "");
@@ -33,7 +33,7 @@ function isLikelyPath(value: string): boolean {
   );
 }
 
-export function FolderBadge({ nodeId }: Props) {
+export function FolderBadge({ nodeId, popoverSide }: Props) {
   const effectiveCwd = useCanvasStore((s) => s.getEffectiveCwd(nodeId));
   const overrideCwd = useCanvasStore(
     (s) => s.nodes[nodeId]?.data.nodeSettings?.cwd,
@@ -54,6 +54,7 @@ export function FolderBadge({ nodeId }: Props) {
 
   return (
     <BadgePopover
+      side={popoverSide}
       title={effectiveCwd ?? "No folder set"}
       overridden={overridden}
       ariaHasPopup="dialog"

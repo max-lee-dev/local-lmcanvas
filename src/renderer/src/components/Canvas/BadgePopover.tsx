@@ -23,6 +23,7 @@ type BadgePopoverProps = {
   triggerStyle?: CSSProperties;
   /** ARIA props for the trigger button. */
   ariaHasPopup?: "listbox" | "dialog" | "menu";
+  side?: "top" | "bottom";
 };
 
 export function BadgePopover({
@@ -33,6 +34,7 @@ export function BadgePopover({
   panelClassName,
   triggerStyle,
   ariaHasPopup = "dialog",
+  side = "bottom",
 }: BadgePopoverProps) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -66,7 +68,7 @@ export function BadgePopover({
         }}
         onMouseDown={(e) => e.stopPropagation()}
         className={clsx(
-          "flex items-center gap-1 rounded-sm border bg-card text-foreground px-1.5 py-[5px] text-xs font-medium cursor-pointer transition-colors",
+          "flex items-center gap-1 rounded-sm border bg-card text-foreground px-1.5 py-[5px] text-xs font-medium cursor-pointer outline-none transition-colors focus-visible:ring-1 focus-visible:ring-foreground/30",
           "hover:bg-muted",
           open && "bg-muted",
           overridden
@@ -92,7 +94,8 @@ export function BadgePopover({
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.12 }}
             className={clsx(
-              "absolute left-0 top-full z-50 mt-1 rounded-md border border-border bg-card shadow-lg overflow-hidden",
+              "absolute left-0 z-50 rounded-md border border-border bg-card shadow-lg overflow-hidden",
+              side === "top" ? "bottom-full mb-1" : "top-full mt-1",
               panelClassName ?? "min-w-[180px]",
             )}
             role="dialog"

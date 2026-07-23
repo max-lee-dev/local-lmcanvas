@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { useStore } from "zustand";
@@ -12,8 +12,18 @@ import { useActiveSelectedNodeId } from "@/hooks/useActiveSelectedNode";
 import { getMessageHistoryForNode } from "@shared/history";
 import { NodeResponse } from "@/components/Canvas/NodeResponse";
 import { SelectionActionButton } from "@/components/Canvas/SelectionActionButton";
+import { useBranchRequestStore } from "@/hooks/useBranchRequestStore";
 import { useSelection } from "@/hooks/useSelection";
 import { NodePanelComposer } from "./NodePanelComposer";
+
+const MIN_PANEL_WIDTH = 360;
+const MIN_VISIBLE_CANVAS_WIDTH = 280;
+
+type NodePanelProps = {
+  rightOffset?: number;
+  width?: number | null;
+  onWidthChange?: (width: number | null) => void;
+};
 
 /**
  * Right-side drawer that shows the linear conversation history leading up
@@ -26,26 +36,84 @@ import { NodePanelComposer } from "./NodePanelComposer";
  * CanvasPage uses the same signal to auto-switch between this and the
  * BrowserPanel.
  */
-export function NodePanel({ rightOffset = 0 }: { rightOffset?: number } = {}) {
+export function NodePanel({
+  rightOffset = 0,
+  width = null,
+  onWidthChange,
+}: NodePanelProps = {}) {
   const api = useActivePaneStoreApi();
   const selectedId = useActiveSelectedNodeId();
   const activePaneId = useActivePaneStore((s) => s.activePaneId);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [resizeStart, setResizeStart] = useState<{
+    pointerX: number;
+    width: number;
+  } | null>(null);
 
   const open = api !== null && selectedId !== null && activePaneId !== null;
+
+  useEffect(() => {
+    if (!resizeStart || !onWidthChange) return;
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onMouseMove = (event: MouseEvent) => {
+      const availableWidth = window.innerWidth - rightOffset;
+      const maxWidth = Math.max(
+        MIN_PANEL_WIDTH,
+        availableWidth - MIN_VISIBLE_CANVAS_WIDTH,
+      );
+      const nextWidth = resizeStart.width + resizeStart.pointerX - event.clientX;
+      onWidthChange(Math.min(maxWidth, Math.max(MIN_PANEL_WIDTH, nextWidth)));
+    };
+    const onMouseUp = () => setResizeStart(null);
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [onWidthChange, resizeStart, rightOffset]);
 
   return (
     <AnimatePresence>
       {open && (
         <motion.div
-          key={`node-panel-${activePaneId}-${selectedId}`}
+          ref={panelRef}
+          key={`node-panel-${activePaneId}`}
           data-node-panel
           initial={{ x: "100%" }}
           animate={{ x: 0 }}
           exit={{ x: "100%" }}
           transition={{ type: "spring", stiffness: 320, damping: 32 }}
-          style={{ right: rightOffset }}
-          className="absolute top-0 h-full w-1/3 min-w-[360px] z-30 bg-background border-l border-border flex flex-col shadow-lg"
+          style={{ right: rightOffset, width: width ?? undefined }}
+          className={`absolute top-0 h-full min-w-[360px] z-30 bg-background border-l border-border flex flex-col shadow-lg ${width === null ? "w-1/2" : ""}`}
         >
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize linear chat"
+            title="Drag to resize · double-click to reset"
+            onMouseDown={(event) => {
+              if (!onWidthChange || !panelRef.current) return;
+              event.preventDefault();
+              event.stopPropagation();
+              setResizeStart({
+                pointerX: event.clientX,
+                width: panelRef.current.getBoundingClientRect().width,
+              });
+            }}
+            onDoubleClick={() => onWidthChange?.(null)}
+            className="group absolute inset-y-0 -left-1 z-50 w-2 cursor-col-resize no-drag"
+          >
+            <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border transition-colors group-hover:bg-accent" />
+          </div>
           <CanvasStoreBridge api={api!}>
             <NodePanelBody
               api={api!}
@@ -70,6 +138,8 @@ function NodePanelBody({
 }) {
   const nodes = useStore(api, (s) => s.nodes);
   const setSelectedNodeId = useStore(api, (s) => s.setSelectedNodeId);
+  const setPrefill = useStore(api, (s) => s.setPrefill);
+  const requestBranch = useBranchRequestStore((s) => s.request);
 
   const messages = useMemo(
     () => getMessageHistoryForNode(nodeId, nodes),
@@ -86,15 +156,51 @@ function NodePanelBody({
   }, [nodes]);
 
   const node = nodes[nodeId];
+  const streaming = Boolean(
+    node?.data.chat.messages.some((message) => message.status === "streaming"),
+  );
   const title = node?.data.title?.trim() || titleFromFirstUserMessage(messages);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastSignatureRef = useRef<string>("");
-  const [selectedContext, setSelectedContext] = useState<{
-    text: string;
-    parentId: string;
-  }>();
   const selection = useSelection(scrollRef, { placement: "inside-right" });
+
+  const createSelectionBranch = useCallback(() => {
+    if (!selection) return;
+    const historyMessage = selection.sourceElement?.closest<HTMLElement>(
+      "[data-history-node-id]",
+    );
+    const addedContext = selection.text.trim();
+    if (!addedContext) return;
+
+    requestBranch({
+      paneId,
+      parentId: historyMessage?.dataset.historyNodeId ?? nodeId,
+      addedContext,
+      selectionMessageId: historyMessage?.dataset.historyMessageId,
+    });
+    selection.clear({ removeRange: true });
+  }, [nodeId, paneId, requestBranch, selection]);
+
+  useEffect(() => {
+    if (!selection) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter") return;
+      if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      event.preventDefault();
+      createSelectionBranch();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [createSelectionBranch, selection]);
 
   // Autoscroll to bottom whenever the visible message tail grows or streams.
   useEffect(() => {
@@ -153,6 +259,7 @@ function NodePanelBody({
           <div
             key={m.id}
             data-history-node-id={messageOwnerIds.get(m.id) ?? nodeId}
+            data-history-message-id={m.id}
             className={m.role === "user" ? "flex justify-end" : "flex justify-start"}
           >
             <div
@@ -162,7 +269,7 @@ function NodePanelBody({
                   : "node-panel-message max-w-[95%]"
               }
             >
-              <NodeResponse message={m} />
+              <NodeResponse message={m} imageDisplay="preview" />
             </div>
           </div>
         ))}
@@ -173,24 +280,21 @@ function NodePanelBody({
           isVisible
           relativeTop={selection.relativeTop}
           absolutePosition={selection.position}
-          onClick={() => {
-            const historyMessage = selection.sourceElement?.closest<HTMLElement>(
-              "[data-history-node-id]",
-            );
-            setSelectedContext({
-              text: selection.text.trim(),
-              parentId: historyMessage?.dataset.historyNodeId ?? nodeId,
-            });
-            selection.clear({ removeRange: true });
-          }}
+          onClick={createSelectionBranch}
         />
       )}
 
       <NodePanelComposer
         paneId={paneId}
-        parentId={selectedContext?.parentId ?? nodeId}
-        selectedContext={selectedContext?.text}
-        onClearSelectedContext={() => setSelectedContext(undefined)}
+        parentId={nodeId}
+        streaming={streaming}
+        onStop={() => void window.api.chat.cancelForNode(nodeId)}
+        onSubmitCurrentNode={
+          node?.data.chat.messages.length === 0
+            ? (text, attachments) =>
+                setPrefill(nodeId, text, { autoSubmit: true, attachments })
+            : undefined
+        }
       />
     </>
   );

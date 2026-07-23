@@ -27,6 +27,7 @@ import {
   migrateMessage,
 } from "@shared/history";
 import { isUnnamedCanvasName, promptToCanvasName } from "@shared/canvasName";
+import type { Attachment } from "@shared/ipc";
 import { getEdgeHandles } from "@/lib/edgeHandles";
 import { FALLBACK_NODE_HEIGHT, VERTICAL_CHILD_OFFSET } from "@/lib/canvasConstants";
 import { useRecentsStore } from "@/hooks/useRecentsStore";
@@ -116,7 +117,11 @@ export type CanvasStoreState = {
   serialize: () => Canvas | null;
   markDirty: () => void;
   save: () => Promise<void>;
-  setPrefill: (nodeId: NodeId, text: string, opts?: { autoSubmit?: boolean }) => void;
+  setPrefill: (
+    nodeId: NodeId,
+    text: string,
+    opts?: { autoSubmit?: boolean; attachments?: Attachment[] },
+  ) => void;
   consumePrefill: (nodeId: NodeId) => PendingPrefill | undefined;
   /** Replace a message's parsed `<next-steps>` suggestions. */
   setSuggestions: (nodeId: NodeId, messageId: string, suggestions: Suggestion[]) => void;
@@ -124,7 +129,11 @@ export type CanvasStoreState = {
 
 /** Initial prompt to render into a freshly-created node's input. `autoSubmit` skips
  *  the editor population and fires the prompt directly — used by next-step buttons. */
-export type PendingPrefill = { text: string; autoSubmit?: boolean };
+export type PendingPrefill = {
+  text: string;
+  autoSubmit?: boolean;
+  attachments?: Attachment[];
+};
 
 export type CanvasStoreApi = Mutate<
   StoreApi<CanvasStoreState>,
@@ -147,6 +156,12 @@ function hasNodeSettings(settings: NodeSettings): boolean {
   );
 }
 
+function withoutTransientSelection(node: CanvasNode): CanvasNode {
+  const copy = { ...node } as CanvasNode & { selected?: boolean };
+  delete copy.selected;
+  return copy;
+}
+
 function canvasFromState(s: CanvasStoreState): Canvas | null {
   if (!s.canvasId) return null;
   return {
@@ -154,7 +169,7 @@ function canvasFromState(s: CanvasStoreState): Canvas | null {
     name: s.name,
     createdAt: s.createdAt,
     updatedAt: Date.now(),
-    nodes: Object.values(s.nodes),
+    nodes: Object.values(s.nodes).map(withoutTransientSelection),
     edges: s.edges,
     provider: s.provider,
     ...(s.cwd ? { cwd: s.cwd } : {}),
@@ -332,11 +347,12 @@ export function createCanvasStoreApi(): CanvasStoreApi {
                 : m
             );
           }
+          const persistentNode = withoutTransientSelection(n);
           nodes[n.id] = {
-            ...n,
+            ...persistentNode,
             data: {
-              ...n.data,
-              chat: { ...n.data.chat, messages: migrated },
+              ...persistentNode.data,
+              chat: { ...persistentNode.data.chat, messages: migrated },
             },
           };
         }
@@ -846,9 +862,13 @@ export function createCanvasStoreApi(): CanvasStoreApi {
       },
 
       setPrefill: (nodeId, text, opts) => {
-        const entry: PendingPrefill = opts?.autoSubmit
-          ? { text, autoSubmit: true }
-          : { text };
+        const entry: PendingPrefill = {
+          text,
+          ...(opts?.autoSubmit ? { autoSubmit: true } : {}),
+          ...(opts?.attachments?.length
+            ? { attachments: opts.attachments }
+            : {}),
+        };
         set((s) => ({ pendingPrefills: { ...s.pendingPrefills, [nodeId]: entry } }));
       },
 

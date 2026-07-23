@@ -32,7 +32,10 @@ import {
 } from "./MentionEditor";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import type { Attachment, FileEntry, SlashItem } from "@shared/ipc";
-import type { ImageMediaType } from "@shared/types";
+import {
+  filesToImageAttachments,
+  imageFilesFromClipboard,
+} from "@/lib/imageAttachments";
 
 type Props = {
   nodeId: string;
@@ -44,13 +47,6 @@ type Props = {
   initialAttachments?: Attachment[];
   onCancel?: () => void;
 };
-
-const ALLOWED_TYPES = new Set<string>([
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-]);
 
 export type NodePromptInputHandle = {
   addFiles: (files: FileList | File[]) => Promise<void>;
@@ -168,18 +164,22 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
     if (pending !== undefined) {
       const prefill = consumePrefill(nodeId);
       if (!prefill) return;
-      const { text, autoSubmit } = prefill;
-      if (segmentsAreEmpty(segments) && text) {
+      const { text, autoSubmit, attachments: prefillAttachments } = prefill;
+      if (
+        segmentsAreEmpty(segments) &&
+        (text || (prefillAttachments?.length ?? 0) > 0)
+      ) {
         if (autoSubmit) {
           // Skip populating the editor — fire the prompt directly. The parent
           // chat hook handles message append + streaming exactly as if the
           // user had typed and hit enter.
-          onSubmit(text);
+          onSubmit(text, prefillAttachments);
           editorRef.current?.clear();
           setSegments([]);
         } else {
           const next = textToSegments(text);
           editorRef.current?.setSegments(next);
+          setAttachments(prefillAttachments ?? []);
           editorRef.current?.focus(true);
         }
       }
@@ -189,9 +189,8 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
   }, [pending, consumePrefill, nodeId]);
 
   const addFiles = async (files: FileList | File[]): Promise<void> => {
-    const list = Array.from(files).filter((f) => ALLOWED_TYPES.has(f.type));
-    if (list.length === 0) return;
-    const next = await Promise.all(list.map(fileToAttachment));
+    const next = await filesToImageAttachments(files);
+    if (next.length === 0) return;
     setAttachments((prev) => [...prev, ...next]);
   };
 
@@ -218,14 +217,7 @@ export const NodePromptInput = forwardRef<NodePromptInputHandle, Props>(function
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>): void => {
     const items = e.clipboardData?.items;
     if (!items) return;
-    const files: File[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      if (it.kind === "file") {
-        const f = it.getAsFile();
-        if (f && ALLOWED_TYPES.has(f.type)) files.push(f);
-      }
-    }
+    const files = imageFilesFromClipboard(items);
     if (files.length > 0) {
       e.preventDefault();
       void addFiles(files);
@@ -376,24 +368,4 @@ function ThumbChip({
       />
     </>
   );
-}
-
-async function fileToAttachment(file: File): Promise<Attachment> {
-  const buf = await file.arrayBuffer();
-  const base64 = arrayBufferToBase64(buf);
-  return {
-    mediaType: file.type as ImageMediaType,
-    base64,
-  };
-}
-
-function arrayBufferToBase64(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf);
-  const chunkSize = 0x8000;
-  const parts: string[] = [];
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const slice = bytes.subarray(i, i + chunkSize);
-    parts.push(String.fromCharCode(...slice));
-  }
-  return btoa(parts.join(""));
 }

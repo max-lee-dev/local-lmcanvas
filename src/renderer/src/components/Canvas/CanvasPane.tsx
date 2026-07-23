@@ -22,6 +22,7 @@ import { FALLBACK_NODE_HEIGHT, NODE_WIDTH } from "@/lib/canvasConstants";
 import { useRegisterPaneStore } from "@/hooks/usePaneRegistry";
 import { useBranchRequestStore } from "@/hooks/useBranchRequestStore";
 import { useBranchFromNode } from "@/hooks/useBranchFromNode";
+import { findMessageTextViewportY } from "@/lib/nodeDom";
 
 type CanvasPaneProps = {
   /** The canvas to load into this pane. Also serves as the pane's identity. */
@@ -193,11 +194,23 @@ function BranchRequestListener({ paneId }: { paneId: string }) {
   useEffect(() => {
     if (!pending || !matches || !parentId) return;
     const requestId = pending.requestId;
+    const selectionViewportY = pending.addedContext
+      ? findMessageTextViewportY(
+          parentId,
+          pending.selectionMessageId,
+          pending.addedContext,
+        )
+      : undefined;
     branch({
       prefill: pending.prefill,
-      autoSubmit: true,
-      placeBelow: true,
+      attachments: pending.attachments,
+      autoSubmit:
+        Boolean(pending.prefill) || Boolean(pending.attachments?.length),
+      placeBelow: !pending.addedContext,
+      preserveZoom: true,
+      focusInput: false,
       addedContext: pending.addedContext,
+      selectionViewportY,
       onCreated: (childId) => {
         // Move canvas selection onto the new child so the drawer
         // auto-switches to it and keeps streaming visible.

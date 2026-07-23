@@ -153,6 +153,12 @@ function migrateNode(node: CanvasNode): CanvasNode {
       chat: {
         ...chat,
         messages,
+        parentIds: Array.isArray(chat.parentIds)
+          ? chat.parentIds.filter((id): id is string => typeof id === "string")
+          : [],
+        childIds: Array.isArray(chat.childIds)
+          ? chat.childIds.filter((id): id is string => typeof id === "string")
+          : [],
         providerSession: parseProviderSession(chat.providerSession),
       },
     },

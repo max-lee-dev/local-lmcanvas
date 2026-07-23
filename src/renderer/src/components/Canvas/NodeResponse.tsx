@@ -76,12 +76,19 @@ type Props = {
   message: Message;
   onStop?: () => void;
   nodeId?: string;
+  imageDisplay?: "thumbnail" | "preview";
   /** Click handler for a `<next-steps>` suggestion button — receives the
    *  full prompt the button represents. */
   onSuggestionClick?: (prompt: string) => void;
 };
 
-export function NodeResponse({ message, onStop, nodeId, onSuggestionClick }: Props) {
+export function NodeResponse({
+  message,
+  onStop,
+  nodeId,
+  imageDisplay = "thumbnail",
+  onSuggestionClick,
+}: Props) {
   const isUser = message.role === "user";
   const isError = message.status === "error";
   const isStreaming = message.status === "streaming";
@@ -105,6 +112,7 @@ export function NodeResponse({ message, onStop, nodeId, onSuggestionClick }: Pro
               <UserImage
                 key={i}
                 src={`data:${img.mediaType};base64,${img.base64}`}
+                display={imageDisplay}
               />
             ))}
           </div>
@@ -287,7 +295,13 @@ function GeneratingIndicator({
   );
 }
 
-function UserImage({ src }: { src: string }) {
+function UserImage({
+  src,
+  display,
+}: {
+  src: string;
+  display: "thumbnail" | "preview";
+}) {
   const [previewOpen, setPreviewOpen] = useState(false);
   return (
     <>
@@ -300,7 +314,12 @@ function UserImage({ src }: { src: string }) {
           setPreviewOpen(true);
         }}
         onMouseDown={(e) => e.stopPropagation()}
-        className="h-10 w-10 rounded-md border border-border object-cover cursor-zoom-in hover:opacity-90 transition-opacity"
+        className={clsx(
+          "cursor-zoom-in border border-border object-cover transition-opacity hover:opacity-90",
+          display === "preview"
+            ? "h-auto max-h-72 max-w-full rounded-lg object-contain"
+            : "h-10 w-10 rounded-md",
+        )}
       />
       <ImagePreviewModal
         src={previewOpen ? src : null}

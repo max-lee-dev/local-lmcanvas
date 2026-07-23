@@ -38,8 +38,6 @@ import {
   type GeneratedNodeSummary,
 } from "@/lib/groupSummary";
 import { useGroupSummaries } from "@/hooks/useGroupSummaries";
-import { useCenterOnNode } from "@/hooks/useCenterOnNode";
-import { FALLBACK_NODE_HEIGHT, NODE_WIDTH } from "@/lib/canvasConstants";
 import type { ChatData } from "@shared/types";
 
 const nodeTypes = { custom: CustomNode };
@@ -48,6 +46,10 @@ const edgeTypes = { offset: OffsetEdge };
 const defaultEdgeOptions = {
   type: "default",
 };
+
+const defaultViewport = { x: 200, y: 200, zoom: 1 };
+const fitViewOptions = { padding: 0.25, maxZoom: 1 };
+const proOptions = { hideAttribution: true };
 
 const edgeStyle = {
   stroke: "var(--muted-foreground)",
@@ -63,7 +65,6 @@ function CanvasInner() {
   const movePosition = useCanvasStore((s) => s.movePosition);
   const removeNode = useCanvasStore((s) => s.removeNode);
   const setSelectedNodeIds = useCanvasStore((s) => s.setSelectedNodeIds);
-  const centerOnNode = useCenterOnNode();
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
@@ -283,22 +284,8 @@ function CanvasInner() {
   const onSelectionChange = useCallback(
     ({ nodes }: OnSelectionChangeParams) => {
       setSelectedNodeIds(nodes.map((node) => node.id));
-      const selected = nodes.length === 1 && nodes[0]?.type === "custom"
-        ? nodes[0]
-        : null;
-      if (!selected) return;
-
-      requestAnimationFrame(() => {
-        const data = selected.data as { width?: number };
-        centerOnNode(
-          selected.position.x,
-          selected.position.y,
-          data.width ?? NODE_WIDTH,
-          selected.measured?.height ?? FALLBACK_NODE_HEIGHT,
-        );
-      });
     },
-    [centerOnNode, setSelectedNodeIds],
+    [setSelectedNodeIds],
   );
 
   const onConnect = useCallback(
@@ -360,9 +347,9 @@ function CanvasInner() {
         onPaneClick={clearSearchHighlights}
         onPaneContextMenu={handlePaneContextMenu}
         onNodeContextMenu={handleNodeContextMenu}
-        defaultViewport={{ x: 200, y: 200, zoom: 1 }}
+        defaultViewport={defaultViewport}
         fitView={nodeCount > 0}
-        fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
+        fitViewOptions={fitViewOptions}
         selectionOnDrag
         selectionMode={SelectionMode.Partial}
         selectNodesOnDrag
@@ -377,7 +364,7 @@ function CanvasInner() {
         zoomOnPinch
         panOnDrag={[1]}
         zoomOnDoubleClick={false}
-        proOptions={{ hideAttribution: true }}
+        proOptions={proOptions}
         defaultEdgeOptions={defaultEdgeOptions}
         connectionLineType={ConnectionLineType.Bezier}
         connectionLineStyle={edgeStyle}
