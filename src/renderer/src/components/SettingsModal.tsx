@@ -1,3 +1,4 @@
+import { CLAUDE_DEFAULT_MODEL } from "@shared/models";
 import { useEffect, useState } from "react";
 import { ChevronDown, MessageSquareDashed, Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -282,7 +283,7 @@ export function SettingsModal({ open, onClose }: Props) {
                                         ? (codexRuntime?.defaultModelId ?? "Codex default")
                                         : provider === "cursor"
                                         ? "auto"
-                                        : "claude-fable-5"
+                                        : CLAUDE_DEFAULT_MODEL
                                     }
                                     {...(provider === "codex"
                                       ? { list: "codex-models" }

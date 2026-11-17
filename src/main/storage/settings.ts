@@ -7,13 +7,14 @@ import type {
   ReasoningEffort,
 } from "@shared/types";
 import { PROVIDERS, REASONING_EFFORTS } from "@shared/types";
+import { CLAUDE_DEFAULT_MODEL, LEGACY_CLAUDE_DEFAULT_MODELS } from "@shared/models";
 import { SETTINGS_FILE, atomicWriteFile, ensureDirs } from "./paths";
 
 const MAX_RECENTS = 8;
 
 const DEFAULTS: AppSettings = {
   systemPrompt: "",
-  claudeModel: "claude-fable-5",
+  claudeModel: CLAUDE_DEFAULT_MODEL,
   claudeBinPath: "claude",
   defaultProvider: "claude",
   providers: {
@@ -93,9 +94,14 @@ function mergeWithDefaults(s: Partial<AppSettings>): AppSettings {
     },
   };
   const lastNodeSettings = sanitizeNodeSettings(s.lastNodeSettings);
+  const claudeModel =
+    s.claudeModel && !LEGACY_CLAUDE_DEFAULT_MODELS.includes(s.claudeModel)
+      ? s.claudeModel
+      : DEFAULTS.claudeModel;
   return {
     ...DEFAULTS,
     ...s,
+    claudeModel,
     providers,
     recentFolders: sanitizeRecents(s.recentFolders),
     recentBranches: sanitizeRecents(s.recentBranches),

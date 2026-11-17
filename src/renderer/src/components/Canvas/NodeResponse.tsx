@@ -15,6 +15,7 @@ import { ThinkingView } from "./blocks/ThinkingView";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import { ErrorBlock } from "./ErrorBlock";
 import { pickSuggestionIcons } from "@/lib/suggestionIcon";
+import { prettyClaudeModelLabel } from "@shared/models";
 
 const MAX_TOOLS_PER_CHUNK = 5;
 
@@ -209,9 +210,7 @@ function ModelFallbackNotice({ fallback }: { fallback: ModelFallback }) {
 }
 
 function modelLabel(model: string): string {
-  if (model === "claude-fable-5") return "Fable 5";
-  if (model === "claude-opus-4-8") return "Opus 4.8";
-  return model;
+  return model.startsWith("claude-") ? prettyClaudeModelLabel(model) : model;
 }
 
 function SuggestionButtons({

@@ -41,6 +41,11 @@ import type {
   SlashItem,
 } from "@shared/ipc";
 import type { AppSettings, Canvas, Provider } from "@shared/types";
+import {
+  CLAUDE_DEFAULT_MODEL,
+  CLAUDE_POLICY_FALLBACK_MODEL,
+  prettyClaudeModelLabel,
+} from "@shared/models";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -99,7 +104,6 @@ function createWindow(hash?: string): BrowserWindow {
 type ActiveChat = { controller: AbortController; nodeId: string };
 const activeChats = new Map<string, ActiveChat>();
 
-const CLAUDE_FABLE_POLICY_FALLBACK_MODEL = "claude-opus-4-8";
 
 function isFableModel(model: string | undefined): model is string {
   return model?.toLowerCase().includes("fable") === true;
@@ -385,7 +389,7 @@ function registerIpc(): void {
             if (policyRefused) return;
             if (allowPolicyFallback && isPolicyRefusalEvent(ev)) {
               policyRefused = true;
-              attemptController.abort(new Error("Retrying policy refusal with Opus 4.8."));
+              attemptController.abort(new Error(`Retrying policy refusal with ${prettyClaudeModelLabel(CLAUDE_POLICY_FALLBACK_MODEL)}.`));
               return;
             }
             forwardEvent(ev);
@@ -406,19 +410,19 @@ function registerIpc(): void {
         send({
           chatId,
           type: "model_fallback",
-          fromModel: model ?? "claude-fable-5",
-          toModel: CLAUDE_FABLE_POLICY_FALLBACK_MODEL,
+          fromModel: model ?? CLAUDE_DEFAULT_MODEL,
+          toModel: CLAUDE_POLICY_FALLBACK_MODEL,
           reason: "policy_refusal",
         });
         console.info("[lmcanvas:latency]", {
           chatId,
           provider,
           phase: "model_fallback",
-          fromModel: model ?? "claude-fable-5",
-          toModel: CLAUDE_FABLE_POLICY_FALLBACK_MODEL,
+          fromModel: model ?? CLAUDE_DEFAULT_MODEL,
+          toModel: CLAUDE_POLICY_FALLBACK_MODEL,
           elapsedMs: Date.now() - startedAt,
         });
-        await runAttempt(CLAUDE_FABLE_POLICY_FALLBACK_MODEL, false);
+        await runAttempt(CLAUDE_POLICY_FALLBACK_MODEL, false);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
